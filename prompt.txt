@@ -1,0 +1,831 @@
+Layout Principal
+
+Header fijo en la parte superior
+Contenedor principal con ancho máximo responsive
+Footer con información corporativa
+Múltiples modales para diferentes funcionalidades
+
+
+2. HEADER (BARRA SUPERIOR)
+2.1 Estructura del Header
+┌─────────────────────────────────────────────────────────┐
+│ [LOGO]              MENÚ NAVEGACIÓN         [ACCEDER]   │
+└─────────────────────────────────────────────────────────┘
+2.2 Componentes del Header
+Logo
+
+Ubicación: Esquina superior izquierda
+Imagen: "SuperTicket.bo_Home_Logo.png"
+Link: Redirige a la página principal "/"
+Responsive: Se mantiene visible en móvil
+
+Menú de Navegación (Centro)
+Items del menú horizontal:
+
+"CÓMO COMPRAR" - Abre modal explicativo
+"ATENCIÓN AL CLIENTE" - Link a /atencion_cliente
+"PREGUNTAS FRECUENTES" - Abre modal FAQ
+"PUNTOS DE VENTA" - Abre modal con ubicaciones
+
+Estilo:
+
+Texto en mayúsculas
+Color: Blanco o color corporativo
+Hover: Cambio de color o subrayado
+En móvil: Menú hamburguesa colapsable
+
+Botón "ACCEDER"
+
+Ubicación: Extremo derecho
+Funcionalidad: Abre modal de login
+Link: /auth/login
+Estilo: Botón con borde o fondo destacado
+
+
+3. BANNER PRINCIPAL (HERO SECTION)
+3.1 Imagen de Portada
+
+Imagen de fondo: "SuperTicket_Portada_LINEA.jpg"
+Altura: ~300-400px en desktop, adaptable en móvil
+Overlay oscuro sutil para mejorar contraste del texto
+
+3.2 Barra de Búsqueda
+Centrada sobre la imagen de portada:
+
+Input de búsqueda con placeholder "Buscar"
+Icono de lupa
+Fondo blanco/translúcido
+Border radius redondeado
+Ancho: ~60% del contenedor en desktop, 90% en móvil
+
+
+4. CARRUSEL DE BANNERS
+4.1 Características del Carrusel
+
+Tipo: Carrusel automático con controles manuales
+Cantidad de slides: 14 banners promocionales
+Transición: Fade o slide horizontal
+Auto-play: Sí (cada 5-7 segundos)
+Controles: Flechas "Previous" y "Next"
+Indicadores: Dots en la parte inferior
+
+4.2 Lista de Banners (en orden)
+
+Shop5_Rotativo_3_Mm8h4tP.jpg → Link: /Vibra-Carnavalera
+Shop5_Rotativo_4_uZC9ckl.jpg → Link: /Descorazonados
+Shop5_Rotativo_CzAIvdo.jpg → Link: /Compadres-Con---Session--1
+2_WIrFQ30.jpg → Link: /Forever-Michael-un-Musical-Eterno
+Rotativo_mQOBIdP.jpeg → Link: /Carnaval-de-Oruro-2026-Avi-Tour
+Shop5_Rotativo_i06SJ4B.jpg → Link: /Zona-Carnavalera
+Shop5_Rotativo_veMqph2.jpg → Link: /Mundo-Encantado--Santa-Cruz-
+Shop5_Rotativo_puSIroa.jpg → Link: /Shingeki-Sinfonico
+Shop5_Rotativo_V9EZ5Rv.jpg → Link: /Lesmills-Day-Tarija-2026
+Shop5_Rotativo_1_JvbOWgx.jpg → Link: /Especial-de-Ha-Ash
+Shop5_Rotativo_ArR9CcJ.jpg → Link: /Tributo-a-Floricienta
+ARTE_1400X400.jpeg → Link: /Abono-2026---Coro-y-Orquesta-Wagneriano-de-la-SOCLP
+Shop5_Rotativo_1_9ZSnlGs.jpg → Link: /Viva-la-Vida--Experiencia-Coldplay
+3_Xl2hOo3.jpg → Link: /Quirquina-Omnia/
+
+4.3 Estilo del Carrusel
+
+Aspecto ratio: 16:9 o similar
+Imagen responsive (cover)
+Transición suave
+Cada banner es clickeable (redirige al evento)
+
+
+5. MENÚ DE CATEGORÍAS
+5.1 Estructura
+Menú horizontal con dropdowns desplegables:
+[Cine ▼] [Conciertos ▼] [Danza ▼] [Deportes ▼] [Ferias ▼] [Fiestas ▼] [Teatro ▼] [Viajes ▼]
+5.2 Categorías y Subcategorías
+CINE
+
+Subcategorías: Ninguna
+Link "TODOS": ?categoria=Cine
+
+CONCIERTOS
+
+Subcategorías:
+
+Cristiano → ?subcategoria=Cristiano
+Cumbia → ?subcategoria=Cumbia
+Filarmónica → ?subcategoria=Filarmónica
+Folklore → ?subcategoria=Folklore
+Jazz → ?subcategoria=Jazz
+Ópera → ?subcategoria=Ópera
+Reggae → ?subcategoria=Reggae
+Rock → ?subcategoria=Rock
+Sinfónico → ?subcategoria=Sinfónico
+
+
+Separador visual (línea horizontal)
+Link "TODOS": ?categoria=Conciertos
+
+DANZA
+
+Subcategorías:
+
+Ballet → ?subcategoria=Ballet
+
+
+Link "TODOS": ?categoria=Danza
+
+DEPORTES
+
+Subcategorías:
+
+Basquetbol → ?subcategoria=Basquetbol
+Carrera Pedestre → ?subcategoria=Carrera Pedestre
+Futbol → ?subcategoria=Futbol
+Voleibol → ?subcategoria=Voleibol
+
+
+Link "TODOS": ?categoria=Deportes
+
+FERIAS
+
+Subcategorías: Ninguna
+Link "TODOS": ?categoria=Ferias
+
+FIESTAS
+
+Subcategorías:
+
+Año Nuevo → ?subcategoria=Año Nuevo
+Carnaval → ?subcategoria=Carnaval
+Clásicos → ?subcategoria=Clásicos
+Electrónica → ?subcategoria=Electrónica
+Entrada Folklorica → ?subcategoria=Entrada Folklorica
+Halloween → ?subcategoria=Halloween
+
+
+Link "TODOS": ?categoria=Fiestas
+
+TEATRO
+
+Subcategorías:
+
+Teatro Musical → ?subcategoria=Teatro Musical
+
+
+Link "TODOS": ?categoria=Teatro
+
+VIAJES
+
+Subcategorías: Ninguna
+Link "TODOS": ?categoria=Viajes
+
+5.3 Diseño del Menú
+
+Menú sticky (se fija al hacer scroll)
+Fondo con color corporativo
+Texto en mayúsculas
+Dropdown con fondo blanco
+Hover effects en items
+Responsive: Se convierte en accordion/hamburguesa en móvil
+
+
+6. SECCIÓN DE EVENTOS (GRID)
+6.1 Botón "Ver más"
+
+Ubicación: Debajo del menú de categorías
+Funcionalidad: Cargar más eventos
+Estilo: Botón centrado, destacado
+
+6.2 Grid de Eventos
+
+Layout: Grid responsivo
+
+Desktop: 4 columnas
+Tablet: 2-3 columnas
+Móvil: 1 columna
+
+
+Gap entre cards: 20-30px
+Padding del contenedor: 40px
+
+6.3 Event Card (Tarjeta de Evento)
+Cada tarjeta debe contener:
+Estructura visual:
+┌─────────────────┐
+│                 │
+│     IMAGEN      │
+│                 │
+├─────────────────┤
+│ Título Evento   │
+│ Fecha y Hora    │
+│ Ubicación       │
+│                 │
+│ [Comprar]       │
+└─────────────────┘
+Elementos de la card:
+
+Imagen del evento: Aspect ratio 3:4, object-fit cover
+Título: Font-weight bold, 2 líneas máximo con ellipsis
+Fecha y hora: Icono de calendario + texto
+Ubicación: Icono de pin + texto
+Botón "Comprar": Full width, color destacado
+Hover effect: Sombra elevada, escala ligera (transform: scale(1.02))
+Link: Toda la card es clickeable
+
+
+7. MODALES
+7.1 Modal: CÓMO COMPRAR
+Título: "Como Comprar"
+Contenido:
+Comprar entradas en nuestro sitio web es muy fácil. A continuación, te explicamos los pasos a seguir:
+
+1. Selecciona el evento al que quieres asistir y haz clic en "Comprar".
+2. Elige el sector y la cantidad de entradas que deseas adquirir.
+3. Verifica el precio y los detalles de tu compra, incluyendo la fecha, hora y lugar del evento.
+4. Completa los datos de pago y confirma tu compra.
+5. Una vez que se haya procesado tu pago, recibirás tu entrada en pantalla. También te enviaremos una copia por Email.
+
+Recuerda que es importante leer los términos y condiciones de compra antes de realizar tu pedido.
+
+Si tienes alguna pregunta o problema durante el proceso de compra, no dudes en ponerte en contacto con nuestro equipo de atención al cliente.
+
+¡Gracias por elegir Superticket.bo para tus eventos favoritos!
+Botón de cierre: "Cerrar" o X en esquina superior derecha
+
+7.2 Modal: PREGUNTAS FRECUENTES
+Título: "Preguntas Frecuentes"
+Contenido destacado al inicio:
+No encuentro mis entradas ¿Cómo puedo recuperarlas?
+Haz click en el menú Atención al Cliente y sigue las instrucciones.
+Texto principal:
+¡Gracias por visitar Superticket.bo! Aquí te presentamos algunas preguntas y respuestas frecuentes relacionadas con la compra de entradas en nuestro sitio web:
+
+1. ¿Cómo puedo comprar entradas en Superticket.bo?
+Para comprar entradas en nuestro sitio web, simplemente busca el evento al que quieres asistir, selecciona la sección y la cantidad de entradas que deseas comprar, completa los datos de pago y confirma tu compra.
+
+2. ¿Cuáles son las formas de pago disponibles en Superticket.bo?
+En Superticket.bo aceptamos tarjetas de crédito y débito Visa, Mastercard, American Express y Diners Club, además de pagos en línea a través de QR Simple y el QR de BaniPay.
+
+3. ¿Cómo puedo recibir mis entradas?
+Una vez que se haya procesado tu pago, recibirás tus entradas por correo electrónico en formato PDF. También puedes acceder a tus entradas desde la sección "Mi cuenta" en nuestro sitio web.
+
+4. ¿Puedo cancelar mi compra de entradas?
+En Superticket.bo, las compras de entradas son definitivas y no reembolsables. Sin embargo, si el evento se cancela o se pospone, se te informará por correo electrónico sobre las opciones de reembolso o cambio de entradas.
+
+5. ¿Qué sucede si pierdo o me roban mis entradas?
+Es importante que guardes tus entradas en un lugar seguro, ya que no podemos reemplazarlas en caso de pérdida o robo. Si alguien más utiliza tus entradas, no podremos garantizar el acceso al evento.
+
+6. ¿Qué sucede si pierdo o me roban mis entradas?
+No se pueden cambiar la fecha ni la sección de las entradas, por lo que es importante que elijas cuidadosamente antes de hacer tu compra.
+
+Si tienes alguna otra pregunta o necesitas ayuda durante el proceso de compra, no dudes en ponerte en contacto con nuestro equipo de atención al cliente. ¡Gracias por elegir Superticket.bo para tus eventos favoritos!
+
+7.3 Modal: PUNTOS DE VENTA
+Título: "PUNTOS DE VENTA"
+Sección 1: EN LA PAZ
+SUPERTICKET ESPACIO KÚU INTI
+El Bosque Boulevard, Calle 15 de Calacoto.
+https://maps.app.goo.gl/h4BCNWnr8Npxp8H16
+Martes a Domingo de 11:00 a 14:30 y de 15:30 a 20:00
+
+SUPERTICKET CINEBOL
+El Alto, Ciudad Satelite, Av. Alfredo Sanjines 500
+https://goo.gl/maps/h7C3nen89xG1amYw9
+Martes a Domingo de 10:00 a 20:30
+
+SUPERTICKET CENTRO LA PAZ
+Plaza del Estudiante, Av. Villazón 1940. Edificio Inchauste, Piso 6 Of. 601 C
+https://goo.gl/maps/guKYkhYbjj7D4A7H8
+Lunes a Viernes de 9:00 a 12:30 y 14:30 a 18:30
+Sábados de 9:00 a 12:30
+Sección 2: EN SANTA CRUZ
+SUPERTICKET CENTRO
+Av. Monseñor Rivero, Edificio Milenium, Piso 8, Of. A.
+https://maps.app.goo.gl/zZm8fsz8jKeYSk627
+Lunes a Viernes de 9:00 a 12:30 y 14:30 a 18:30
+Sábados de 9:00 a 12:30
+Diseño:
+
+Links de Google Maps clickeables
+Nombres de puntos de venta en negrita
+Separación visual entre LA PAZ y SANTA CRUZ
+
+
+7.4 Modal: AVISO DE PRIVACIDAD
+Título: "Aviso de privacidad"
+Contenido completo:
+En SuperTicket.bo nos tomamos muy en serio la privacidad de nuestros clientes y visitantes. A continuación, te explicamos nuestra Política de Privacidad:
+
+Recopilación de información
+Para poder ofrecerte nuestros servicios, es posible que recopilemos cierta información personal, como tu nombre, dirección de correo electrónico, número de teléfono y detalles de pago. También podemos recopilar información sobre cómo utilizas nuestro sitio web y nuestros servicios, incluyendo tu historial de compras y navegación.
+
+Uso de la información
+En SuperTicket.bo utilizamos la información recopilada para procesar tus compras, ofrecerte un servicio personalizado, mejorar nuestro sitio web y comunicarnos contigo sobre nuevos eventos y promociones. No vendemos ni compartimos tus datos personales con terceros con fines comerciales.
+
+Compartición de información
+Sin embargo, es posible que compartamos tu información con nuestros aliados, promotores de eventos o socios de SuperTicket.bo para brindarte servicios de alta calidad y personalizados, como notificaciones sobre eventos o promociones. En caso de que se requiera compartir tu información con terceros, nos aseguraremos de que se mantenga la confidencialidad y la privacidad de tus datos.
+
+Publicidad
+También es posible que te enviemos publicidad por correo electrónico, teléfono o WhatsApp sobre eventos y promociones que puedan ser de tu interés. Si deseas dejar de recibir nuestras comunicaciones de marketing, puedes optar por no recibirlas en cualquier momento a través de la opción de cancelación de suscripción que se encuentra en el correo electrónico o poniéndote en contacto con nuestro equipo de atención al cliente.
+
+Protección de la información
+En SuperTicket.bo utilizamos medidas de seguridad para proteger tus datos personales contra el acceso no autorizado, la alteración, la divulgación o la destrucción.
+
+Cambios en la política de privacidad
+Nos reservamos el derecho de actualizar y modificar esta Política de Privacidad en cualquier momento. Te recomendamos que revises esta página periódicamente para estar al tanto de cualquier cambio.
+
+Si tienes alguna pregunta o inquietud sobre nuestra Política de Privacidad, por favor, ponte en contacto con nuestro equipo de atención al cliente.
+
+7.5 Modal: TÉRMINOS Y CONDICIONES
+Título: "Condiciones Legales"
+Contenido:
+Una vez que finalices tu compra NO podrás solicitar cambios de fecha, ni de sectores. Si no puedes asistir al evento transfiere tus boletos a otra persona. No hay cambios ni devoluciones. Si continúas, aceptas estas condiciones.
+
+7.6 Modal: LOGIN
+Título: "Login"
+Campos del formulario:
+
+Nombre de usuario
+
+Input type: text
+Label: "Nombre de usuario"
+
+
+Contraseña
+
+Input type: password
+Label: "Contraseña"
+
+
+
+Botón: "Acceder"
+Link adicional: Opción de "¿Olvidaste tu contraseña?" (si aplica)
+
+7.7 Modal: MEDIOS DE PAGO
+Título: "Medios de Pago"
+Contenido: Mostrar logos o información de:
+
+Tarjetas de crédito: Visa, Mastercard, American Express, Diners Club
+Pagos QR: QR Simple, BaniPay
+Diseño: Grid de logos centrados
+
+
+7.8 Modal: SOBRE NOSOTROS
+Título: "sobre Nosotros"
+Contenido: (A definir según información corporativa)
+
+7.9 Modales de Validación/Error
+Crear modales de alerta para:
+
+Campos incorrectos:
+
+   "Hay campos incorrectos o sin completar"
+
+Email incorrecto:
+
+   "Su direccion de correo es incorrecta. Debe ser del formato '[email protected]' o similar"
+
+Sin medio de pago:
+
+   "Debe seleccionar un Medio de Pago"
+
+Nombre inválido:
+
+   "El/los nombre/s debe/n ser de mas de 3 letras y no puede/n contener números ni símbolos."
+
+Apellido inválido:
+
+   "El/los apellido/s debe/n ser de mas de 3 letras y no puede/n contener números ni símbolos."
+
+Teléfono inválido:
+
+   "El número de teléfono solo puede contener 10 dígitos. No se aceptan letras o símbolos."
+
+Documento inválido:
+
+   "El número de documento debe tener más de 4 dígitos. No acepta símbolos."
+
+Datos del asistente:
+
+   "Para poder continuar debes completar los campos con los datos del asistente, una vez lo hagas podras continuar con la compra"
+
+Ciudad inválida:
+
+   "El/los nombre/s de la ciudad no puede/n contener símbolos."
+
+Código postal inválido:
+
+    "El codigo postal debe contener solo números y tener entre 4 a más dígitos."
+Diseño de modales de error:
+
+Fondo rojo o naranja de alerta
+Icono de advertencia
+Botón "Cerrar"
+Centrados en pantalla
+
+
+7.10 Modal: Cerrar Sesión
+Título: "Seguro que desea salir de su cuenta?"
+Botones:
+
+"Cancelar" (cierra el modal)
+"Salir" (redirige a /logout/)
+
+
+8. FOOTER
+8.1 Estructura del Footer
+Sección 1: Menú de Enlaces
+Columna 1:
+
+CÓMO COMPRAR (abre modal)
+PREGUNTAS FRECUENTES (abre modal)
+PUNTOS DE VENTA (abre modal)
+
+Columna 2:
+
+TÉRMINOS Y CONDICIONES (abre modal)
+ATENCIÓN AL CLIENTE (link a /atencion_cliente)
+AVISO DE PRIVACIDAD (abre modal)
+
+Sección 2: Información Corporativa
+SOCIEDAD COMERCIAL PARAEL TICKETING SRL
+
+LA PAZ
+Plaza del Estudiante, Av. Villazón 1940.
+Edificio Inchauste Zelaya, Piso 6
+
+SANTA CRUZ
+Av. Monseñor Rivero, Edificio Milenium, Piso 8, Of. 8
+Sección 3: Redes Sociales
+Iconos clickeables (abren en nueva pestaña):
+
+Facebook → https://www.facebook.com/SuperTicketBo
+Twitter → https://twitter.com/SuperTicketBo
+YouTube → https://www.youtube.com/user/SuperTicketBo
+Instagram → https://www.instagram.com/superticketbo
+TikTok → https://www.tiktok.com/@superticketbo
+
+Sección 4: Powered By
+Imagen/Logo: "Powered By MuchTicket"
+Link: http://www.muchticket.com
+8.2 Diseño del Footer
+
+Fondo oscuro (negro o gris oscuro)
+Texto en blanco
+Padding generoso (60px top/bottom)
+Links con hover effect
+Layout responsive:
+
+Desktop: 3 columnas
+Móvil: Stacked (columna única)
+
+
+
+
+9. FUNCIONALIDADES ADICIONALES
+9.1 Sistema de Cookies
+
+Banner de cookies en la parte inferior
+Botones:
+
+"Permitir todas"
+"Permitir las necesarias"
+"Rechazar"
+
+
+
+9.2 Integración con Facebook Pixel
+
+ID del Pixel: 533587669112890
+Evento: PageView
+
+9.3 Búsqueda
+
+Input de búsqueda funcional
+Búsqueda por nombre de evento
+Resultados en tiempo real (opcional)
+Filtrado por categorías
+
+9.4 Filtros
+
+Filtro por categoría: ?categoria=NOMBRE
+Filtro por subcategoría: ?subcategoria=NOMBRE
+Combinación de filtros posible
+
+
+10. RESPONSIVE DESIGN
+10.1 Breakpoints
+
+Mobile: < 768px
+Tablet: 768px - 1024px
+Desktop: > 1024px
+
+10.2 Adaptaciones por Dispositivo
+Mobile (< 768px):
+
+Header con hamburger menu
+Carrusel de banners en full width
+Grid de eventos: 1 columna
+Footer stacked
+Modales full screen
+
+Tablet (768px - 1024px):
+
+Menú horizontal colapsado parcialmente
+Grid de eventos: 2 columnas
+Footer: 2 columnas
+
+Desktop (> 1024px):
+
+Layout completo
+Grid de eventos: 4 columnas
+Hover effects activos
+Footer: 3 columnas
+
+
+11. COLORES Y TIPOGRAFÍA
+11.1 Paleta de Colores (aproximada)
+
+Primario: Azul o color corporativo (extraer del logo)
+Secundario: Complementario al primario
+Texto principal: #333333 o similar
+Texto secundario: #666666
+Fondo: #FFFFFF
+Footer: #1a1a1a o similar
+Botones CTA: Color destacado (rojo, naranja, o azul brillante)
+
+11.2 Tipografía
+
+Familia principal: Sans-serif (Arial, Helvetica, Roboto)
+Títulos: Font-weight 700 (Bold)
+Cuerpo: Font-weight 400 (Regular)
+Tamaños:
+
+H1: 32-36px
+H2: 24-28px
+H3: 20-24px
+Body: 14-16px
+Small: 12-14px
+
+
+
+
+12. INTERACCIONES Y ANIMACIONES
+12.1 Hover Effects
+
+Event Cards: Elevar con sombra, escala sutil
+Botones: Cambio de color, transición suave
+Links: Subrayado o cambio de color
+Menú: Highlight del item activo
+
+12.2 Transiciones
+
+Duración estándar: 0.3s
+Easing: ease-in-out
+Propiedades: transform, opacity, box-shadow
+
+12.3 Modales
+
+Apertura: Fade in + scale desde 0.9 a 1
+Cierre: Fade out
+Overlay: Fondo oscuro semi-transparente (rgba(0,0,0,0.5))
+
+12.4 Carrusel
+
+Auto-play: 5-7 segundos por slide
+Transición: Slide horizontal o fade
+Pausar: Al hover
+Indicadores: Dots activos destacados
+
+
+13. PERFORMANCE Y OPTIMIZACIÓN
+13.1 Imágenes
+
+Formato: WebP con fallback a JPG/PNG
+Lazy loading para event cards
+Tamaños responsive (srcset)
+Compresión optimizada
+
+13.2 Carga
+
+Critical CSS inline
+Defer scripts no críticos
+Preload de fuentes e imágenes principales
+Code splitting por rutas
+
+13.3 SEO
+
+Meta tags apropiados
+Open Graph para redes sociales
+Schema.org para eventos
+URLs semánticas
+
+
+14. ESTRUCTURA DE ARCHIVOS SUGERIDA
+/src
+  /components
+    /Header
+      - Header.jsx
+      - Navigation.jsx
+      - Logo.jsx
+    /Footer
+      - Footer.jsx
+    /Modals
+      - LoginModal.jsx
+      - FAQModal.jsx
+      - HowToBuyModal.jsx
+      - StoreLocationsModal.jsx
+      - PrivacyModal.jsx
+      - TermsModal.jsx
+      - PaymentMethodsModal.jsx
+    /Banner
+      - HeroBanner.jsx
+      - SearchBar.jsx
+    /Carousel
+      - BannerCarousel.jsx
+    /Categories
+      - CategoryMenu.jsx
+      - CategoryDropdown.jsx
+    /Events
+      - EventGrid.jsx
+      - EventCard.jsx
+    /Common
+      - Button.jsx
+      - Modal.jsx
+      - ErrorModal.jsx
+  /pages
+    - Home.jsx
+    - EventDetail.jsx
+    - CustomerService.jsx
+  /styles
+    - global.css
+    - variables.css
+  /assets
+    /images
+    /icons
+  /utils
+    - constants.js
+    - helpers.js
+  /context
+    - AuthContext.jsx
+    - CartContext.jsx
+
+15. DATOS MOCK (Para Desarrollo)
+15.1 Eventos de Ejemplo
+javascriptconst mockEvents = [
+  {
+    id: 1,
+    title: "Vibra Carnavalera",
+    image: "/media/banners/vibra_carnavalera.jpg",
+    date: "2026-02-15",
+    time: "20:00",
+    location: "La Paz, Bolivia",
+    category: "Fiestas",
+    subcategory: "Carnaval",
+    price: 150,
+    link: "/Vibra-Carnavalera"
+  },
+  // ... más eventos
+];
+15.2 Categorías
+javascriptconst categories = [
+  {
+    name: "Cine",
+    subcategories: [],
+    link: "?categoria=Cine"
+  },
+  {
+    name: "Conciertos",
+    subcategories: [
+      "Cristiano", "Cumbia", "Filarmónica", "Folklore",
+      "Jazz", "Ópera", "Reggae", "Rock", "Sinfónico"
+    ],
+    link: "?categoria=Conciertos"
+  },
+  // ... más categorías
+];
+
+16. VALIDACIONES DE FORMULARIOS
+16.1 Login
+
+Nombre de usuario: Requerido, min 3 caracteres
+Contraseña: Requerido, min 6 caracteres
+
+16.2 Datos de Compra
+
+Nombre: Requerido, solo letras, min 3 caracteres
+Apellido: Requerido, solo letras, min 3 caracteres
+Email: Formato válido de email
+Teléfono: Exactamente 10 dígitos numéricos
+Documento: Min 4 dígitos, solo números
+Ciudad: No puede contener símbolos
+Código postal: Solo números, min 4 dígitos
+Medio de pago: Selección obligatoria
+
+
+17. CASOS DE USO PRINCIPALES
+17.1 Flujo de Compra
+
+Usuario busca o navega por eventos
+Selecciona un evento (click en card)
+Elige sector y cantidad de entradas
+Completa datos personales
+Selecciona medio de pago
+Confirma compra
+Recibe entradas por email y en pantalla
+
+17.2 Navegación
+
+Usuario entra al sitio
+Ve carrusel de eventos destacados
+Navega por categorías
+Filtra eventos
+Accede a evento específico
+
+17.3 Información
+
+Usuario tiene dudas
+Accede a modales informativos:
+
+Cómo comprar
+Preguntas frecuentes
+Puntos de venta
+
+
+O contacta atención al cliente
+
+
+18. ACCESIBILIDAD (A11Y)
+18.1 Requisitos
+
+Contraste de colores WCAG AA
+Navegación por teclado
+ARIA labels en elementos interactivos
+Alt text en todas las imágenes
+Focus visible en elementos interactivos
+Tamaño de botones mínimo 44x44px
+
+18.2 Semántica HTML
+
+Uso correcto de headings (h1-h6)
+Landmarks (header, nav, main, footer)
+Listas semánticas (ul, ol)
+Botones vs links apropiados
+
+
+19. TESTING
+19.1 Tests Recomendados
+
+Unit tests: Componentes individuales
+Integration tests: Flujos de usuario
+E2E tests: Proceso completo de compra
+Visual regression: Consistencia de diseño
+
+19.2 Browsers a Soportar
+
+Chrome (últimas 2 versiones)
+Firefox (últimas 2 versiones)
+Safari (últimas 2 versiones)
+Edge (últimas 2 versiones)
+Mobile Safari (iOS)
+Chrome Mobile (Android)
+
+
+20. NOTAS FINALES
+20.1 Prioridades de Desarrollo
+
+Fase 1: Header, Footer, estructura básica
+Fase 2: Carrusel, categorías, grid de eventos
+Fase 3: Modales y formularios
+Fase 4: Funcionalidad de compra
+Fase 5: Optimización y pulido
+
+20.2 Consideraciones Importantes
+
+Mantener fidelidad al diseño original
+Priorizar performance
+Asegurar responsividad en todos los dispositivos
+Implementar validaciones exhaustivas
+Manejar estados de carga y error
+Integración con backend (API para eventos, usuarios, pagos)
+
+20.3 Extensiones Futuras
+
+Sistema de wishlist
+Historial de compras
+Notificaciones push
+Compartir en redes sociales
+Recomendaciones personalizadas
+Multi-idioma (ES/EN)
+
+
+RESUMEN EJECUTIVO
+Este prompt cubre todos los aspectos necesarios para recrear SuperTicket.bo:
+✅ Estructura completa del sitio
+✅ Todos los componentes identificados
+✅ Contenido de modales y textos
+✅ Categorías y subcategorías exactas
+✅ Lista completa de banners del carrusel
+✅ Diseño responsive especificado
+✅ Validaciones de formularios
+✅ Flujos de usuario
+✅ Consideraciones de performance y accesibilidad
+✅ Estructura de archivos sugerida
+✅ Tecnologías recomendadas

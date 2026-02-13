@@ -37,8 +37,25 @@ class SocketService {
     }
   }
 
+  isConnected(): boolean {
+    return this.socket?.connected || false
+  }
+
   getSocket() {
     return this.socket || this.connect()
+  }
+
+  // Connection callbacks
+  onConnected(callback: () => void) {
+    this.getSocket().on('connect', callback)
+  }
+
+  onDisconnected(callback: () => void) {
+    this.getSocket().on('disconnect', callback)
+  }
+
+  onConnectError(callback: () => void) {
+    this.getSocket().on('connect_error', callback)
   }
 
   // Eventos específicos
