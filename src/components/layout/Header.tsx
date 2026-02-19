@@ -10,7 +10,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const { user, logout, isAdmin } = useAuthStore()
+  const { user, logout, isAdmin, isAuthenticated } = useAuthStore()
 
   const navItems = [
     { label: 'CÓMO COMPRAR', action: () => onOpenModal('howToBuy') },
@@ -25,7 +25,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 bg-background shadow-md">
+    <header className="fixed top-0 left-0 right-0 z-40 bg-primary text-white shadow-md">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
@@ -47,7 +47,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                 <Link
                   key={index}
                   to={item.to}
-                  className="text-sm font-semibold text-foreground hover:text-primary transition-colors uppercase tracking-wide"
+                  className="text-sm font-semibold text-white hover:text-white/90 transition-colors uppercase tracking-wide"
                 >
                   {item.label}
                 </Link>
@@ -55,7 +55,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                 <button
                   key={index}
                   onClick={item.action}
-                  className="text-sm font-semibold text-foreground hover:text-primary transition-colors uppercase tracking-wide"
+                  className="text-sm font-semibold text-white hover:text-white/90 transition-colors uppercase tracking-wide"
                 >
                   {item.label}
                 </button>
@@ -63,71 +63,70 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
             ))}
           </nav>
 
-          {/* Login/User Menu */}
-          <div className="flex items-center space-x-4">
-            {user ? (
-              <div className="hidden md:flex items-center space-x-3">
+          {/* Desktop Auth Section */}
+          <div className="hidden md:flex items-center space-x-3">
+            {isAuthenticated ? (
+              <>
                 {isAdmin && (
                   <>
                     <Link
                       to="/admin/dashboard"
-                      className="text-sm font-semibold text-purple-600 hover:text-purple-700 transition-colors"
+                      className="text-sm font-semibold text-yellow-300 hover:text-yellow-200 transition-colors"
                     >
                       Panel Admin
                     </Link>
-                    <span className="text-gray-400">|</span>
+                    <span className="text-white/60">|</span>
                   </>
                 )}
                 <Link
                   to="/mis-compras"
-                  className="text-sm font-semibold text-foreground hover:text-primary transition-colors"
+                  className="text-sm font-semibold text-white hover:text-white/90 transition-colors"
                 >
                   Mis Compras
                 </Link>
-                <span className="text-gray-400">|</span>
-                <span className="text-sm font-semibold">
-                  {user.nombre}
+                <span className="text-white/60">|</span>
+                <span className="text-sm font-semibold text-white">
+                  {user?.nombre}
                 </span>
                 <button
                   onClick={handleLogout}
-                  className="text-sm text-red-600 hover:text-red-700 font-semibold transition-colors"
-                  title="Cerrar sesión"
+                  className="text-sm text-red-300 hover:text-red-200 font-semibold transition-colors"
                 >
                   <LogOut size={18} />
                 </button>
-              </div>
+              </>
             ) : (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => window.location.href = '/login'}
-                className="hidden md:inline-flex"
+                className="text-sm font-semibold text-white hover:text-white/90 transition-colors uppercase tracking-wide"
               >
                 ACCEDER
               </Button>
             )}
-
-            {/* Mobile Menu Button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 text-foreground hover:text-primary transition-colors"
-              aria-label="Abrir menú"
-            >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
           </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 text-foreground hover:text-primary transition-colors"
+            aria-label="Abrir menú"
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
         </div>
 
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-border">
+          <div className="md:hidden py-4 border-t border-white/20 bg-primary">
             <nav className="flex flex-col space-y-4">
               {navItems.map((item, index) => (
                 item.to ? (
                   <Link
                     key={index}
                     to={item.to}
-                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors uppercase"
+                    className="text-sm font-semibold text-white hover:text-white/90 transition-colors uppercase"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     {item.label}
@@ -139,18 +138,18 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                       item.action()
                       setMobileMenuOpen(false)
                     }}
-                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors uppercase text-left"
+                    className="text-sm font-semibold text-white hover:text-white/90 transition-colors uppercase text-left"
                   >
                     {item.label}
                   </button>
                 )
               ))}
-              {user ? (
+              {isAuthenticated ? (
                 <>
                   {isAdmin && (
                     <Link
                       to="/admin/dashboard"
-                      className="text-sm font-semibold text-purple-600 hover:text-purple-700 transition-colors py-2"
+                      className="text-sm font-semibold text-yellow-300 hover:text-yellow-200 transition-colors py-2"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       Panel Admin
@@ -158,19 +157,19 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                   )}
                   <Link
                     to="/mis-compras"
-                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors py-2"
+                    className="text-sm font-semibold text-white hover:text-white/90 transition-colors py-2"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Mis Compras
                   </Link>
-                  <div className="flex items-center justify-between pt-2 border-t border-gray-700">
-                    <span className="text-sm font-semibold">{user.nombre}</span>
+                  <div className="flex items-center justify-between pt-2 border-t border-white/20">
+                    <span className="text-sm font-semibold text-white">{user.nombre}</span>
                     <button
                       onClick={() => {
                         handleLogout()
                         setMobileMenuOpen(false)
                       }}
-                      className="text-sm text-red-400 hover:text-red-300 font-semibold transition-colors"
+                      className="text-sm text-red-300 hover:text-red-200 font-semibold transition-colors"
                     >
                       Cerrar sesión
                     </button>
@@ -184,7 +183,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                     window.location.href = '/login'
                     setMobileMenuOpen(false)
                   }}
-                  className="w-full"
+                  className="text-sm font-semibold text-white hover:text-white/90 transition-colors uppercase text-left"
                 >
                   ACCEDER
                 </Button>

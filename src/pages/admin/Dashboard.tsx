@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   TrendingUp,
@@ -7,11 +7,11 @@ import {
   DollarSign,
   ArrowRight,
   Eye,
-  Edit,
-  Trash2
+  Edit
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
+import EventCard from '@/components/admin/EventCard'
 import adminService from '@/services/adminService'
 import { DashboardStats, AdminEvent } from '@/types/admin'
 import {
@@ -35,7 +35,11 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8']
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentEvents, setRecentEvents] = useState<AdminEvent[]>([])
+  const [allEvents, setAllEvents] = useState<AdminEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [selectedEventId, setSelectedEventId] = useState<string>('')
+  const [selectedEventTitle, setSelectedEventTitle] = useState<string>('')
 
   useEffect(() => {
     loadDashboardData()
@@ -49,6 +53,7 @@ export default function Dashboard() {
         adminService.getEvents()
       ])
       setStats(statsData)
+      setAllEvents(eventsData)
       // Últimos 5 eventos
       setRecentEvents(eventsData.slice(-5).reverse())
     } catch (error) {
@@ -56,6 +61,21 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleViewDetails = (eventId: string) => {
+    const event = allEvents.find(e => e.id === eventId)
+    if (event) {
+      setSelectedEventId(eventId)
+      setSelectedEventTitle(event.title)
+      setModalOpen(true)
+    }
+  }
+
+  const handleCloseModal = () => {
+    setModalOpen(false)
+    setSelectedEventId('')
+    setSelectedEventTitle('')
   }
 
   if (loading) {
@@ -117,7 +137,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Eventos Activos</p>
+                <p className="text-sm font-medium text-gray-600">Eventos</p>
                 <p className="text-2xl font-bold text-gray-900 mt-2">
                   {stats.eventosActivos}
                 </p>
@@ -176,151 +196,27 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Ventas por Día */}
-        <Card>
-          <CardContent className="p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Ventas de la Última Semana</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={ventasSemanales}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="dia" />
-                <YAxis />
-                <Tooltip formatter={(value) => [`Bs ${value}`, 'Monto']} />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="monto"
-                  stroke="#0088FE"
-                  strokeWidth={2}
-                  name="Ventas (Bs)"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Ventas por Evento */}
-        <Card>
-          <CardContent className="p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Ventas por Evento</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.ventasPorEvento}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="titulo" angle={-45} textAnchor="end" height={100} />
-                <YAxis />
-                <Tooltip formatter={(value) => [`Bs ${value}`, 'Ventas']} />
-                <Bar dataKey="monto" fill="#00C49F" name="Ventas (Bs)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {/* Tarjetas de Eventos */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold text-black">Eventos Activos</h2>
+          <Link to="/admin/eventos">
+            <Button variant="outline" size="sm">
+              Ver Todos
+              <ArrowRight size={16} className="ml-2" />
+            </Button>
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+          {allEvents.map((event) => (
+            <EventCard
+              key={event.id}
+              event={event}
+              onViewDetails={handleViewDetails}
+            />
+          ))}
+        </div>
       </div>
-
-      {/* Distribución por Sector */}
-      <Card>
-        <CardContent className="p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">Distribución de Ventas por Sector</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={stats.distribucionPorSector}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {stats.distribucionPorSector.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* Tabla de Eventos Recientes */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-gray-900">Eventos Recientes</h3>
-            <Link to="/admin/eventos">
-              <Button variant="outline" size="sm">
-                Ver Todos
-                <ArrowRight size={16} className="ml-2" />
-              </Button>
-            </Link>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Evento</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Fecha</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Estado</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Ventas</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentEvents.map((event) => (
-                  <tr key={event.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center space-x-3">
-                        <img
-                          src={event.image}
-                          alt={event.title}
-                          className="w-12 h-12 rounded-lg object-cover"
-                        />
-                        <div>
-                          <p className="font-medium text-gray-900">{event.title}</p>
-                          <p className="text-sm text-gray-500">{event.location}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">
-                      {new Date(event.date).toLocaleDateString('es-ES')}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        event.status === 'ACTIVO'
-                          ? 'bg-green-100 text-green-700'
-                          : event.status === 'INACTIVO'
-                          ? 'bg-gray-100 text-gray-700'
-                          : 'bg-red-100 text-red-700'
-                      }`}>
-                        {event.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right font-semibold text-gray-900">
-                      Bs {event.totalSales.toLocaleString()}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center justify-center space-x-2">
-                        <Link to={`/admin/eventos/${event.id}`}>
-                          <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Ver">
-                            <Eye size={16} />
-                          </button>
-                        </Link>
-                        <Link to={`/admin/eventos/${event.id}/editar`}>
-                          <button className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg" title="Editar">
-                            <Edit size={16} />
-                          </button>
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

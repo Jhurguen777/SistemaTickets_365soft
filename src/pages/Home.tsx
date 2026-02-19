@@ -35,13 +35,13 @@ export default function Home({ onOpenModal }: HomeProps) {
           <div className="absolute inset-0 bg-black/40" />
 
           {/* Search Bar */}
-          <div className="relative z-10 h-full flex items-center justify-center px-4">
+          <div className="h-[200px] md:h-[250px] bg-white flex items-center justify-center px-4">
             <div className="w-full max-w-2xl">
               <div className="relative">
                 <input
                   type="text"
                   placeholder="Buscar eventos..."
-                  className="w-full px-6 py-4 pl-14 rounded-full text-gray-900 text-lg focus:outline-none focus:ring-4 focus:ring-white/30 shadow-xl"
+                  className="w-full px-6 py-3 pl-14 rounded-lg border-2 border-gray-200 text-gray-900 text-lg focus:outline-none focus:border-primary shadow-sm"
                 />
                 <Search
                   size={24}

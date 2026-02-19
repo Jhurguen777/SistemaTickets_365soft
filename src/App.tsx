@@ -23,6 +23,7 @@ import Dashboard from './pages/admin/Dashboard'
 import EventList from './pages/admin/events/EventList'
 import EventForm from './pages/admin/events/EventForm'
 import AdminEventDetail from './pages/admin/events/EventDetail'
+import EventClientsPage from './pages/admin/EventClientsPage'
 
 type ModalType = 'login' | 'howToBuy' | 'faq' | 'storeLocations' | 'terms' | 'privacy' | 'paymentMethods' | null
 
@@ -40,7 +41,6 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Solo mostrar Header si NO es admin */}
       {!isAdmin && <Header onOpenModal={openModal} />}
 
       <main className="flex-grow">
@@ -65,12 +65,11 @@ function App() {
             <Route path="eventos/crear" element={<EventForm />} />
             <Route path="eventos/:id/editar" element={<EventForm />} />
             <Route path="eventos/:id" element={<AdminEventDetail />} />
-            {/* Más rutas de admin se agregarán aquí (usuarios, reportes, etc.) */}
+            <Route path="eventos/:id/clientes" element={<EventClientsPage />} />
           </Route>
         </Routes>
       </main>
 
-      {/* Solo mostrar Footer si NO es admin */}
       {!isAdmin && <Footer onOpenModal={openModal} />}
 
       {/* Modals */}
