@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, CreditCard, Users } from 'lucide-react'
+import { ArrowLeft, CreditCard, Users, ChevronDown, Check, Circle } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -30,13 +30,16 @@ interface FormData {
   email: string
   telefono: string
   documento: string
+  oficina: string
+}
 
-  // Billing info
+interface BillingData {
   ciudad: string
   direccion: string
   codigoPostal: string
+}
 
-  // Payment
+interface PaymentData {
   medioPago: string
 }
 
@@ -57,21 +60,89 @@ export default function Checkout() {
 
   const [event, setEvent] = useState<any>(null)
 
-  const [formData, setFormData] = useState<FormData>({
-    nombre: user?.nombre || '',
-    apellido: user?.apellido || '',
-    email: user?.email || '',
-    telefono: '',
-    documento: '',
+  // Estado para múltiples asistentes
+  const [attendees, setAttendees] = useState<FormData[]>(
+    seats.map(() => ({
+      nombre: '',
+      apellido: '',
+      email: '',
+      telefono: '',
+      documento: '',
+      oficina: ''
+    }))
+  )
+  const [completedAttendees, setCompletedAttendees] = useState<Set<number>>(new Set())
+  const [expandedAttendee, setExpandedAttendee] = useState<number>(0)
+
+  // Datos de facturación (compartidos)
+  const [billingData, setBillingData] = useState<BillingData>({
     ciudad: '',
     direccion: '',
-    codigoPostal: '',
+    codigoPostal: ''
+  })
+
+  // Datos de pago
+  const [paymentData, setPaymentData] = useState<PaymentData>({
     medioPago: ''
   })
+
+  const oficinas = [
+    { codigo: '2526', nombre: 'ALFA FORZA' },
+    { codigo: '2527', nombre: 'ALFA DIAMOND' },
+    { codigo: '2528', nombre: 'ALFA PRO' },
+    { codigo: '2529', nombre: 'ALFA HABITAT' },
+    { codigo: '2530', nombre: 'ALFA ÉLITE' },
+    { codigo: '2531', nombre: 'ALFA FUTURO' },
+    { codigo: '2532', nombre: 'ALFA GRAND CONTINENTAL' },
+    { codigo: '2533', nombre: 'ALFA LUX' },
+    { codigo: '2534', nombre: 'ALFA PREMIER' },
+    { codigo: '2535', nombre: 'ALFA LINK' },
+    { codigo: '2536', nombre: 'ALFA NYSSA' },
+    { codigo: '2537', nombre: 'ALFA CAPITAL' },
+    { codigo: '2538', nombre: 'ALFA MAX' },
+    { codigo: '2539', nombre: 'ALFA MASTER' },
+    { codigo: '2540', nombre: 'ALFA GRAND CENTRAL' },
+    { codigo: '2541', nombre: 'ALFA GRAND SKY' },
+    { codigo: '2546', nombre: 'ALFA TOP' },
+    { codigo: '2547', nombre: 'ALFA PLUS' },
+    { codigo: '2548', nombre: 'ALFA NOVA' },
+    { codigo: '2549', nombre: 'ALFA NEXUS' },
+    { codigo: '2550', nombre: 'ALFA DUO' },
+    { codigo: '2551', nombre: 'ALFA PRIME' },
+    { codigo: '2552', nombre: 'ALFA RESIDENCE' },
+    { codigo: '2553', nombre: 'ALFA GOLDEN' },
+    { codigo: '2554', nombre: 'ALFA EMPORIO' },
+    { codigo: '2555', nombre: 'ALFA GRAND HORIZONTE' },
+    { codigo: '2556', nombre: 'ALFA GLOBAL' },
+    { codigo: '2557', nombre: 'ALFA VIP INVERSIONES' },
+    { codigo: '2559', nombre: 'ALFA BLUE AVENUE' },
+    { codigo: '2560', nombre: 'ALFA SMART' },
+    { codigo: '2561', nombre: 'ALFA HOME' },
+    { codigo: '2562', nombre: 'ALFA NEW LIFE' },
+    { codigo: '2563', nombre: 'ALFA TITANIUM' },
+    { codigo: '2564', nombre: 'ALFA RED' },
+    { codigo: '2565', nombre: 'ALFA CLICK' },
+    { codigo: '2605', nombre: 'ALFA ULTRA' },
+    { codigo: '2606', nombre: 'ALFA CITY' }
+  ]
 
   const [errors, setErrors] = useState<FormErrors>({})
   const [processing, setProcessing] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
+
+  // Actualizar attendees cuando cambian los asientos
+  useEffect(() => {
+    setAttendees(seats.map(() => ({
+      nombre: '',
+      apellido: '',
+      email: '',
+      telefono: '',
+      documento: '',
+      oficina: ''
+    })))
+    setCompletedAttendees(new Set())
+    setExpandedAttendee(0)
+  }, [seats.length])
 
   const totalPrice = seats.reduce((sum, seat) => sum + seat.price, 0)
 
@@ -118,6 +189,12 @@ export default function Checkout() {
       case 'documento':
         if (!value || value.length < 5 || !/^\d+$/.test(value)) {
           return 'El documento debe tener al menos 5 dígitos y solo números'
+        }
+        return null
+
+      case 'oficina':
+        if (!value) {
+          return 'Debes seleccionar una oficina'
         }
         return null
 
@@ -329,6 +406,31 @@ export default function Checkout() {
                       placeholder="Número de documento"
                       required
                     />
+
+                    <div>
+                      <label className="block text-sm font-semibold mb-2">
+                        Oficina <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        name="oficina"
+                        value={formData.oficina}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all ${
+                          errors.oficina ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        required
+                      >
+                        <option value="">Selecciona tu oficina</option>
+                        {oficinas.map((oficina) => (
+                          <option key={oficina.codigo} value={oficina.codigo}>
+                            {oficina.codigo} - {oficina.nombre}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.oficina && (
+                        <p className="mt-1 text-sm text-red-500">{errors.oficina}</p>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
