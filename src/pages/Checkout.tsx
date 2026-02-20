@@ -162,6 +162,108 @@ export default function Checkout() {
   }
 
   // Validation functions
+  const validateAttendeeField = (attendeeIndex: number, name: string, value: string): string | null => {
+    switch (name) {
+      case 'nombre':
+      case 'apellido':
+        if (!value || value.length < 3) {
+          return `El ${name} debe tener al menos 3 letras`
+        }
+        if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(value)) {
+          return `El ${name} solo puede contener letras`
+        }
+        return null
+
+      case 'email':
+        if (!value || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          return 'El email no es válido'
+        }
+        return null
+
+      case 'telefono':
+        if (!value || !/^\d{10}$/.test(value)) {
+          return 'El teléfono debe tener exactamente 10 dígitos'
+        }
+        return null
+
+      case 'documento':
+        if (!value || value.length < 5 || !/^\d+$/.test(value)) {
+          return 'El documento debe tener al menos 5 dígitos y solo números'
+        }
+        return null
+
+      case 'oficina':
+        if (!value) {
+          return 'Debes seleccionar una oficina'
+        }
+        return null
+
+      default:
+        return null
+    }
+  }
+
+  const validateAttendee = (attendeeIndex: number): boolean => {
+    const attendee = attendees[attendeeIndex]
+    const newErrors: FormErrors = {}
+
+    Object.keys(attendee).forEach((key) => {
+      const error = validateAttendeeField(attendeeIndex, key, attendee[key as keyof FormData])
+      if (error) {
+        newErrors[`${attendeeIndex}_${key}`] = error
+      }
+    })
+
+    setErrors((prev) => ({ ...prev, ...newErrors }))
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleAttendeeChange = (attendeeIndex: number, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setAttendees((prev) => {
+      const newAttendees = [...prev]
+      newAttendees[attendeeIndex] = {
+        ...newAttendees[attendeeIndex],
+        [name]: value
+      }
+      return newAttendees
+    })
+
+    // Clear error when user starts typing
+    const errorKey = `${attendeeIndex}_${name}`
+    if (errors[errorKey]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors[errorKey]
+        return newErrors
+      })
+    }
+  }
+
+  const handleSaveAttendee = (attendeeIndex: number) => {
+    if (validateAttendee(attendeeIndex)) {
+      // Marcar como completado
+      setCompletedAttendees((prev) => new Set([...prev, attendeeIndex]))
+
+      // Cerrar acordeón actual y abrir el siguiente
+      if (attendeeIndex < seats.length - 1) {
+        setTimeout(() => {
+          setExpandedAttendee(attendeeIndex + 1)
+        }, 300)
+      } else {
+        // Si es el último, cerrar y scroll a facturación
+        setTimeout(() => {
+          setExpandedAttendee(-1)
+        }, 300)
+      }
+    }
+  }
+
+  const handleEditAttendee = (attendeeIndex: number) => {
+    setExpandedAttendee(attendeeIndex)
+  }
+
+  // Validation functions for billing and payment
   const validateField = (name: string, value: string): string | null => {
     switch (name) {
       case 'nombre':
@@ -221,11 +323,11 @@ export default function Checkout() {
     }
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  // Handlers para billing y payment
+  const handleBillingChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    setBillingData((prev) => ({ ...prev, [name]: value }))
 
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => {
         const newErrors = { ...prev }
@@ -235,25 +337,53 @@ export default function Checkout() {
     }
   }
 
-  const validateForm = (): boolean => {
+  const handlePaymentChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setPaymentData((prev) => ({ ...prev, [name]: value }))
+
+    if (errors[name]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors[name]
+        return newErrors
+      })
+    }
+  }
+
+  const validateBillingAndPayment = (): boolean => {
     const newErrors: FormErrors = {}
 
-    Object.keys(formData).forEach((key) => {
-      const error = validateField(key, formData[key as keyof FormData])
-      if (error) {
-        newErrors[key] = error
-      }
-    })
+    // Validar billing
+    if (!billingData.ciudad) {
+      newErrors['ciudad'] = 'La ciudad es requerida'
+    }
+    if (!billingData.direccion) {
+      newErrors['direccion'] = 'La dirección es requerida'
+    }
+    if (!billingData.codigoPostal) {
+      newErrors['codigoPostal'] = 'El código postal es requerido'
+    }
 
-    setErrors(newErrors)
+    // Validar payment
+    if (!paymentData.medioPago) {
+      newErrors['medioPago'] = 'Debes seleccionar un medio de pago'
+    }
+
+    setErrors((prev) => ({ ...prev, ...newErrors }))
     return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validateForm()) {
-      alert('Por favor corrige los errores antes de continuar')
+    // Validar que todos los asistentes estén completados
+    if (completedAttendees.size !== seats.length) {
+      alert('Por favor completa los datos de todos los asistentes antes de continuar')
+      return
+    }
+
+    if (!validateBillingAndPayment()) {
+      alert('Por favor corrige los errores en facturación y pago antes de continuar')
       return
     }
 
@@ -273,7 +403,7 @@ export default function Checkout() {
       // Simular procesamiento de pago
       await new Promise(resolve => setTimeout(resolve, 2000))
 
-      // Crear compra en localStorage
+      // Crear compra en localStorage con todos los asistentes
       const purchase = purchasesService.createPurchase({
         eventoId: eventId,
         eventoTitulo: event.title,
@@ -282,12 +412,12 @@ export default function Checkout() {
         eventoHora: event.time,
         eventoUbicacion: event.location,
         eventoDireccion: event.address,
-        asientos: seats.map(seat => ({
+        asientos: seats.map((seat, index) => ({
           fila: seat.row,
           numero: seat.number,
-          nombre: `${formData.nombre} ${formData.apellido}`.trim(),
-          email: formData.email,
-          ci: formData.documento,
+          nombre: `${attendees[index].nombre} ${attendees[index].apellido}`.trim(),
+          email: attendees[index].email,
+          ci: attendees[index].documento,
           sector: sectorId || 'General'
         })),
         monto: totalPrice
@@ -346,94 +476,164 @@ export default function Checkout() {
           {/* Form */}
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit}>
-              {/* Attendee Information */}
-              <Card className="mb-6">
-                <CardContent className="p-6">
-                  <h2 className="text-xl font-bold mb-6 flex items-center">
-                    <Users className="mr-2 text-primary" size={24} />
-                    Datos del asistente
-                  </h2>
+              {/* Attendee Information - Accordions */}
+              <div className="mb-6">
+                <h2 className="text-xl font-bold mb-6 flex items-center">
+                  <Users className="mr-2 text-primary" size={24} />
+                  Datos de los asistentes
+                </h2>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input
-                      label="Nombre"
-                      name="nombre"
-                      value={formData.nombre}
-                      onChange={handleInputChange}
-                      error={errors.nombre}
-                      placeholder="Tu nombre"
-                      required
-                    />
+                <div className="space-y-4">
+                  {seats.map((seat, index) => {
+                    const isCompleted = completedAttendees.has(index)
+                    const isExpanded = expandedAttendee === index
+                    const attendee = attendees[index]
 
-                    <Input
-                      label="Apellido"
-                      name="apellido"
-                      value={formData.apellido}
-                      onChange={handleInputChange}
-                      error={errors.apellido}
-                      placeholder="Tu apellido"
-                      required
-                    />
-
-                    <Input
-                      label="Email"
-                      name="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      error={errors.email}
-                      placeholder="tu@email.com"
-                      required
-                    />
-
-                    <Input
-                      label="Teléfono"
-                      name="telefono"
-                      type="tel"
-                      value={formData.telefono}
-                      onChange={handleInputChange}
-                      error={errors.telefono}
-                      placeholder="10 dígitos"
-                      required
-                    />
-
-                    <Input
-                      label="Documento de identidad"
-                      name="documento"
-                      value={formData.documento}
-                      onChange={handleInputChange}
-                      error={errors.documento}
-                      placeholder="Número de documento"
-                      required
-                    />
-
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Oficina <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        name="oficina"
-                        value={formData.oficina}
-                        onChange={handleInputChange}
-                        className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all ${
-                          errors.oficina ? 'border-red-500' : 'border-gray-300'
+                    return (
+                      <Card
+                        key={seat.id}
+                        className={`transition-all duration-300 ${
+                          isCompleted ? 'border-green-500 bg-green-50' : ''
                         }`}
-                        required
                       >
-                        <option value="">Selecciona tu oficina</option>
-                        {oficinas.map((oficina) => (
-                          <option key={oficina.codigo} value={oficina.codigo}>
-                            {oficina.codigo} - {oficina.nombre}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.oficina && (
-                        <p className="mt-1 text-sm text-red-500">{errors.oficina}</p>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                        <CardContent className="p-0">
+                          {/* Accordion Header */}
+                          <button
+                            type="button"
+                            onClick={() => isCompleted ? handleEditAttendee(index) : setExpandedAttendee(isExpanded ? -1 : index)}
+                            className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-center space-x-3">
+                              {isCompleted ? (
+                                <div className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center">
+                                  <Check size={18} />
+                                </div>
+                              ) : (
+                                <div className="w-8 h-8 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center font-semibold">
+                                  {index + 1}
+                                </div>
+                              )}
+                              <div className="text-left">
+                                <p className="font-semibold">
+                                  Asistente {index + 1}
+                                  {isCompleted && ' - Completado'}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  Fila {seat.row} - Asiento {seat.number}
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronDown
+                              size={20}
+                              className={`transition-transform duration-300 ${
+                                isExpanded ? 'rotate-180' : ''
+                              }`}
+                            />
+                          </button>
+
+                          {/* Accordion Content */}
+                          <div
+                            className={`overflow-hidden transition-all duration-300 ${
+                              isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+                            }`}
+                          >
+                            <div className="px-6 pb-6 pt-2 border-t">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                <Input
+                                  label="Nombre"
+                                  name="nombre"
+                                  value={attendee.nombre}
+                                  onChange={(e) => handleAttendeeChange(index, e)}
+                                  error={errors[`${index}_nombre`]}
+                                  placeholder="Tu nombre"
+                                  required
+                                />
+
+                                <Input
+                                  label="Apellido"
+                                  name="apellido"
+                                  value={attendee.apellido}
+                                  onChange={(e) => handleAttendeeChange(index, e)}
+                                  error={errors[`${index}_apellido`]}
+                                  placeholder="Tu apellido"
+                                  required
+                                />
+
+                                <Input
+                                  label="Email"
+                                  name="email"
+                                  type="email"
+                                  value={attendee.email}
+                                  onChange={(e) => handleAttendeeChange(index, e)}
+                                  error={errors[`${index}_email`]}
+                                  placeholder="tu@email.com"
+                                  required
+                                />
+
+                                <Input
+                                  label="Teléfono"
+                                  name="telefono"
+                                  type="tel"
+                                  value={attendee.telefono}
+                                  onChange={(e) => handleAttendeeChange(index, e)}
+                                  error={errors[`${index}_telefono`]}
+                                  placeholder="10 dígitos"
+                                  required
+                                />
+
+                                <Input
+                                  label="Documento de identidad"
+                                  name="documento"
+                                  value={attendee.documento}
+                                  onChange={(e) => handleAttendeeChange(index, e)}
+                                  error={errors[`${index}_documento`]}
+                                  placeholder="Número de documento"
+                                  required
+                                />
+
+                                <div>
+                                  <label className="block text-sm font-semibold mb-2">
+                                    Oficina <span className="text-red-500">*</span>
+                                  </label>
+                                  <select
+                                    name="oficina"
+                                    value={attendee.oficina}
+                                    onChange={(e) => handleAttendeeChange(index, e)}
+                                    className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all ${
+                                      errors[`${index}_oficina`] ? 'border-red-500' : 'border-gray-300'
+                                    }`}
+                                    required
+                                  >
+                                    <option value="">Selecciona tu oficina</option>
+                                    {oficinas.map((oficina) => (
+                                      <option key={oficina.codigo} value={oficina.codigo}>
+                                        {oficina.codigo} - {oficina.nombre}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {errors[`${index}_oficina`] && (
+                                    <p className="mt-1 text-sm text-red-500">{errors[`${index}_oficina`]}</p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="mt-6 flex justify-end">
+                                <Button
+                                  type="button"
+                                  onClick={() => handleSaveAttendee(index)}
+                                  className="w-full md:w-auto"
+                                >
+                                  {isCompleted ? 'Actualizar' : 'Guardar y continuar'}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              </div>
 
               {/* Billing Information */}
               <Card className="mb-6">
@@ -447,8 +647,8 @@ export default function Checkout() {
                     <Input
                       label="Ciudad"
                       name="ciudad"
-                      value={formData.ciudad}
-                      onChange={handleInputChange}
+                      value={billingData.ciudad}
+                      onChange={handleBillingChange}
                       error={errors.ciudad}
                       placeholder="Tu ciudad"
                       required
@@ -457,8 +657,8 @@ export default function Checkout() {
                     <Input
                       label="Dirección"
                       name="direccion"
-                      value={formData.direccion}
-                      onChange={handleInputChange}
+                      value={billingData.direccion}
+                      onChange={handleBillingChange}
                       placeholder="Tu dirección completa"
                       required
                     />
@@ -466,8 +666,8 @@ export default function Checkout() {
                     <Input
                       label="Código postal"
                       name="codigoPostal"
-                      value={formData.codigoPostal}
-                      onChange={handleInputChange}
+                      value={billingData.codigoPostal}
+                      onChange={handleBillingChange}
                       error={errors.codigoPostal}
                       placeholder="Código postal"
                       required
@@ -491,7 +691,7 @@ export default function Checkout() {
                       <label
                         key={method.value}
                         className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                          formData.medioPago === method.value
+                          paymentData.medioPago === method.value
                             ? 'border-primary bg-primary/5'
                             : 'border-gray-200 hover:border-primary/50'
                         }`}
@@ -500,8 +700,8 @@ export default function Checkout() {
                           type="radio"
                           name="medioPago"
                           value={method.value}
-                          checked={formData.medioPago === method.value}
-                          onChange={handleInputChange}
+                          checked={paymentData.medioPago === method.value}
+                          onChange={handlePaymentChange}
                           className="mr-3"
                         />
                         <span className="text-2xl mr-3">{method.icon}</span>
