@@ -11,7 +11,7 @@ interface Seat {
   id: string
   row: string
   number: number
-  status: 'AVAILABLE' | 'RESERVED' | 'OCCUPIED'
+  status: 'AVAILABLE' | 'OCCUPIED'
   price: number
 }
 
@@ -32,6 +32,14 @@ const getSectorInfo = (sectorId: string) => {
   return sectors[sectorId as keyof typeof sectors] || sectors['1']
 }
 
+const getAllSectors = () => {
+  return [
+    { id: '1', name: 'General', price: 150, available: 5000 },
+    { id: '2', name: 'VIP', price: 350, available: 500 },
+    { id: '3', name: 'Super VIP', price: 500, available: 200 }
+  ]
+}
+
 // Generar asientos de demostración
 // 3 columnas de 10 asientos = 30 asientos por fila
 // 20 filas = 600 asientos totales
@@ -44,12 +52,10 @@ const generateMockSeats = (sectorId: string): Seat[] => {
   rows.forEach((row) => {
     for (let i = 1; i <= seatsPerRow; i++) {
       const random = Math.random()
-      let status: 'AVAILABLE' | 'RESERVED' | 'OCCUPIED' = 'AVAILABLE'
+      let status: 'AVAILABLE' | 'OCCUPIED' = 'AVAILABLE'
 
       if (random < 0.15) {
         status = 'OCCUPIED'
-      } else if (random < 0.25) {
-        status = 'RESERVED'
       }
 
       seats.push({
@@ -75,10 +81,12 @@ export default function SeatSelection() {
   const [selectedSeats, setSelectedSeats] = useState<Seat[]>([])
   const [loading, setLoading] = useState(true)
   const [demoMode, setDemoMode] = useState(false)
+  const [selectedSector, setSelectedSector] = useState('1')
 
   const eventId = location?.state?.eventId || id
-  const sectorId = location?.state?.sectorId || '1'
+  const sectorId = selectedSector
   const sectorInfo = getSectorInfo(sectorId)
+  const allSectors = getAllSectors()
 
   // Load seats with demo fallback
   useEffect(() => {
@@ -111,6 +119,23 @@ export default function SeatSelection() {
     }
   }, [eventId, sectorId])
 
+  // Recargar asientos cuando cambia el sector
+  useEffect(() => {
+    const loadSeats = async () => {
+      try {
+        setLoading(true)
+        setSeats(generateMockSeats(sectorId))
+      } catch (error) {
+        console.error('Error loading seats:', error)
+        setSeats(generateMockSeats(sectorId))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadSeats()
+  }, [sectorId])
+
   // Socket connection (optional, doesn't block UI)
   useEffect(() => {
     let timeoutId: NodeJS.Timeout
@@ -132,7 +157,7 @@ export default function SeatSelection() {
         setSeats((prevSeats) =>
           prevSeats.map((seat) =>
             seat.id === data.seatId
-              ? { ...seat, status: 'RESERVED' }
+              ? { ...seat, status: 'OCCUPIED' }
               : seat
           )
         )
@@ -213,17 +238,15 @@ export default function SeatSelection() {
 
   const getSeatStatusColor = (seat: Seat) => {
     if (selectedSeats.some((s) => s.id === seat.id)) {
-      return 'bg-green-500 hover:bg-green-600 text-white'
+      return 'bg-purple-500 hover:bg-purple-600 text-white'
     }
     switch (seat.status) {
       case 'AVAILABLE':
-        return 'bg-white border border-gray-300 hover:border-primary cursor-pointer'
-      case 'RESERVED':
-        return 'bg-yellow-400 cursor-not-allowed'
+        return 'bg-green-500 hover:bg-green-600 cursor-pointer'
       case 'OCCUPIED':
-        return 'bg-gray-400 cursor-not-allowed'
+        return 'bg-red-500 cursor-not-allowed'
       default:
-        return 'bg-white border border-gray-300'
+        return 'bg-gray-400 cursor-not-allowed'
     }
   }
 
@@ -284,20 +307,20 @@ export default function SeatSelection() {
                 {/* Legend */}
                 <div className="flex flex-wrap gap-4 mb-6 justify-center">
                   <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 bg-white border-2 border-gray-300 rounded" />
+                    <div className="w-6 h-6 bg-green-500 rounded" />
                     <span className="text-sm">Disponible</span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 bg-green-500 rounded" />
+                    <div className="w-6 h-6 bg-purple-500 rounded" />
                     <span className="text-sm">Seleccionado</span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 bg-yellow-400 rounded" />
-                    <span className="text-sm">Reservado</span>
+                    <div className="w-6 h-6 bg-red-500 rounded" />
+                    <span className="text-sm">Comprado</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <div className="w-6 h-6 bg-gray-400 rounded" />
-                    <span className="text-sm">Ocupado</span>
+                    <span className="text-sm">No disponible</span>
                   </div>
                 </div>
 
@@ -359,10 +382,8 @@ export default function SeatSelection() {
                                       seat.status !== 'AVAILABLE' ? 'cursor-not-allowed' : 'hover:scale-110 hover:shadow-md'
                                     } ${getSeatStatusColor(seat)}`}
                                   >
-                                    {selectedSeats.some((s) => s.id === seat.id) ? (
+                                    {selectedSeats.some((s) => s.id === seat.id) && (
                                       <Check size={12} className="mx-auto" />
-                                    ) : (
-                                      seat.number
                                     )}
                                   </button>
                                 ))}
@@ -381,10 +402,8 @@ export default function SeatSelection() {
                                       seat.status !== 'AVAILABLE' ? 'cursor-not-allowed' : 'hover:scale-110 hover:shadow-md'
                                     } ${getSeatStatusColor(seat)}`}
                                   >
-                                    {selectedSeats.some((s) => s.id === seat.id) ? (
+                                    {selectedSeats.some((s) => s.id === seat.id) && (
                                       <Check size={12} className="mx-auto" />
-                                    ) : (
-                                      seat.number
                                     )}
                                   </button>
                                 ))}
@@ -403,10 +422,8 @@ export default function SeatSelection() {
                                       seat.status !== 'AVAILABLE' ? 'cursor-not-allowed' : 'hover:scale-110 hover:shadow-md'
                                     } ${getSeatStatusColor(seat)}`}
                                   >
-                                    {selectedSeats.some((s) => s.id === seat.id) ? (
+                                    {selectedSeats.some((s) => s.id === seat.id) && (
                                       <Check size={12} className="mx-auto" />
-                                    ) : (
-                                      seat.number
                                     )}
                                   </button>
                                 ))}
@@ -447,7 +464,58 @@ export default function SeatSelection() {
           </div>
 
           {/* Sidebar */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-6">
+            {/* Sector Selection */}
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="text-xl font-bold mb-6">Comprar entradas</h3>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold mb-3">
+                    Selecciona tu sector
+                  </label>
+                  <div className="space-y-2">
+                    {allSectors.map((sectorOption) => (
+                      <label
+                        key={sectorOption.id}
+                        className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                          selectedSector === sectorOption.id
+                            ? 'border-primary bg-primary/5'
+                            : 'border-gray-200 hover:border-primary/50'
+                        }`}
+                      >
+                        <div className="flex-1">
+                          <input
+                            type="radio"
+                            name="sector"
+                            value={sectorOption.id}
+                            checked={selectedSector === sectorOption.id}
+                            onChange={(e) => {
+                              setSelectedSector(e.target.value)
+                              setSelectedSeats([])
+                            }}
+                            className="sr-only"
+                          />
+                          <div>
+                            <p className="font-semibold">{sectorOption.name}</p>
+                            <p className="text-sm text-gray-500">
+                              {sectorOption.available} disponibles
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-primary">
+                            Bs {sectorOption.price}
+                          </p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Purchase Summary */}
             <Card className="sticky top-24">
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-6">Resumen de compra</h3>

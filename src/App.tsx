@@ -24,6 +24,10 @@ import EventList from './pages/admin/events/EventList'
 import EventForm from './pages/admin/events/EventForm'
 import AdminEventDetail from './pages/admin/events/EventDetail'
 import EventClientsPage from './pages/admin/EventClientsPage'
+import UsersList from './pages/admin/users/UsersList'
+import Reports from './pages/admin/Reports'
+import Settings from './pages/admin/Settings'
+import AccessManagement from './pages/admin/AccessManagement'
 
 type ModalType = 'login' | 'howToBuy' | 'faq' | 'storeLocations' | 'terms' | 'privacy' | 'paymentMethods' | null
 
@@ -66,6 +70,10 @@ function App() {
             <Route path="eventos/:id/editar" element={<EventForm />} />
             <Route path="eventos/:id" element={<AdminEventDetail />} />
             <Route path="eventos/:id/clientes" element={<EventClientsPage />} />
+            <Route path="usuarios" element={<UsersList />} />
+            <Route path="reportes" element={<Reports />} />
+            <Route path="accesos" element={<AccessManagement />} />
+            <Route path="configuracion" element={<Settings />} />
           </Route>
         </Routes>
       </main>

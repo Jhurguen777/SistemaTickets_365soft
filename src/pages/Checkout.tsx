@@ -1,10 +1,12 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, CreditCard, Users } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
 import { useAuthStore } from '@/store/authStore'
+import adminService from '@/services/adminService'
+import purchasesService from '@/services/purchasesService'
 
 interface CheckoutSeat {
   id: string
@@ -53,6 +55,8 @@ export default function Checkout() {
     seats: []
   }
 
+  const [event, setEvent] = useState<any>(null)
+
   const [formData, setFormData] = useState<FormData>({
     nombre: user?.nombre || '',
     apellido: user?.apellido || '',
@@ -70,6 +74,21 @@ export default function Checkout() {
   const [termsAccepted, setTermsAccepted] = useState(false)
 
   const totalPrice = seats.reduce((sum, seat) => sum + seat.price, 0)
+
+  useEffect(() => {
+    if (eventId) {
+      loadEvent()
+    }
+  }, [eventId])
+
+  const loadEvent = async () => {
+    try {
+      const eventData = await adminService.getEventById(eventId)
+      setEvent(eventData)
+    } catch (error) {
+      console.error('Error loading event:', error)
+    }
+  }
 
   // Validation functions
   const validateField = (name: string, value: string): string | null => {
@@ -166,22 +185,46 @@ export default function Checkout() {
       return
     }
 
+    if (!event) {
+      alert('Error al cargar los datos del evento')
+      return
+    }
+
     setProcessing(true)
 
     try {
-      // TODO: Call API to process payment
-      const response = await api.post('/purchases', {
-        eventId,
-        sectorId,
-        seats: seats.map((s) => s.id),
-        attendeeData: formData
+      // Simular procesamiento de pago
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      // Crear compra en localStorage
+      const purchase = purchasesService.createPurchase({
+        eventoId: eventId,
+        eventoTitulo: event.title,
+        eventoImagen: event.image,
+        eventoFecha: event.date,
+        eventoHora: event.time,
+        eventoUbicacion: event.location,
+        eventoDireccion: event.address,
+        asientos: seats.map(seat => ({
+          fila: seat.row,
+          numero: seat.number,
+          nombre: `${formData.nombre} ${formData.apellido}`.trim(),
+          email: formData.email,
+          ci: formData.documento,
+          sector: sectorId || 'General'
+        })),
+        monto: totalPrice
       })
 
-      // Navigate to success page
+      // Navegar a pantalla de éxito
       navigate('/compra-exitosa', {
         state: {
-          purchaseId: response.data.id,
-          qrCode: response.data.qrCode
+          purchaseId: purchase.id,
+          eventData: event,
+          attendeeData: {
+            asientos: purchase.asientos,
+            total: totalPrice
+          }
         }
       })
     } catch (error) {

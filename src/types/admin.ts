@@ -125,3 +125,182 @@ export interface CreateEventDTO {
 export interface UpdateEventDTO extends Partial<CreateEventDTO> {
   id: string
 }
+
+// Tipos para Usuarios
+export interface User {
+  id: string
+  nombre: string
+  email: string
+  telefono: string
+  ci: string
+  direccion?: string
+  ciudad?: string
+  estado: 'ACTIVO' | 'BLOQUEADO'
+  totalCompras: number
+  totalGastado: number
+  ultimoAcceso?: Date
+  createdAt: Date
+}
+
+export interface UserPurchase {
+  id: string
+  eventId: string
+  eventTitle: string
+  eventDate: Date
+  cantidad: number
+  totalPagado: number
+  estadoPago: 'PAGADO' | 'PENDIENTE'
+  fechaCompra: Date
+}
+
+// Tipos para Reportes
+export interface AttendanceReport {
+  eventId: string
+  eventTitle: string
+  confirmados: number
+  asistieron: number
+  noShows: number
+  tasaAsistencia: number
+  asistentes: string[]
+  noShowsList: string[]
+}
+
+export interface SalesByPeriod {
+  periodo: string
+  ventas: number
+  ingresos: number
+}
+
+export interface SectorStats {
+  name: string
+  ventas: number
+  ingresos: number
+  porcentaje: number
+}
+
+// Tipos para Configuración
+export interface SiteConfig {
+  nombre: string
+  logo: string
+  slogan: string
+  emailContacto: string
+  tema: 'claro' | 'oscuro'
+  colorPrimario: string
+}
+
+export interface SocialMedia {
+  facebook?: string
+  twitter?: string
+  instagram?: string
+  youtube?: string
+  tiktok?: string
+}
+
+export interface PaymentMethods {
+  visa: boolean
+  mastercard: boolean
+  amex: boolean
+  qrSimple: boolean
+  baniPay: boolean
+  tigoMoney: boolean
+}
+
+export interface LegalTexts {
+  terminosCondiciones: string
+  politicaPrivacidad: string
+  avisoLegal: string
+  politicaReembolso: string
+}
+
+export interface Config extends SiteConfig {
+  redesSociales: SocialMedia
+  metodosPago: PaymentMethods
+  textosLegales: LegalTexts
+}
+
+// Tipos para Accesos
+export type AdminRole =
+  | 'SUPER_ADMIN'
+  | 'GESTOR_EVENTOS'
+  | 'GESTOR_REPORTES'
+  | 'GESTOR_ASISTENCIA'
+  | 'GESTOR_USUARIOS'
+
+export interface Admin {
+  id: string
+  nombre: string
+  email: string
+  rol: AdminRole
+  estado: 'ACTIVO' | 'INACTIVO'
+  ultimoAcceso?: Date
+  createdAt: Date
+}
+
+export interface CreateAdminDTO {
+  nombre: string
+  email: string
+  password: string
+  rol: AdminRole
+}
+
+export type AuditAction =
+  | 'LOGIN'
+  | 'LOGOUT'
+  | 'CREAR_EVENTO'
+  | 'MODIFICAR_EVENTO'
+  | 'ELIMINAR_EVENTO'
+  | 'BLOQUEAR_USUARIO'
+  | 'DESBLOQUEAR_USUARIO'
+  | 'MARCAR_ASISTENCIA'
+  | 'CREAR_ADMIN'
+  | 'MODIFICAR_CONFIG'
+
+export interface AuditLog {
+  id: string
+  adminId: string
+  adminNombre: string
+  accion: AuditAction
+  detalles: string
+  ip: string
+  dispositivo: string
+  navegador: string
+  fecha: Date
+}
+
+export interface ActiveSession {
+  id: string
+  adminId: string
+  adminNombre: string
+  adminEmail: string
+  inicioSesion: Date
+  ip: string
+  ubicacion: string
+  dispositivo: string
+}
+
+// Tipos para Asistencia
+export type AsistenciaStatus = 'PENDIENTE' | 'CONFIRMADO' | 'ASISTIO' | 'NO_SHOW'
+
+export interface Attendee {
+  id: string
+  purchaseId: string
+  eventId: string
+  nombre: string
+  email: string
+  ci: string
+  asiento: string
+  sector: string
+  asistencia: AsistenciaStatus
+  horaCheckIn?: Date
+  qrCode: string
+}
+
+export interface PurchaseWithAttendees extends RegisteredUser {
+  invitados: Attendee[]
+}
+
+export interface CheckInResult {
+  success: boolean
+  attendee?: Attendee
+  message: string
+}

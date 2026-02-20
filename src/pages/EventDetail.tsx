@@ -261,57 +261,13 @@ export default function EventDetail({ onOpenModal }: EventDetailProps) {
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-6">Comprar entradas</h3>
 
-                {/* Sector Selection */}
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold mb-3">
-                    Selecciona tu sector
-                  </label>
-                  <div className="space-y-2">
-                    {event.sectors.map((sectorOption) => (
-                      <label
-                        key={sectorOption.id}
-                        className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                          selectedSector === sectorOption.id
-                            ? 'border-primary bg-primary/5'
-                            : 'border-gray-200 hover:border-primary/50'
-                        }`}
-                      >
-                        <div className="flex-1">
-                          <input
-                            type="radio"
-                            name="sector"
-                            value={sectorOption.id}
-                            checked={selectedSector === sectorOption.id}
-                            onChange={(e) => setSelectedSector(e.target.value)}
-                            className="sr-only"
-                          />
-                          <div>
-                            <p className="font-semibold">{sectorOption.name}</p>
-                            <p className="text-sm text-gray-500">
-                              {sectorOption.available} disponibles
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-primary">
-                            Bs {sectorOption.price}
-                          </p>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Price Display */}
                 <div className="border-t pt-6 mb-6">
                   <div className="flex justify-between items-center text-xl">
                     <span className="font-bold">Precio por asiento</span>
-                    <span className="font-bold text-primary">
-                      Bs {sector?.price}
-                    </span>
                   </div>
                   <p className="text-sm text-gray-500 mt-2">
-                    Selecciona tus asientos en el siguiente paso
+                    Selecciona tu asiento a continuación
                   </p>
                 </div>
 
