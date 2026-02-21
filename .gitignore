@@ -27,3 +27,12 @@ dist-ssr
 .env
 .env.local
 .env.production.local
+
+# Backend (separate repository)
+backend/
+
+# Documentación de prácticas (excluir solo diario de prácticas)
+DIA_PRACTICAS_*.md
+
+# Archivos temporales
+nul
