@@ -181,8 +181,8 @@ export default function Checkout() {
         return null
 
       case 'telefono':
-        if (!value || !/^\d{10}$/.test(value)) {
-          return 'El teléfono debe tener exactamente 10 dígitos'
+        if (!value || !/^\d+$/.test(value)) {
+          return 'El teléfono solo debe contener números'
         }
         return null
 
@@ -283,8 +283,8 @@ export default function Checkout() {
         return null
 
       case 'telefono':
-        if (!value || !/^\d{10}$/.test(value)) {
-          return 'El teléfono debe tener exactamente 10 dígitos'
+        if (!value || !/^\d+$/.test(value)) {
+          return 'El teléfono solo debe contener números'
         }
         return null
 
@@ -577,7 +577,7 @@ export default function Checkout() {
                                   value={attendee.telefono}
                                   onChange={(e) => handleAttendeeChange(index, e)}
                                   error={errors[`${index}_telefono`]}
-                                  placeholder="10 dígitos"
+                                  placeholder="Tu número de teléfono"
                                   required
                                 />
 

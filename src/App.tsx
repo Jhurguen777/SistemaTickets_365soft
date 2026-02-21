@@ -22,6 +22,7 @@ import PurchaseSuccess from './pages/PurchaseSuccess'
 import Dashboard from './pages/admin/Dashboard'
 import EventList from './pages/admin/events/EventList'
 import EventForm from './pages/admin/events/EventForm'
+import SeatMapEditor from './pages/admin/events/SeatMapEditor'
 import AdminEventDetail from './pages/admin/events/EventDetail'
 import EventClientsPage from './pages/admin/EventClientsPage'
 import UsersList from './pages/admin/users/UsersList'
@@ -68,6 +69,7 @@ function App() {
             <Route path="eventos" element={<EventList />} />
             <Route path="eventos/crear" element={<EventForm />} />
             <Route path="eventos/:id/editar" element={<EventForm />} />
+            <Route path="eventos/:id/dibujar-mapa" element={<SeatMapEditor />} />
             <Route path="eventos/:id" element={<AdminEventDetail />} />
             <Route path="eventos/:id/clientes" element={<EventClientsPage />} />
             <Route path="usuarios" element={<UsersList />} />

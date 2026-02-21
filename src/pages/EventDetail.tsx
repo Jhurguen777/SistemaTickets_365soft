@@ -1,99 +1,108 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Calendar, MapPin, Clock, Users, ArrowLeft } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import EventGrid from '@/components/home/EventGrid'
+import api from '@/services/api'
 
 interface EventDetailProps {
   onOpenModal: (modalType: string) => void
 }
 
-// Mock event data - En producción esto vendría de la API
-const mockEvent = {
-  id: '1',
-  title: 'Vibra Carnavalera 2026',
-  description: 'Únete a la celebración más grande del año. El Vibra Carnavalera te trae lo mejor de la música tropical, artistas nacionales e internacionales en un espectáculo inolvidable.',
-  longDescription: `Prepárate para vivir la experiencia del carnaval más grande de Bolivia.
-
-Vibra Carnavalera 2026 presenta:
-
-• 3 días de música ininterrumpida
-• Más de 20 artistas nacionales e internacionales
-• Zonas de comida y bebida
-• Área kids para toda la familia
-• Seguridad y atención médica 24/7
-
-No te pierdas este evento único que reúne a miles de personas para celebrar la cultura y tradición boliviana.`,
-  image: '/media/banners/vibra-carnavalera.jpg',
-  date: '2026-02-15',
-  time: '20:00',
-  doorsOpen: '18:00',
-  location: 'Estadio Olímpico, La Paz',
-  address: 'Av. Saavedra #1895, La Paz, Bolivia',
-  capacity: 15000,
-  price: 150,
-  category: 'Fiestas',
-  subcategory: 'Carnaval',
-  organizer: '365soft Eventos',
-  status: 'ACTIVO',
-  sectors: [
-    { id: '1', name: 'General', price: 150, available: 5000 },
-    { id: '2', name: 'VIP', price: 350, available: 500 },
-    { id: '3', name: 'Super VIP', price: 500, available: 200 }
-  ],
-  gallery: [
-    '/media/banners/vibra-carnavalera.jpg',
-    '/media/banners/carnaval-oruro.jpg',
-    '/media/banners/fiesta.jpg'
-  ]
+interface Event {
+  id: string
+  title: string
+  description: string
+  longDescription: string
+  image: string
+  date: string
+  time: string
+  doorsOpen: string
+  location: string
+  address: string
+  capacity: number
+  price: number
+  category: string
+  subcategory: string
+  organizer: string
+  status: string
+  sectors: Array<{
+    id: string
+    name: string
+    price: number
+    available: number
+  }>
+  gallery: string[]
 }
-
-const relatedEvents = [
-  {
-    id: '2',
-    title: 'Carnaval de Oruro 2026',
-    image: '/media/banners/carnaval-oruro.jpg',
-    date: '2026-02-28',
-    time: '19:00',
-    location: 'Oruro, Bolivia',
-    price: 250,
-    category: 'Fiestas'
-  },
-  {
-    id: '3',
-    title: 'Fiesta de la Tradición',
-    image: '/media/banners/fiesta.jpg',
-    date: '2026-03-05',
-    time: '20:00',
-    location: 'Cochabamba, Bolivia',
-    price: 180,
-    category: 'Fiestas'
-  },
-  {
-    id: '4',
-    title: 'Noche de Folklore',
-    image: '/media/banners/folklore.jpg',
-    date: '2026-03-10',
-    time: '21:00',
-    location: 'Sucre, Bolivia',
-    price: 120,
-    category: 'Fiestas'
-  }
-]
 
 export default function EventDetail({ onOpenModal }: EventDetailProps) {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [selectedSector, setSelectedSector] = useState('1')
+  const [event, setEvent] = useState<Event | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedSector, setSelectedSector] = useState('')
 
-  const event = mockEvent // En producción: buscar evento por ID
+  // Cargar evento del backend
+  useEffect(() => {
+    const fetchEvent = async () => {
+      if (!id) return
+
+      try {
+        setLoading(true)
+        const response = await api.get(`/eventos/${id}`)
+        const evt = response.data.data
+
+        // Transformar al formato que espera el componente
+        const formattedEvent: Event = {
+          id: evt.id,
+          title: evt.titulo,
+          description: evt.descripcion || '',
+          longDescription: evt.descripcion || '',
+          image: evt.imagenUrl || '/media/banners/default.jpg',
+          date: new Date(evt.fecha).toISOString().split('T')[0],
+          time: evt.hora,
+          doorsOpen: evt.doorsOpen || evt.hora,
+          location: evt.ubicacion,
+          address: evt.direccion || evt.ubicacion,
+          capacity: evt.capacidad,
+          price: evt.precio,
+          category: evt.categoria || 'Fiestas',
+          subcategory: evt.subcategoria || '',
+          organizer: evt.organizer || '365soft Eventos',
+          status: evt.estado,
+          sectors: evt.sectores && evt.sectores.length > 0 ? evt.sectores.map((s: any) => ({
+            id: s.id,
+            name: s.nombre,
+            price: s.precio,
+            available: s.disponible
+          })) : [
+            { id: '1', name: 'General', price: evt.precio, available: evt.capacidad }
+          ],
+          gallery: []
+        }
+
+        setEvent(formattedEvent)
+        if (formattedEvent.sectors.length > 0) {
+          setSelectedSector(formattedEvent.sectors[0].id)
+        }
+      } catch (err) {
+        console.error('Error al cargar evento:', err)
+        setError('Error al cargar el evento')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchEvent()
+  }, [id])
 
   const handleBuyTickets = () => {
     // Navigate to seating selection
     navigate(`/eventos/${id}/asientos`, {
       state: {
-        eventId: event.id,
+        eventId: event?.id || id,
         sectorId: selectedSector
       }
     })
@@ -109,7 +118,38 @@ export default function EventDetail({ onOpenModal }: EventDetailProps) {
     })
   }
 
-  const sector = event.sectors.find(s => s.id === selectedSector)
+  const sector = event?.sectors.find(s => s.id === selectedSector)
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4" />
+          <p className="text-gray-600">Cargando evento...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error || !event) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="text-6xl mb-4">😕</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Evento no encontrado</h2>
+          <p className="text-gray-600 mb-6">{error || 'No se pudo cargar el evento'}</p>
+          <button
+            onClick={() => navigate('/')}
+            className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            Volver al inicio
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -250,8 +290,8 @@ export default function EventDetail({ onOpenModal }: EventDetailProps) {
 
             {/* Related Events */}
             <div>
-              <h2 className="text-2xl font-bold mb-6">Eventos relacionados</h2>
-              <EventGrid events={relatedEvents} hasMore={false} />
+              <h2 className="text-2xl font-bold mb-6">Otros eventos</h2>
+              <EventGrid hasMore={false} />
             </div>
           </div>
 

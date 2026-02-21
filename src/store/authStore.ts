@@ -1,5 +1,6 @@
 // src/store/authStore.ts
 import { create } from 'zustand'
+import api from '@/services/api'
 
 interface User {
   id: string
@@ -28,10 +29,6 @@ interface AuthState {
   logout: () => void
   checkIsAdmin: () => boolean
 }
-
-// Credenciales de admin
-const ADMIN_EMAIL = 'administrador@gmail.com'
-const ADMIN_PASSWORD = 'superadmin'
 
 //Validacion del usuario
 const getStoredUser = (): User | null => {
@@ -78,31 +75,22 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     login: async (email: string, password: string) => {
-      await new Promise(resolve => setTimeout(resolve, 500))
+      try {
+        const response = await api.post('/auth/login', { email, password })
+        const { token, usuario } = response.data
 
-      if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-        const adminUser: User = {
-          id: 'admin-1',
-          email: ADMIN_EMAIL,
-          nombre: 'Administrador',
-          rol: 'ADMIN'
+        const user: User = {
+          id: usuario.id,
+          email: usuario.email,
+          nombre: usuario.nombre,
+          agencia: usuario.agencia,
+          rol: usuario.rol
         }
-        get().setAuth(adminUser, 'admin-token-' + Date.now())
-        return
-      }
 
-      if (email && password.length >= 6) {
-        const normalUser: User = {
-          id: 'user-' + Date.now(),
-          email,
-          nombre: email.split('@')[0],
-          rol: 'USUARIO'
-        }
-        get().setAuth(normalUser, 'user-token-' + Date.now())
-        return
+        get().setAuth(user, token)
+      } catch (error: any) {
+        throw new Error(error.response?.data?.error || 'Credenciales inválidas')
       }
-
-      throw new Error('Credenciales inválidas')
     },
 
     register: async (data: RegisterData) => {

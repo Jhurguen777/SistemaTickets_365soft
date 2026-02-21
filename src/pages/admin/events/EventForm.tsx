@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Upload, X, Image as ImageIcon, Plus } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
 import adminService from '@/services/adminService'
+import { convertImageFileToWebP, isValidImageFile, isValidImageSize } from '@/utils/imageConverter'
 
 export default function EventForm() {
   const navigate = useNavigate()
@@ -26,14 +27,75 @@ export default function EventForm() {
     organizer: '365soft Eventos',
     status: 'ACTIVO' as 'ACTIVO' | 'INACTIVO' | 'CANCELADO',
     image: '/media/banners/vibra-carnavalera.jpg',
-    gallery: [],
-    sectors: [
-      { name: 'General', price: 150, available: 5000, total: 5000 }
-    ]
+    gallery: []
   })
 
+  // Estado local para manejar las imágenes y la principal
+  const [images, setImages] = useState<string[]>([])
+  const [mainImageIndex, setMainImageIndex] = useState<number>(0)
+
   const [loading, setLoading] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [loadingEvent, setLoadingEvent] = useState(false)
+
+  // Cargar datos del evento si estamos editando
+  useEffect(() => {
+    const loadEvent = async () => {
+      if (!id) return
+
+      setLoadingEvent(true)
+      try {
+        const events = await adminService.getEvents()
+        const event = events.find(e => e.id === id)
+
+        if (event) {
+          // Convertir fecha al formato que espera el input date
+          const formatDateForInput = (date: Date | string) => {
+            const d = new Date(date)
+            return d.toISOString().split('T')[0]
+          }
+
+          // Cargar imágenes
+          const eventImages: string[] = []
+          if (event.image) {
+            eventImages.push(event.image)
+          }
+          if (event.gallery && event.gallery.length > 0) {
+            eventImages.push(...event.gallery)
+          }
+
+          setImages(eventImages)
+          setMainImageIndex(0)
+
+          setFormData({
+            title: event.title || '',
+            description: event.description || '',
+            longDescription: event.longDescription || '',
+            location: event.location || '',
+            address: event.address || '',
+            date: formatDateForInput(event.date),
+            time: event.time || '',
+            doorsOpen: event.doorsOpen || '',
+            capacity: event.capacity || 0,
+            category: event.category || 'Fiestas',
+            subcategory: event.subcategory || '',
+            organizer: event.organizer || '365soft Eventos',
+            status: event.status || 'ACTIVO',
+            image: event.image || '',
+            gallery: event.gallery || []
+          })
+        }
+      } catch (error) {
+        console.error('Error al cargar evento:', error)
+        setErrors({ form: 'Error al cargar el evento' })
+      } finally {
+        setLoadingEvent(false)
+      }
+    }
+
+    loadEvent()
+  }, [id])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,10 +131,19 @@ export default function EventForm() {
     setLoading(true)
 
     try {
+      // Actualizar formData con la imagen principal (la primera del array o la marcada)
+      const mainImage = images.length > 0 ? images[mainImageIndex] : formData.image
+
+      const finalFormData = {
+        ...formData,
+        image: mainImage,
+        images: images // Todas las imágenes
+      }
+
       if (isEditing && id) {
-        await adminService.updateEvent(id, formData)
+        await adminService.updateEvent(id, finalFormData)
       } else {
-        await adminService.createEvent(formData)
+        await adminService.createEvent(finalFormData)
       }
       navigate('/admin/eventos')
     } catch (error: any) {
@@ -80,6 +151,88 @@ export default function EventForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setUploadingImage(true)
+
+    try {
+      const newImages: string[] = []
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+
+        if (!isValidImageFile(file)) {
+          alert(`El archivo "${file.name}" no es una imagen válida`)
+          continue
+        }
+
+        if (!isValidImageSize(file, 5)) {
+          alert(`La imagen "${file.name}" supera los 5MB`)
+          continue
+        }
+
+        // Convertir a WebP y luego a base64
+        const webpFile = await convertImageFileToWebP(file, 85)
+
+        // Convertir el WebP a base64
+        const reader = new FileReader()
+        const base64Promise = new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+        })
+        reader.readAsDataURL(webpFile)
+
+        const base64Image = await base64Promise
+        newImages.push(base64Image)
+      }
+
+      // Si es la primera imagen que se sube, hacerla principal automáticamente
+      if (images.length === 0 && newImages.length > 0) {
+        setMainImageIndex(0)
+      }
+
+      setImages([...images, ...newImages])
+    } catch (error) {
+      console.error('Error al convertir imágenes:', error)
+      alert('Error al procesar las imágenes. Por favor intenta con otras imágenes.')
+    } finally {
+      setUploadingImage(false)
+      // Limpiar el input para permitir subir el mismo archivo nuevamente si se desea
+      e.target.value = ''
+    }
+  }
+
+  const handleSetMainImage = (index: number) => {
+    setMainImageIndex(index)
+  }
+
+  const handleRemoveImage = (index: number) => {
+    const newImages = images.filter((_, i) => i !== index)
+    setImages(newImages)
+
+    // Si eliminamos la imagen principal, ajustar el índice
+    if (index === mainImageIndex) {
+      setMainImageIndex(newImages.length > 0 ? 0 : 0)
+    } else if (index < mainImageIndex) {
+      // Si eliminamos una imagen antes de la principal, ajustar el índice
+      setMainImageIndex(mainImageIndex - 1)
+    }
+  }
+
+  // Mostrar indicador de carga cuando se está cargando el evento
+  if (loadingEvent) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Cargando evento...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -170,6 +323,124 @@ export default function EventForm() {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Imágenes del Evento */}
+            <div className="border-t pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Imágenes del Evento</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Sube las imágenes del evento. La primera será la principal por defecto.
+                  </p>
+                </div>
+                <div>
+                  <input
+                    type="file"
+                    id="imagesUpload"
+                    accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                    multiple
+                    onChange={handleImagesUpload}
+                    className="hidden"
+                    disabled={uploadingImage}
+                  />
+                  <label
+                    htmlFor="imagesUpload"
+                    className="inline-flex items-center space-x-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 cursor-pointer transition-colors shadow-sm"
+                  >
+                    <Upload size={18} />
+                    <span className="text-sm font-medium">
+                      {uploadingImage ? 'Procesando...' : 'Subir imágenes'}
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {images.length === 0 ? (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-primary transition-colors">
+                  <label htmlFor="imagesUpload" className="cursor-pointer">
+                    <ImageIcon size={48} className="text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-700 font-medium mb-1">
+                      No hay imágenes subidas
+                    </p>
+                    <p className="text-gray-500 text-sm">
+                      Haz clic para subir una o varias imágenes (PNG, JPG, GIF, WebP - máx 5MB c/u)
+                    </p>
+                    <p className="text-gray-400 text-xs mt-2">
+                      Todas las imágenes se convertirán automáticamente a WebP
+                    </p>
+                  </label>
+                </div>
+              ) : (
+                <div>
+                  {/* Grid de imágenes */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {images.map((imageUrl, index) => (
+                      <div
+                        key={index}
+                        onDoubleClick={() => handleSetMainImage(index)}
+                        className={`relative group cursor-pointer rounded-lg overflow-hidden border-4 transition-all ${
+                          index === mainImageIndex
+                            ? 'border-primary shadow-lg ring-2 ring-primary ring-offset-2'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        title="Doble clic para hacer principal"
+                      >
+                        {/* Imagen */}
+                        <div className="aspect-square">
+                          <img
+                            src={imageUrl}
+                            alt={`Imagen ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+
+                        {/* Badge PRINCIPAL */}
+                        {index === mainImageIndex && (
+                          <div className="absolute top-2 left-2 bg-primary text-white px-2 py-1 rounded text-xs font-bold shadow-lg">
+                            PRINCIPAL
+                          </div>
+                        )}
+
+                        {/* Contador */}
+                        <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white px-2 py-0.5 rounded text-xs">
+                          #{index + 1}
+                        </div>
+
+                        {/* Botón eliminar */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRemoveImage(index)
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-lg z-10"
+                          title="Eliminar imagen"
+                        >
+                          <X size={16} />
+                        </button>
+
+                        {/* Tooltip en hover */}
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center pointer-events-none">
+                          <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-medium bg-black bg-opacity-70 px-2 py-1 rounded pointer-events-none">
+                            Doble clic para hacer principal
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Contador de imágenes */}
+                  <div className="mt-4 flex items-center justify-between text-sm">
+                    <span className="text-gray-600">
+                      Total de imágenes: <strong>{images.length}</strong>
+                    </span>
+                    <span className="text-gray-500">
+                      Imagen principal: <strong>Imagen #{mainImageIndex + 1}</strong>
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Fecha y Ubicación */}
@@ -278,6 +549,40 @@ export default function EventForm() {
                     placeholder="Ej: 365soft Eventos"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Configuración de Asientos */}
+            <div className="border-t pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Configuración de Asientos</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Dibuja el mapa del escenario y configura los sectores
+                  </p>
+                </div>
+                {(isEditing || formData.title) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Si es edición, usar el ID existente, si no, guardar primero
+                      if (isEditing && id) {
+                        navigate(`/admin/eventos/${id}/dibujar-mapa`)
+                      } else {
+                        // Primero guardar el evento básico, luego ir a dibujar mapa
+                        handleSubmit(new Event('submit') as any)
+                      }
+                    }}
+                    className="inline-flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-sm"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                    </svg>
+                    <span className="text-sm font-medium">
+                      {isEditing ? 'Editar Mapa de Asientos' : 'Dibujar Mapa de Asientos'}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
 

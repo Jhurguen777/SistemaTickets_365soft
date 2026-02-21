@@ -19,19 +19,46 @@ import {
   ChevronUp,
   Download,
   UserPlus,
-  UserMinus
+  UserMinus,
+  Map as MapIcon,
+  X
 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import QRScanner from '@/components/admin/QRScanner'
 import adminService from '@/services/adminService'
 import { Event, PurchaseWithAttendees, Attendee, AsistenciaStatus } from '@/types/admin'
+import api from '@/services/api'
+
+interface Sector {
+  id: string
+  name: string
+  color: string
+  price: number
+}
+
+interface Row {
+  id: string
+  name: string
+  seats: number
+  columns: number
+  order: number
+  sectorId?: string
+}
+
+interface SeatMapConfig {
+  sectors?: Sector[]
+  rows?: Row[]
+  specialSeats?: any[]
+}
 
 type AttendanceFilter = 'todos' | 'confirmados' | 'asistieron' | 'no-shows'
 
 export default function EventDetail() {
   const { id } = useParams()
   const [event, setEvent] = useState<Event | null>(null)
+  const [seatMapConfig, setSeatMapConfig] = useState<SeatMapConfig | null>(null)
+  const [showSeatMapModal, setShowSeatMapModal] = useState(false)
   const [purchases, setPurchases] = useState<PurchaseWithAttendees[]>([])
   const [stats, setStats] = useState({
     total: 0,
@@ -64,6 +91,17 @@ export default function EventDetail() {
       setEvent(eventData)
       setPurchases(purchasesData)
       setStats(statsData)
+
+      // Cargar seatMapConfig directamente de la API
+      try {
+        const response = await api.get(`/eventos/${id}`)
+        console.log('SeatMapConfig recibido:', response.data.data.seatMapConfig)
+        if (response.data.data.seatMapConfig) {
+          setSeatMapConfig(response.data.data.seatMapConfig)
+        }
+      } catch (err) {
+        console.error('Error loading seat map config:', err)
+      }
     } catch (error) {
       console.error('Error loading event:', error)
     } finally {
@@ -583,8 +621,208 @@ export default function EventDetail() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Seat Map Preview Button */}
+          {seatMapConfig && seatMapConfig.rows && seatMapConfig.rows.length > 0 && (
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="text-lg font-bold mb-4">Mapa de Asientos</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Visualiza la distribución configurada de asientos
+                </p>
+                <Button
+                  onClick={() => setShowSeatMapModal(true)}
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                >
+                  <MapIcon size={18} className="mr-2" />
+                  Ver Mapa Completo
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
+
+      {/* Modal para ver el mapa de asientos */}
+      {showSeatMapModal && seatMapConfig && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            {/* Background overlay */}
+            <div
+              className="fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity"
+              onClick={() => setShowSeatMapModal(false)}
+            />
+
+            {/* Modal panel */}
+            <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full">
+              {/* Header */}
+              <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">Mapa de Asientos</h3>
+                  <p className="text-sm text-gray-500 mt-1">{event?.title}</p>
+                </div>
+                <button
+                  onClick={() => setShowSeatMapModal(false)}
+                  className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  <X size={24} className="text-gray-500" />
+                </button>
+              </div>
+
+              {/* Content - Scrollable */}
+              <div className="max-h-[70vh] overflow-auto p-8">
+                <div className="min-w-max">
+                  {/* Escenario */}
+                  <div className="mb-6 text-center">
+                    <div className="inline-block px-12 py-3 bg-gray-800 text-white text-base font-bold rounded-lg tracking-widest">
+                      ESCENARIO
+                    </div>
+                  </div>
+
+                  {/* Leyenda */}
+                  {seatMapConfig && (
+                    <div className="mb-8 pb-6 border-b">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-4 text-center">Leyenda de Sectores</h4>
+                      <div className="flex flex-wrap justify-center gap-4">
+                        {/* Sectores confirmados */}
+                        {seatMapConfig.sectors && seatMapConfig.sectors.length > 0 && seatMapConfig.sectors.map((sector) => {
+                          const sectorRows = seatMapConfig.rows?.filter((r: Row) => r.sectorId === sector.id) || []
+                          const totalSeats = sectorRows.reduce((sum: number, r: Row) => sum + r.seats, 0)
+
+                          return (
+                            <div key={sector.id} className="flex items-center gap-3 bg-gray-50 px-4 py-3 rounded-xl">
+                              <div
+                                className="w-6 h-6 rounded-md border-2"
+                                style={{ backgroundColor: sector.color, borderColor: sector.color }}
+                              />
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">{sector.name}</p>
+                                <p className="text-xs text-gray-500">Bs {sector.price} · {totalSeats} asientos</p>
+                              </div>
+                            </div>
+                          )
+                        })}
+
+                        {/* Sectores personalizados de asientos especiales */}
+                        {seatMapConfig.specialSeats && seatMapConfig.specialSeats.length > 0 && (() => {
+                          // Obtener sectores únicos de los asientos especiales
+                          const uniqueSectors = new Map<string, any>()
+
+                          seatMapConfig.specialSeats.forEach((seat: any) => {
+                            if (seat.sectorName) {
+                              if (!uniqueSectors.has(seat.sectorName)) {
+                                // Contar cuántos asientos tienen este sector
+                                const count = seatMapConfig.specialSeats!.filter((s: any) => s.sectorName === seat.sectorName).length
+
+                                uniqueSectors.set(seat.sectorName, {
+                                  name: seat.sectorName,
+                                  color: seat.color,
+                                  price: seat.price,
+                                  count: count
+                                })
+                              }
+                            }
+                          })
+
+                          const customSectors = Array.from(uniqueSectors.values())
+
+                          return customSectors.map((customSector) => (
+                            <div key={`custom-${customSector.name}`} className="flex items-center gap-3 bg-gray-50 px-4 py-3 rounded-xl">
+                              <div
+                                className="w-6 h-6 rounded-md border-2"
+                                style={{ backgroundColor: customSector.color, borderColor: customSector.color }}
+                              />
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">{customSector.name}</p>
+                                <p className="text-xs text-gray-500">Bs {customSector.price} · {customSector.count} asiento{customSector.count !== 1 ? 's' : ''}</p>
+                              </div>
+                            </div>
+                          ))
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Filas de asientos */}
+                  <div className="space-y-2">
+                    {seatMapConfig.rows && seatMapConfig.rows
+                      .sort((a, b) => a.order - b.order)
+                      .map((row) => {
+                        const sector = seatMapConfig.sectors?.find((s: Sector) => s.id === row.sectorId)
+                        const seatsPerColumn = Math.ceil(row.seats / (row.columns || 1))
+                        const columns = []
+
+                        for (let col = 0; col < (row.columns || 1); col++) {
+                          const startSeat = col * seatsPerColumn
+                          const endSeat = Math.min(startSeat + seatsPerColumn, row.seats)
+                          const columnSeats = []
+
+                          for (let i = startSeat; i < endSeat; i++) {
+                            columnSeats.push(i)
+                          }
+
+                          columns.push(columnSeats)
+                        }
+
+                        return (
+                          <div key={row.id} className="flex items-center gap-3">
+                            <span className="text-xs font-medium text-gray-600 w-24 text-right flex-shrink-0">{row.name}</span>
+                            <div className="flex gap-1.5">
+                              {columns.map((columnSeats, colIndex) => (
+                            <React.Fragment key={colIndex}>
+                              <div className="flex gap-1">
+                                {columnSeats.map((seatIndex) => {
+                                  const specialSeat = seatMapConfig.specialSeats?.find(
+                                    (s: any) => s.rowId === row.id && s.seatIndex === seatIndex
+                                  )
+                                  const isSpecial = !!specialSeat
+
+                                  return (
+                                    <div
+                                      key={seatIndex}
+                                      className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-medium border transition-all"
+                                      style={{
+                                        backgroundColor: specialSeat?.color || (sector ? sector.color : '#E5E7EB'),
+                                        borderColor: specialSeat?.color || (sector ? sector.color : '#D1D5DB'),
+                                        color: sector && !specialSeat?.color ? '#FFF' : '#6B7280',
+                                        borderWidth: isSpecial ? '2px' : '1px',
+                                        boxShadow: isSpecial ? '0 0 6px rgba(0,0,0,0.2)' : undefined
+                                      }}
+                                      title={`${row.name} - Asiento ${seatIndex + 1}${sector ? ` (${sector.name})` : ''}`}
+                                    >
+                                      {seatIndex + 1}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                              {colIndex < columns.length - 1 && (
+                                <div className="w-8 flex items-center justify-center">
+                                  <div className="w-0.5 h-4 bg-gray-300 rounded"></div>
+                                </div>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end">
+                <Button
+                  onClick={() => setShowSeatMapModal(false)}
+                  variant="outline"
+                >
+                  Cerrar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

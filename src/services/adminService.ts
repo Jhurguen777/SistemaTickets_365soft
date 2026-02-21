@@ -24,7 +24,8 @@ import {
   CheckInResult
 } from '@/types/admin'
 
-// Datos Mock Iniciales
+// Importar API real
+import api from './api'
 const INITIAL_EVENTS: AdminEvent[] = [
   {
     id: '1',
@@ -685,71 +686,232 @@ const saveAttendees = (attendees: Attendee[]) => {
 
 // Servicios
 export const adminService = {
-  // Eventos
+  // Eventos - Conectados a Backend Real
   getEvents: async (): Promise<AdminEvent[]> => {
-    await new Promise(resolve => setTimeout(resolve, 300))
-    return getStoredEvents()
+    try {
+      const response = await api.get('/eventos')
+      const eventos = response.data.data.eventos || []
+
+      // Transformar datos del backend al formato del frontend
+      return eventos.map((evt: any) => ({
+        id: evt.id,
+        title: evt.titulo,
+        description: evt.descripcion || '',
+        longDescription: evt.descripcion || '',
+        image: evt.imagenUrl || '/media/banners/default.jpg',
+        date: evt.fecha,
+        time: evt.hora,
+        doorsOpen: evt.doorsOpen || evt.hora,
+        location: evt.ubicacion,
+        address: evt.direccion || evt.ubicacion,
+        capacity: evt.capacidad,
+        price: evt.precio,
+        category: evt.categoria || 'Fiestas',
+        subcategory: evt.subcategoria || '',
+        organizer: evt.organizer || '365soft Eventos',
+        status: evt.estado,
+        sectors: evt.sectores && evt.sectores.length > 0 ? evt.sectores.map((s: any) => ({
+          id: s.id,
+          name: s.nombre,
+          price: s.precio,
+          available: s.disponible,
+          total: s.total
+        })) : [
+          {
+            id: '1',
+            name: 'General',
+            price: evt.precio,
+            available: evt.capacidad - (evt._count?.compras || 0),
+            total: evt.capacidad
+          }
+        ],
+        gallery: evt.imagenUrl ? [evt.imagenUrl] : [],
+        totalSales: (evt._count?.compras || 0) * evt.precio,
+        totalTicketsSold: evt._count?.compras || 0,
+        createdAt: new Date(evt.createdAt),
+        updatedAt: new Date(evt.updatedAt)
+      }))
+    } catch (error) {
+      console.error('Error fetching events from backend, using fallback:', error)
+      // Fallback a localStorage si el backend falla
+      return getStoredEvents()
+    }
   },
 
   getEventById: async (id: string): Promise<Event | null> => {
-    await new Promise(resolve => setTimeout(resolve, 200))
-    const events = getStoredEvents()
-    return events.find(e => e.id === id) || null
+    try {
+      const response = await api.get(`/eventos/${id}`)
+      const evt = response.data.data
+
+      return {
+        id: evt.id,
+        title: evt.titulo,
+        description: evt.descripcion || '',
+        longDescription: evt.descripcion || '',
+        image: evt.imagenUrl || '/media/banners/default.jpg',
+        date: evt.fecha,
+        time: evt.hora,
+        doorsOpen: evt.doorsOpen || evt.hora,
+        location: evt.ubicacion,
+        address: evt.direccion || evt.ubicacion,
+        capacity: evt.capacidad,
+        price: evt.precio,
+        category: evt.categoria || 'Fiestas',
+        subcategory: evt.subcategoria || '',
+        organizer: evt.organizer || '365soft Eventos',
+        status: evt.estado,
+        sectors: evt.sectores && evt.sectores.length > 0 ? evt.sectores.map((s: any) => ({
+          id: s.id,
+          name: s.nombre,
+          price: s.precio,
+          available: s.disponible,
+          total: s.total
+        })) : [
+          {
+            id: '1',
+            name: 'General',
+            price: evt.precio,
+            available: evt.capacidad - (evt._count?.compras || 0),
+            total: evt.capacidad
+          }
+        ],
+        gallery: evt.imagenUrl ? [evt.imagenUrl] : [],
+        totalSales: (evt._count?.compras || 0) * evt.precio,
+        totalTicketsSold: evt._count?.compras || 0,
+        createdAt: new Date(evt.createdAt),
+        updatedAt: new Date(evt.updatedAt)
+      }
+    } catch (error) {
+      console.error('Error fetching event from backend:', error)
+      // Fallback a localStorage
+      const events = getStoredEvents()
+      return events.find(e => e.id === id) || null
+    }
   },
 
   createEvent: async (data: CreateEventDTO): Promise<Event> => {
-    await new Promise(resolve => setTimeout(resolve, 500))
+    try {
+      // Asegurar que sectors siempre tenga un valor por defecto
+      const sectors = data.sectors && data.sectors.length > 0
+        ? data.sectors
+        : [{ id: '1', name: 'General', price: 150, available: 0, total: 0 }]
 
-    const events = getStoredEvents()
-    const newEvent: AdminEvent = {
-      ...data,
-      id: Date.now().toString(),
-      totalSales: 0,
-      totalTicketsSold: 0,
-      sectors: data.sectors.map((s, i) => ({
-        ...s,
-        id: `${Date.now()}-${i}`
-      })),
-      createdAt: new Date(),
-      updatedAt: new Date()
+      // Transformar datos del frontend al formato del backend
+      const backendData = {
+        titulo: data.title,
+        descripcion: data.description,
+        fecha: new Date(data.date).toISOString(),
+        hora: data.time,
+        ubicacion: data.location,
+        direccion: data.address,
+        imagenUrl: data.image,
+        capacidad: data.capacity,
+        precio: sectors[0]?.price || 150,
+        categoria: data.category,
+        subcategory: data.subcategory,
+        organizer: data.organizer,
+        doorsOpen: data.doorsOpen,
+        estado: data.status || 'ACTIVO',
+        sectores: sectors.map(s => ({
+          nombre: s.name,
+          precio: s.price,
+          total: s.total
+        }))
+      }
+
+      const response = await api.post('/eventos', backendData)
+      const evt = response.data.data
+
+      return {
+        id: evt.id,
+        title: evt.titulo,
+        description: evt.descripcion || '',
+        longDescription: evt.descripcion || '',
+        image: evt.imagenUrl || '/media/banners/default.jpg',
+        date: evt.fecha,
+        time: evt.hora,
+        doorsOpen: evt.doorsOpen || evt.hora,
+        location: evt.ubicacion,
+        address: evt.direccion || evt.ubicacion,
+        capacity: evt.capacidad,
+        price: evt.precio,
+        category: evt.categoria || 'Fiestas',
+        subcategory: evt.subcategoria || '',
+        organizer: evt.organizer || '365soft Eventos',
+        status: evt.estado,
+        sectors: evt.sectores ? evt.sectores.map((s: any) => ({
+          id: s.id,
+          name: s.nombre,
+          price: s.precio,
+          available: s.disponible,
+          total: s.total
+        })) : sectors,
+        gallery: data.gallery || [],
+        totalSales: 0,
+        totalTicketsSold: 0,
+        createdAt: new Date(evt.createdAt),
+        updatedAt: new Date(evt.updatedAt)
+      }
+    } catch (error: any) {
+      console.error('Error creating event:', error)
+      throw new Error(error.response?.data?.error || 'Error al crear evento')
     }
-
-    events.push(newEvent)
-    saveEvents(events)
-    return newEvent
   },
 
   updateEvent: async (id: string, data: Partial<CreateEventDTO>): Promise<Event> => {
-    await new Promise(resolve => setTimeout(resolve, 500))
+    try {
+      const backendData: any = {}
 
-    const events = getStoredEvents()
-    const index = events.findIndex(e => e.id === id)
+      if (data.title) backendData.titulo = data.title
+      if (data.description !== undefined) backendData.descripcion = data.description
+      if (data.date) backendData.fecha = new Date(data.date).toISOString()
+      if (data.time) backendData.hora = data.time
+      if (data.location) backendData.ubicacion = data.location
+      if (data.image !== undefined) backendData.imagenUrl = data.image
+      if (data.capacity) backendData.capacidad = data.capacity
+      if (data.sectors && data.sectors[0]?.price) backendData.precio = data.sectors[0].price
+      if (data.status) backendData.estado = data.status
 
-    if (index === -1) {
-      throw new Error('Evento no encontrado')
+      const response = await api.put(`/eventos/${id}`, backendData)
+      const evt = response.data.data
+
+      return {
+        id: evt.id,
+        title: evt.titulo,
+        description: evt.descripcion || '',
+        longDescription: evt.descripcion || '',
+        image: evt.imagenUrl || '/media/banners/default.jpg',
+        date: evt.fecha,
+        time: evt.hora,
+        doorsOpen: evt.hora,
+        location: evt.ubicacion,
+        address: evt.ubicacion,
+        capacity: evt.capacidad,
+        price: evt.precio,
+        category: 'Fiestas',
+        subcategory: '',
+        organizer: '365soft Eventos',
+        status: evt.estado,
+        sectors: data.sectors || [],
+        gallery: data.gallery || [],
+        totalSales: 0,
+        totalTicketsSold: 0,
+        createdAt: new Date(evt.createdAt),
+        updatedAt: new Date(evt.updatedAt)
+      }
+    } catch (error: any) {
+      console.error('Error updating event:', error)
+      throw new Error(error.response?.data?.error || 'Error al actualizar evento')
     }
-
-    events[index] = {
-      ...events[index],
-      ...data,
-      updatedAt: new Date()
-    }
-
-    saveEvents(events)
-    return events[index]
   },
 
   deleteEvent: async (id: string): Promise<void> => {
-    await new Promise(resolve => setTimeout(resolve, 300))
-
-    const events = getStoredEvents()
-    const filtered = events.filter(e => e.id !== id)
-
-    if (filtered.length === events.length) {
-      throw new Error('Evento no encontrado')
+    try {
+      await api.delete(`/eventos/${id}`)
+    } catch (error: any) {
+      console.error('Error deleting event:', error)
+      throw new Error(error.response?.data?.error || 'Error al eliminar evento')
     }
-
-    saveEvents(filtered)
   },
 
   // Usuarios
