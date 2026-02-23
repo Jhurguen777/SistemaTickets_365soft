@@ -7,6 +7,8 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { useAuthStore } from '@/store/authStore'
 import adminService from '@/services/adminService'
 import purchasesService from '@/services/purchasesService'
+import paymentService from '@/services/paymentService'
+import QRPaymentModal from '@/components/modals/QRPaymentModal'
 
 interface CheckoutSeat {
   id: string
@@ -129,6 +131,11 @@ export default function Checkout() {
   const [errors, setErrors] = useState<FormErrors>({})
   const [processing, setProcessing] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
+
+  // Estados para el modal de QR
+  const [showQRModal, setShowQRModal] = useState(false)
+  const [currentQRData, setCurrentQRData] = useState<any>(null)
+  const [currentPurchaseId, setCurrentPurchaseId] = useState<string>('')
 
   // Actualizar attendees cuando cambian los asientos
   useEffect(() => {
@@ -397,49 +404,98 @@ export default function Checkout() {
       return
     }
 
+    // Validar que sea pago QR
+    if (paymentData.medioPago !== 'qr') {
+      alert('Actualmente solo aceptamos pagos con QR')
+      return
+    }
+
     setProcessing(true)
 
     try {
-      // Simular procesamiento de pago
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Por ahora, solo procesaremos el PRIMER asiento
+      // TODO: Implementar múltiples asientos en una sola compra cuando el backend lo soporte
+      const firstSeat = seats[0]
+      const firstAttendee = attendees[0]
 
-      // Crear compra en localStorage con todos los asistentes
-      const purchase = purchasesService.createPurchase({
-        eventoId: eventId,
-        eventoTitulo: event.title,
-        eventoImagen: event.image,
-        eventoFecha: event.date,
-        eventoHora: event.time,
-        eventoUbicacion: event.location,
-        eventoDireccion: event.address,
-        asientos: seats.map((seat, index) => ({
-          fila: seat.row,
-          numero: seat.number,
-          nombre: `${attendees[index].nombre} ${attendees[index].apellido}`.trim(),
-          email: attendees[index].email,
-          ci: attendees[index].documento,
-          sector: sectorId || 'General'
-        })),
-        monto: totalPrice
+      // Iniciar pago QR con el backend
+      console.log('Iniciando pago QR...', {
+        asientoId: firstSeat.id,
+        eventoId: eventId
       })
 
-      // Navegar a pantalla de éxito
-      navigate('/compra-exitosa', {
-        state: {
-          purchaseId: purchase.id,
-          eventData: event,
-          attendeeData: {
-            asientos: purchase.asientos,
-            total: totalPrice
-          }
-        }
+      const response = await paymentService.iniciarPagoQR({
+        asientoId: firstSeat.id,
+        eventoId: eventId
       })
-    } catch (error) {
-      console.error('Error processing payment:', error)
-      alert('Hubo un error al procesar tu compra. Por favor intenta nuevamente.')
+
+      console.log('Respuesta del backend:', response)
+
+      if (!response.success) {
+        throw new Error(response.message || 'Error al iniciar el pago')
+      }
+
+      // Guardar datos del QR y la compra
+      setCurrentQRData({
+        alias: response.compra.qrCode, // Este es el alias único del QR
+        monto: response.compra.monto,
+        moneda: response.compra.moneda,
+        fechaVencimiento: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 horas
+        detalleGlosa: `Ticket: ${event.title} - Asiento: ${firstSeat.row}${firstSeat.number}`
+      })
+
+      setCurrentPurchaseId(response.compra.id)
+
+      // Mostrar modal con el QR
+      setShowQRModal(true)
+
+    } catch (error: any) {
+      console.error('Error al iniciar pago:', error)
+      alert(`Error: ${error.message || 'Hubo un error al procesar tu compra. Por favor intenta nuevamente.'}`)
     } finally {
       setProcessing(false)
     }
+  }
+
+  const handlePaymentSuccess = () => {
+    setShowQRModal(false)
+
+    // Crear compra en localStorage para compatibilidad con el resto del sistema
+    const purchase = purchasesService.createPurchase({
+      eventoId: eventId,
+      eventoTitulo: event.title,
+      eventoImagen: event.image,
+      eventoFecha: event.date,
+      eventoHora: event.time,
+      eventoUbicacion: event.location,
+      eventoDireccion: event.address,
+      asientos: seats.map((seat, index) => ({
+        fila: seat.row,
+        numero: seat.number,
+        nombre: `${attendees[index].nombre} ${attendees[index].apellido}`.trim(),
+        email: attendees[index].email,
+        ci: attendees[index].documento,
+        sector: sectorId || 'General'
+      })),
+      monto: totalPrice
+    })
+
+    // Navegar a pantalla de éxito
+    navigate('/compra-exitosa', {
+      state: {
+        purchaseId: purchase.id,
+        eventData: event,
+        attendeeData: {
+          asientos: purchase.asientos,
+          total: totalPrice
+        }
+      }
+    })
+  }
+
+  const handlePaymentFailed = () => {
+    setShowQRModal(false)
+    alert('El pago falló o expiró. Por favor intenta nuevamente.')
   }
 
   if (!seats || seats.length === 0) {
@@ -682,33 +738,39 @@ export default function Checkout() {
                   <h2 className="text-xl font-bold mb-6">Método de pago</h2>
 
                   <div className="space-y-3">
-                    {[
-                      { value: 'visa', label: 'Tarjeta de Crédito Visa', icon: '💳' },
-                      { value: 'mastercard', label: 'Tarjeta de Crédito Mastercard', icon: '💳' },
-                      { value: 'amex', label: 'Tarjeta American Express', icon: '💳' },
-                      { value: 'qr', label: 'QR Simple / BaniPay', icon: '📱' }
-                    ].map((method) => (
-                      <label
-                        key={method.value}
-                        className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                          paymentData.medioPago === method.value
-                            ? 'border-primary bg-primary/5'
-                            : 'border-gray-200 hover:border-primary/50'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="medioPago"
-                          value={method.value}
-                          checked={paymentData.medioPago === method.value}
-                          onChange={handlePaymentChange}
-                          className="mr-3"
-                        />
-                        <span className="text-2xl mr-3">{method.icon}</span>
-                        <span className="font-semibold">{method.label}</span>
-                      </label>
-                    ))}
+                    <label
+                      className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        paymentData.medioPago === 'qr'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-gray-200 hover:border-primary/50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="medioPago"
+                        value="qr"
+                        checked={paymentData.medioPago === 'qr'}
+                        onChange={handlePaymentChange}
+                        className="mr-3"
+                      />
+                      <span className="text-2xl mr-3">📱</span>
+                      <span className="font-semibold">Pago QR - Banco MC4</span>
+                    </label>
                   </div>
+
+                  {paymentData.medioPago === 'qr' && (
+                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800 font-semibold mb-2">
+                        ℹ️ ¿Cómo pagar?
+                      </p>
+                      <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+                        <li>Confirma tu compra</li>
+                        <li>Escanea el código QR que aparecerá</li>
+                        <li>Paga desde tu app bancaria (Banco MC4)</li>
+                        <li>¡Listo! Recibirás confirmación</li>
+                      </ol>
+                    </div>
+                  )}
 
                   {errors.medioPago && (
                     <p className="mt-3 text-sm text-destructive">{errors.medioPago}</p>
@@ -819,6 +881,16 @@ export default function Checkout() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Pago QR */}
+      <QRPaymentModal
+        isOpen={showQRModal}
+        onClose={() => setShowQRModal(false)}
+        qrData={currentQRData}
+        purchaseId={currentPurchaseId}
+        onPaymentSuccess={handlePaymentSuccess}
+        onPaymentFailed={handlePaymentFailed}
+      />
     </div>
   )
 }

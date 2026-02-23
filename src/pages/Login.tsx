@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Mail, Lock, User } from 'lucide-react'
+import { ArrowLeft, Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -28,10 +28,16 @@ export default function Login() {
   })
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [formKey, setFormKey] = useState(0) // Para forzar re-render
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Limpiar TODOS los errores al inicio
     setErrors({})
+    await new Promise(resolve => setTimeout(resolve, 0)) // Forzar re-render
 
     // Validate
     const newErrors: { [key: string]: string } = {}
@@ -45,13 +51,20 @@ export default function Login() {
     }
 
     if (!isLogin) {
-      if (!formData.nombre || formData.nombre.length < 3) {
+      if (!formData.nombre || formData.nombre.trim().length < 3) {
         newErrors.nombre = 'El nombre debe tener al menos 3 caracteres'
       }
-      if (!formData.apellido || formData.apellido.length < 3) {
+      if (!formData.apellido || formData.apellido.trim().length < 3) {
         newErrors.apellido = 'El apellido debe tener al menos 3 caracteres'
       }
-      if (formData.password !== formData.confirmPassword) {
+
+      // Validación de contraseñas
+      const passwordClean = formData.password.trim()
+      const confirmClean = formData.confirmPassword.trim()
+
+      if (!confirmClean) {
+        newErrors.confirmPassword = 'Debes confirmar tu contraseña'
+      } else if (passwordClean !== confirmClean) {
         newErrors.confirmPassword = 'Las contraseñas no coinciden'
       }
     }
@@ -167,7 +180,7 @@ export default function Login() {
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form key={formKey} onSubmit={handleSubmit} className="space-y-4">
               {!isLogin && (
                 <>
                   <Input
@@ -210,32 +223,69 @@ export default function Login() {
                 required
               />
 
-              <Input
-                label="Contraseña"
-                type="password"
-                value={formData.password}
-                onChange={(e) =>
-                  setFormData({ ...formData, password: e.target.value })
-                }
-                error={errors.password}
-                placeholder="Mínimo 6 caracteres"
-                icon={<Lock size={18} />}
-                required
-              />
-
-              {!isLogin && (
+              <div>
                 <Input
-                  label="Confirmar contraseña"
-                  type="password"
-                  value={formData.confirmPassword}
-                  onChange={(e) =>
-                    setFormData({ ...formData, confirmPassword: e.target.value })
-                  }
-                  error={errors.confirmPassword}
-                  placeholder="Repite tu contraseña"
+                  label="Contraseña"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => {
+                    setFormData({ ...formData, password: e.target.value })
+                    // Limpiar error de contraseña cuando el usuario escribe
+                    if (errors.password || errors.confirmPassword) {
+                      setErrors((prev) => {
+                        const newErrors = { ...prev }
+                        delete newErrors.password
+                        delete newErrors.confirmPassword
+                        return newErrors
+                      })
+                    }
+                  }}
+                  error={errors.password}
+                  placeholder="Mínimo 6 caracteres"
                   icon={<Lock size={18} />}
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="mt-1 text-xs text-primary hover:underline flex items-center"
+                >
+                  {showPassword ? <EyeOff size={14} className="mr-1" /> : <Eye size={14} className="mr-1" />}
+                  {showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                </button>
+              </div>
+
+              {!isLogin && (
+                <div>
+                  <Input
+                    label="Confirmar contraseña"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={formData.confirmPassword}
+                    onChange={(e) => {
+                      setFormData({ ...formData, confirmPassword: e.target.value })
+                      // Limpiar error de confirmación cuando el usuario escribe
+                      if (errors.confirmPassword) {
+                        setErrors((prev) => {
+                          const newErrors = { ...prev }
+                          delete newErrors.confirmPassword
+                          return newErrors
+                        })
+                      }
+                    }}
+                    error={errors.confirmPassword}
+                    placeholder="Repite tu contraseña"
+                    icon={<Lock size={18} />}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="mt-1 text-xs text-primary hover:underline flex items-center"
+                  >
+                    {showConfirmPassword ? <EyeOff size={14} className="mr-1" /> : <Eye size={14} className="mr-1" />}
+                    {showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  </button>
+                </div>
               )}
 
               {errors.form && (
@@ -266,6 +316,14 @@ export default function Login() {
                   onClick={() => {
                     setIsLogin(!isLogin)
                     setErrors({})
+                    setFormKey(prev => prev + 1) // Forzar re-render completo
+                    setFormData({
+                      email: '',
+                      password: '',
+                      nombre: '',
+                      apellido: '',
+                      confirmPassword: ''
+                    })
                   }}
                   className="text-primary font-semibold hover:underline"
                 >

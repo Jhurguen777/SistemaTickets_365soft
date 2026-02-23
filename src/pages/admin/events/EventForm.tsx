@@ -27,7 +27,9 @@ export default function EventForm() {
     organizer: '365soft Eventos',
     status: 'ACTIVO' as 'ACTIVO' | 'INACTIVO' | 'CANCELADO',
     image: '/media/banners/vibra-carnavalera.jpg',
-    gallery: []
+    gallery: [],
+    permitirMultiplesAsientos: false,
+    limiteAsientosPorUsuario: 1
   })
 
   // Estado local para manejar las imágenes y la principal
@@ -83,7 +85,9 @@ export default function EventForm() {
             organizer: event.organizer || '365soft Eventos',
             status: event.status || 'ACTIVO',
             image: event.image || '',
-            gallery: event.gallery || []
+            gallery: event.gallery || [],
+            permitirMultiplesAsientos: event.permitirMultiplesAsientos || false,
+            limiteAsientosPorUsuario: event.limiteAsientosPorUsuario || 1
           })
         }
       } catch (error) {
@@ -493,6 +497,59 @@ export default function EventForm() {
                     error={errors.capacity}
                     placeholder="Ej: 15000"
                   />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    ⚙️ Configuración de Compras por Usuario
+                  </label>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
+                    <div className="flex items-start space-x-3">
+                      <input
+                        type="checkbox"
+                        id="permitirMultiplesAsientos"
+                        checked={formData.permitirMultiplesAsientos}
+                        onChange={(e) => {
+                          const permitir = e.target.checked
+                          setFormData({
+                            ...formData,
+                            permitirMultiplesAsientos: permitir,
+                            limiteAsientosPorUsuario: permitir ? formData.limiteAsientosPorUsuario : 1
+                          })
+                        }}
+                        className="mt-1 w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary"
+                      />
+                      <div className="flex-1">
+                        <label htmlFor="permitirMultiplesAsientos" className="font-semibold text-gray-900 cursor-pointer">
+                          Permitir que un usuario compre múltiples asientos
+                        </label>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {formData.permitirMultiplesAsientos
+                            ? 'Los usuarios podrán comprar varios asientos en una sola transacción'
+                            : 'Cada usuario solo podrá comprar UN asiento (recomendado para eventos con certificados individuales)'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {formData.permitirMultiplesAsientos && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Límite de asientos por usuario
+                        </label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={50}
+                          value={formData.limiteAsientosPorUsuario}
+                          onChange={(e) => setFormData({ ...formData, limiteAsientosPorUsuario: parseInt(e.target.value) || 1 })}
+                          placeholder="Ej: 5"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Máximo de asientos que un usuario puede comprar en una sola transacción
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="md:col-span-2">

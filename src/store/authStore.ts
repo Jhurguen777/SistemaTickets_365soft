@@ -12,6 +12,7 @@ interface User {
 
 interface RegisterData {
   nombre: string
+  apellido?: string
   email: string
   password: string
   confirmPassword?: string
@@ -94,25 +95,28 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     register: async (data: RegisterData) => {
-      await new Promise(resolve => setTimeout(resolve, 500))
+      try {
+        const response = await api.post('/auth/register', {
+          email: data.email,
+          password: data.password,
+          nombre: data.nombre,
+          apellido: data.apellido
+        })
 
-      if (data.password.length < 6) {
-        throw new Error('La contraseña debe tener al menos 6 caracteres')
+        const { token, usuario } = response.data
+
+        const user: User = {
+          id: usuario.id,
+          email: usuario.email,
+          nombre: usuario.nombre,
+          agencia: usuario.agencia,
+          rol: usuario.rol
+        }
+
+        get().setAuth(user, token)
+      } catch (error: any) {
+        throw new Error(error.response?.data?.error || 'Error al registrar usuario')
       }
-
-      if (data.password !== data.confirmPassword) {
-        throw new Error('Las contraseñas no coinciden')
-      }
-
-      const newUser: User = {
-        id: 'user-' + Date.now(),
-        email: data.email,
-        nombre: data.nombre,
-        agencia: data.agencia,
-        rol: 'USUARIO'
-      }
-
-      get().setAuth(newUser, 'user-token-' + Date.now())
     },
 
     logout: () => {

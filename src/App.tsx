@@ -46,7 +46,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {!isAdmin && <Header onOpenModal={openModal} />}
+      <Header onOpenModal={openModal} />
 
       <main className="flex-grow">
         <Routes>
@@ -80,7 +80,7 @@ function App() {
         </Routes>
       </main>
 
-      {!isAdmin && <Footer onOpenModal={openModal} />}
+      <Footer onOpenModal={openModal} />
 
       {/* Modals */}
       <LoginModal isOpen={activeModal === 'login'} onClose={closeModal} />
