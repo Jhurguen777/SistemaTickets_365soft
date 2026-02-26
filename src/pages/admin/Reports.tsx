@@ -12,7 +12,6 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/Card'
 import adminService from '@/services/adminService'
 import { FinancialReport, AttendanceReport, SalesByPeriod, SectorStats } from '@/types/admin'
 import {
@@ -90,59 +89,59 @@ export default function Reports() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Reportes</h1>
-          <p className="text-gray-600 mt-1">Análisis detallado de ventas y métricas</p>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">Reportes</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Análisis detallado de ventas y métricas</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => handleExport('pdf')}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
           >
-            <FileText size={18} />
+            <FileText size={16} />
             PDF
           </button>
           <button
             onClick={() => handleExport('excel')}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
-            <Download size={18} />
+            <Download size={16} />
             Excel
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-gray-200 dark:border-gray-700">
         <nav className="flex gap-8">
           <button
             onClick={() => setActiveTab('ventas')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+            className={`py-3 px-1 border-b-2 font-medium text-xs tracking-wide transition-colors ${
               activeTab === 'ventas'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-gray-900 text-gray-900 dark:text-white'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
             }`}
           >
-            Reporte de Ventas
+            REPORTE DE VENTAS
           </button>
           <button
             onClick={() => setActiveTab('financiero')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+            className={`py-3 px-1 border-b-2 font-medium text-xs tracking-wide transition-colors ${
               activeTab === 'financiero'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-gray-900 text-gray-900 dark:text-white'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
             }`}
           >
-            Reporte Financiero
+            REPORTE FINANCIERO
           </button>
           <button
             onClick={() => setActiveTab('asistencia')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+            className={`py-3 px-1 border-b-2 font-medium text-xs tracking-wide transition-colors ${
               activeTab === 'asistencia'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-gray-900 text-gray-900 dark:text-white'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
             }`}
           >
-            Reporte de Asistencia
+            REPORTE DE ASISTENCIA
           </button>
         </nav>
       </div>
@@ -152,11 +151,11 @@ export default function Reports() {
         <div className="space-y-6">
           {/* Period Selector */}
           <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-gray-700">Período:</label>
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide">Período:</label>
             <select
               value={selectedPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value as 'week' | 'month')}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 bg-white dark:bg-gray-800"
             >
               <option value="week">Última Semana</option>
               <option value="month">Último Mes</option>
@@ -164,38 +163,34 @@ export default function Reports() {
           </div>
 
           {/* Distribución por Sector */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Detalles por Sector</h3>
-                <div className="space-y-4">
-                  {sectorStats.map((sector) => (
-                    <div key={sector.name} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-gray-900">{sector.name}</h4>
-                        <span className="text-sm text-gray-600">{sector.porcentaje.toFixed(1)}%</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-gray-600">Ventas</p>
-                          <p className="font-semibold text-gray-900">{sector.ventas} entradas</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-600">Ingresos</p>
-                          <p className="font-semibold text-gray-900">Bs {sector.ingresos.toLocaleString()}</p>
-                        </div>
-                      </div>
-                      <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-primary h-2 rounded-full"
-                          style={{ width: `${sector.porcentaje}%` }}
-                        ></div>
-                      </div>
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Detalles por Sector</h3>
+            <div className="space-y-4">
+              {sectorStats.map((sector) => (
+                <div key={sector.name} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-gray-900 dark:text-white text-sm">{sector.name}</h4>
+                    <span className="text-xs text-gray-600 dark:text-gray-300">{sector.porcentaje.toFixed(1)}%</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Ventas</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{sector.ventas} entradas</p>
                     </div>
-                  ))}
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Ingresos</p>
+                      <p className="font-medium text-gray-900 dark:text-white">Bs {sector.ingresos.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 w-full bg-gray-100 rounded-full h-2">
+                    <div
+                      className="bg-gray-900 h-2 rounded-full transition-all"
+                      style={{ width: `${sector.porcentaje}%` }}
+                    ></div>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -205,101 +200,92 @@ export default function Reports() {
         <div className="space-y-6">
           {/* KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="border-l-4 border-blue-500">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Recaudado</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-2">
-                      Bs {financialReport.totalRecaudado.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                    <DollarSign className="text-blue-600" size={24} />
-                  </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Recaudado</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
+                    Bs {financialReport.totalRecaudado.toLocaleString()}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <DollarSign className="text-gray-600 dark:text-gray-300" size={20} />
+                </div>
+              </div>
+            </div>
 
-            <Card className="border-l-4 border-green-500">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Promedio Ticket</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-2">
-                      Bs {Math.round(financialReport.promedioTicket).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                    <Ticket className="text-green-600" size={24} />
-                  </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Promedio Ticket</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
+                    Bs {Math.round(financialReport.promedioTicket).toLocaleString()}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <Ticket className="text-gray-600 dark:text-gray-300" size={20} />
+                </div>
+              </div>
+            </div>
 
-            <Card className="border-l-4 border-purple-500">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Ocupación Promedio</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-2">
-                      {financialReport.ocupacionPromedio.toFixed(1)}%
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                    <BarChart3 className="text-purple-600" size={24} />
-                  </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Ocupación Promedio</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
+                    {financialReport.ocupacionPromedio.toFixed(1)}%
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <BarChart3 className="text-gray-600 dark:text-gray-300" size={20} />
+                </div>
+              </div>
+            </div>
 
-            <Card className="border-l-4 border-orange-500">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Mejor Evento</p>
-                    <p className="text-lg font-bold text-gray-900 mt-2 truncate">
-                      {financialReport.eventoMasVendido.title}
-                    </p>
-                    <p className="text-sm text-gray-600">{financialReport.eventoMasVendido.ventas} ventas</p>
-                  </div>
-                  <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                    <TrendingUp className="text-orange-600" size={24} />
-                  </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Mejor Evento</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white mt-1 truncate">
+                    {financialReport.eventoMasVendido.title}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{financialReport.eventoMasVendido.ventas} ventas</p>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="text-gray-600 dark:text-gray-300" size={20} />
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Ventas por Evento */}
           {/* Tabla Detallada */}
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Detalle por Evento</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Evento</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Total Recaudado</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Tickets Vendidos</th>
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">Detalle por Evento</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50 dark:bg-gray-700">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Evento</th>
+                    <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Total Recaudado</th>
+                    <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Tickets Vendidos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {financialReport.porEvento.map((evento) => (
+                    <tr key={evento.eventId} className="border-b border-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <td className="py-3 px-4 font-medium text-gray-900 dark:text-white text-sm">{evento.eventTitle}</td>
+                      <td className="py-3 px-4 text-right">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">Bs {evento.totalRecaudado.toLocaleString()}</p>
+                      </td>
+                      <td className="py-3 px-4 text-right text-sm text-gray-600 dark:text-gray-300">{evento.totalVendidos}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {financialReport.porEvento.map((evento) => (
-                      <tr key={evento.eventId} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-3 px-4 font-medium text-gray-900">{evento.eventTitle}</td>
-                        <td className="py-3 px-4 text-right font-semibold text-gray-900">
-                          Bs {evento.totalRecaudado.toLocaleString()}
-                        </td>
-                        <td className="py-3 px-4 text-right text-gray-600">{evento.totalVendidos}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -308,9 +294,9 @@ export default function Reports() {
         <div className="space-y-6">
           {/* Selector de Evento */}
           <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-gray-700">Evento:</label>
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide">Evento:</label>
             <select
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 bg-white dark:bg-gray-800"
               onChange={async (e) => {
                 const attendance = await adminService.getAttendanceReport(e.target.value)
                 setAttendanceReport(attendance)
@@ -328,86 +314,80 @@ export default function Reports() {
             <>
               {/* KPIs de Asistencia */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="border-l-4 border-blue-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Confirmados</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-2">
-                          {attendanceReport.confirmados}
-                        </p>
-                      </div>
-                      <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                        <Users className="text-blue-600" size={24} />
-                      </div>
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Confirmados</p>
+                      <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
+                        {attendanceReport.confirmados}
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <Users className="text-gray-600 dark:text-gray-300" size={20} />
+                    </div>
+                  </div>
+                </div>
 
-                <Card className="border-l-4 border-green-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Asistieron</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-2">
-                          {attendanceReport.asistieron}
-                        </p>
-                      </div>
-                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                        <CheckCircle className="text-green-600" size={24} />
-                      </div>
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Asistieron</p>
+                      <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
+                        {attendanceReport.asistieron}
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <CheckCircle className="text-gray-600 dark:text-gray-300" size={20} />
+                    </div>
+                  </div>
+                </div>
 
-                <Card className="border-l-4 border-red-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">No Shows</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-2">
-                          {attendanceReport.noShows}
-                        </p>
-                      </div>
-                      <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                        <XCircle className="text-red-600" size={24} />
-                      </div>
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">No Shows</p>
+                      <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
+                        {attendanceReport.noShows}
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <XCircle className="text-gray-600 dark:text-gray-300" size={20} />
+                    </div>
+                  </div>
+                </div>
 
-                <Card className="border-l-4 border-purple-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Tasa Asistencia</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-2">
-                          {attendanceReport.tasaAsistencia.toFixed(1)}%
-                        </p>
-                      </div>
-                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                        <PieChart className="text-purple-600" size={24} />
-                      </div>
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Tasa Asistencia</p>
+                      <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
+                        {attendanceReport.tasaAsistencia.toFixed(1)}%
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <PieChart className="text-gray-600 dark:text-gray-300" size={20} />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Lista de No Shows */}
               {attendanceReport.noShowsList.length > 0 && (
-                <Card>
-                  <CardContent className="p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">No Shows (Confirmaron pero no asistieron)</h3>
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">No Shows (Confirmaron pero no asistieron)</h3>
+                  </div>
+                  <div className="p-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                       {attendanceReport.noShowsList.map((name, index) => (
-                        <div key={index} className="flex items-center gap-2 p-2 bg-red-50 rounded-lg">
-                          <XCircle size={16} className="text-red-600" />
-                          <span className="text-sm text-gray-700">{name}</span>
+                        <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                          <XCircle size={14} className="text-gray-500 dark:text-gray-400" />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{name}</span>
                         </div>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               )}
             </>
           )}

@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import { useState } from 'react'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
@@ -12,12 +12,16 @@ import PaymentMethodsModal from '@/components/modals/PaymentMethodsModal'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import AdminLayout from '@/components/admin/AdminLayout'
 import { useAuthStore } from '@/store/authStore'
+import { ThemeProvider } from '@/contexts/ThemeContext'
 import Home from './pages/Home'
 import EventDetail from './pages/EventDetail'
 import SeatSelection from './pages/SeatSelection'
 import Checkout from './pages/Checkout'
 import MisCompras from './pages/MisCompras'
 import Login from './pages/Login'
+import CompleteProfile from './pages/auth/CompleteProfile'
+import AuthSuccess from './pages/auth/AuthSuccess'
+import AuthError from './pages/auth/AuthError'
 import PurchaseSuccess from './pages/PurchaseSuccess'
 import Dashboard from './pages/admin/Dashboard'
 import EventList from './pages/admin/events/EventList'
@@ -35,6 +39,8 @@ type ModalType = 'login' | 'howToBuy' | 'faq' | 'storeLocations' | 'terms' | 'pr
 function App() {
   const [activeModal, setActiveModal] = useState<ModalType>(null)
   const { isAdmin } = useAuthStore()
+  const location = useLocation()
+  const isAdminRoute = location.pathname.startsWith('/admin')
 
   const openModal = (modalType: ModalType) => {
     setActiveModal(modalType)
@@ -45,14 +51,18 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <Header onOpenModal={openModal} />
+    <ThemeProvider>
+      <div className="min-h-screen flex flex-col bg-background">
+        <Header onOpenModal={openModal} />
 
       <main className="flex-grow">
         <Routes>
           {/* Rutas Públicas */}
           <Route path="/" element={<Home onOpenModal={openModal} />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/auth/complete-profile" element={<CompleteProfile />} />
+          <Route path="/auth/success" element={<AuthSuccess />} />
+          <Route path="/auth/error" element={<AuthError />} />
           <Route path="/eventos/:id" element={<EventDetail onOpenModal={openModal} />} />
           <Route path="/eventos/:id/asientos" element={<SeatSelection />} />
           <Route path="/checkout" element={<Checkout />} />
@@ -80,7 +90,7 @@ function App() {
         </Routes>
       </main>
 
-      <Footer onOpenModal={openModal} />
+      {!isAdminRoute && <Footer onOpenModal={openModal} />}
 
       {/* Modals */}
       <LoginModal isOpen={activeModal === 'login'} onClose={closeModal} />
@@ -91,6 +101,7 @@ function App() {
       <PrivacyModal isOpen={activeModal === 'privacy'} onClose={closeModal} />
       <PaymentMethodsModal isOpen={activeModal === 'paymentMethods'} onClose={closeModal} />
     </div>
+    </ThemeProvider>
   )
 }
 

@@ -6,8 +6,10 @@ interface User {
   id: string
   email: string
   nombre: string
+  apellido?: string
   agencia?: string
-  rol: 'USUARIO' | 'ADMIN'
+  isAdmin: boolean
+  rol?: string
 }
 
 interface RegisterData {
@@ -43,7 +45,7 @@ const getStoredUser = (): User | null => {
     if (
       typeof parsed.id === 'string' &&
       typeof parsed.email === 'string' &&
-      typeof parsed.rol === 'string'
+      typeof parsed.isAdmin === 'boolean'
     ) {
       return parsed
     }
@@ -62,7 +64,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     user,
     token,
     isAuthenticated: !!(user && token),
-    isAdmin: !!(user && user.rol === 'ADMIN'),
+    isAdmin: !!(user && user.isAdmin),
 
     setAuth: (user, token) => {
       localStorage.setItem('token', token)
@@ -71,7 +73,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         user,
         token,
         isAuthenticated: true,
-        isAdmin: user.rol === 'ADMIN'
+        isAdmin: user.isAdmin
       })
     },
 
@@ -84,7 +86,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
           id: usuario.id,
           email: usuario.email,
           nombre: usuario.nombre,
+          apellido: usuario.apellido,
           agencia: usuario.agencia,
+          isAdmin: usuario.isAdmin || false,
           rol: usuario.rol
         }
 
@@ -109,8 +113,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
           id: usuario.id,
           email: usuario.email,
           nombre: usuario.nombre,
-          agencia: usuario.agencia,
-          rol: usuario.rol
+          apellido: usuario.apellido,
+          isAdmin: false
         }
 
         get().setAuth(user, token)
@@ -131,7 +135,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     checkIsAdmin: () => {
-      return get().user?.rol === 'ADMIN'
+      return get().user?.isAdmin === true
     }
   }
 })
