@@ -685,6 +685,7 @@ const saveAttendees = (attendees: Attendee[]) => {
 }
 
 // Servicios
+// Servicios
 export const adminService = {
   // Eventos - Conectados a Backend Real
   getEvents: async (): Promise<AdminEvent[]> => {
@@ -692,48 +693,52 @@ export const adminService = {
       const response = await api.get('/eventos')
       const eventos = response.data.data.eventos || []
 
-      // Transformar datos del backend al formato del frontend
-      return eventos.map((evt: any) => ({
-        id: evt.id,
-        title: evt.titulo,
-        description: evt.descripcion || '',
-        longDescription: evt.descripcion || '',
-        image: evt.imagenUrl || '/media/banners/default.jpg',
-        date: evt.fecha,
-        time: evt.hora,
-        doorsOpen: evt.doorsOpen || evt.hora,
-        location: evt.ubicacion,
-        address: evt.direccion || evt.ubicacion,
-        capacity: evt.capacidad,
-        price: evt.precio,
-        category: evt.categoria || 'Fiestas',
-        subcategory: evt.subcategoria || '',
-        organizer: evt.organizer || '365soft Eventos',
-        status: evt.estado,
-        sectors: evt.sectores && evt.sectores.length > 0 ? evt.sectores.map((s: any) => ({
-          id: s.id,
-          name: s.nombre,
-          price: s.precio,
-          available: s.disponible,
-          total: s.total
-        })) : [
-          {
-            id: '1',
-            name: 'General',
-            price: evt.precio,
-            available: evt.capacidad - (evt._count?.compras || 0),
-            total: evt.capacidad
-          }
-        ],
-        gallery: evt.imagenUrl ? [evt.imagenUrl] : [],
-        totalSales: (evt._count?.compras || 0) * evt.precio,
-        totalTicketsSold: evt._count?.compras || 0,
-        createdAt: new Date(evt.createdAt),
-        updatedAt: new Date(evt.updatedAt)
-      }))
+      return eventos.map((evt: any) => {
+        const sectors = evt.sectores && evt.sectores.length > 0
+          ? evt.sectores.map((s: any) => ({
+              id: s.id,
+              name: s.nombre,
+              price: s.precio,
+              available: s.disponible,
+              total: s.total
+            }))
+          : [{
+              id: '1',
+              name: 'General',
+              price: evt.precio,
+              available: evt.capacidad - (evt._count?.compras || 0),
+              total: evt.capacidad
+            }]
+
+        const minPrice = Math.min(...sectors.map((s: any) => s.price))
+
+        return {
+          id: evt.id,
+          title: evt.titulo,
+          description: evt.descripcion || '',
+          longDescription: evt.descripcion || '',
+          image: evt.imagenUrl || '/media/banners/default.jpg',
+          date: evt.fecha,
+          time: evt.hora,
+          doorsOpen: evt.doorsOpen || evt.hora,
+          location: evt.ubicacion,
+          address: evt.direccion || evt.ubicacion,
+          capacity: evt.capacidad,
+          price: minPrice,  // ← precio mínimo de los sectores
+          category: evt.categoria || 'Fiestas',
+          subcategory: evt.subcategoria || '',
+          organizer: evt.organizer || '365soft Eventos',
+          status: evt.estado,
+          sectors,
+          gallery: evt.imagenUrl ? [evt.imagenUrl] : [],
+          totalSales: (evt._count?.compras || 0) * evt.precio,
+          totalTicketsSold: evt._count?.compras || 0,
+          createdAt: new Date(evt.createdAt),
+          updatedAt: new Date(evt.updatedAt)
+        }
+      })
     } catch (error) {
       console.error('Error fetching events from backend, using fallback:', error)
-      // Fallback a localStorage si el backend falla
       return getStoredEvents()
     }
   },
@@ -743,6 +748,24 @@ export const adminService = {
       const response = await api.get(`/eventos/${id}`)
       const evt = response.data.data
 
+      const sectors = evt.sectores && evt.sectores.length > 0
+        ? evt.sectores.map((s: any) => ({
+            id: s.id,
+            name: s.nombre,
+            price: s.precio,
+            available: s.disponible,
+            total: s.total
+          }))
+        : [{
+            id: '1',
+            name: 'General',
+            price: evt.precio,
+            available: evt.capacidad - (evt._count?.compras || 0),
+            total: evt.capacidad
+          }]
+
+      const minPrice = Math.min(...sectors.map((s: any) => s.price))
+
       return {
         id: evt.id,
         title: evt.titulo,
@@ -755,26 +778,12 @@ export const adminService = {
         location: evt.ubicacion,
         address: evt.direccion || evt.ubicacion,
         capacity: evt.capacidad,
-        price: evt.precio,
+        price: minPrice,  // ← precio mínimo de los sectores
         category: evt.categoria || 'Fiestas',
         subcategory: evt.subcategoria || '',
         organizer: evt.organizer || '365soft Eventos',
         status: evt.estado,
-        sectors: evt.sectores && evt.sectores.length > 0 ? evt.sectores.map((s: any) => ({
-          id: s.id,
-          name: s.nombre,
-          price: s.precio,
-          available: s.disponible,
-          total: s.total
-        })) : [
-          {
-            id: '1',
-            name: 'General',
-            price: evt.precio,
-            available: evt.capacidad - (evt._count?.compras || 0),
-            total: evt.capacidad
-          }
-        ],
+        sectors,
         gallery: evt.imagenUrl ? [evt.imagenUrl] : [],
         totalSales: (evt._count?.compras || 0) * evt.precio,
         totalTicketsSold: evt._count?.compras || 0,
@@ -783,7 +792,6 @@ export const adminService = {
       }
     } catch (error) {
       console.error('Error fetching event from backend:', error)
-      // Fallback a localStorage
       const events = getStoredEvents()
       return events.find(e => e.id === id) || null
     }
@@ -791,31 +799,30 @@ export const adminService = {
 
   createEvent: async (data: CreateEventDTO): Promise<Event> => {
     try {
-      // Asegurar que sectors siempre tenga un valor por defecto
       const sectors = data.sectors && data.sectors.length > 0
         ? data.sectors
-        : [{ id: '1', name: 'General', price: 150, available: 0, total: 0 }]
+        : [{ id: '1', name: 'General', price: data.price, available: data.capacity, total: data.capacity }]
 
-      // Transformar datos del frontend al formato del backend
       const backendData = {
-        titulo: data.title,
+        titulo:      data.title,
         descripcion: data.description,
-        fecha: new Date(data.date).toISOString(),
-        hora: data.time,
-        ubicacion: data.location,
-        direccion: data.address,
-        imagenUrl: data.image,
-        capacidad: data.capacity,
-        precio: sectors[0]?.price || 150,
-        categoria: data.category,
+        fecha:       new Date(data.date).toISOString(),
+        hora:        data.time,
+        ubicacion:   data.location,
+        direccion:   data.address,
+        imagenUrl:   data.image,
+        capacidad:   data.capacity,
+        precio:      data.price,
+        categoria:   data.category,
         subcategory: data.subcategory,
-        organizer: data.organizer,
-        doorsOpen: data.doorsOpen,
-        estado: data.status || 'ACTIVO',
-        sectores: sectors.map(s => ({
-          nombre: s.name,
-          precio: s.price,
-          total: s.total
+        organizer:   data.organizer,
+        doorsOpen:   data.doorsOpen,
+        estado:      data.status || 'ACTIVO',
+        sectores:    sectors.map(s => ({
+          nombre:     s.name,
+          precio:     s.price,
+          total:      s.total || data.capacity,
+          disponible: s.available || s.total || data.capacity
         }))
       }
 
@@ -823,34 +830,34 @@ export const adminService = {
       const evt = response.data.data
 
       return {
-        id: evt.id,
-        title: evt.titulo,
-        description: evt.descripcion || '',
+        id:              evt.id,
+        title:           evt.titulo,
+        description:     evt.descripcion || '',
         longDescription: evt.descripcion || '',
-        image: evt.imagenUrl || '/media/banners/default.jpg',
-        date: evt.fecha,
-        time: evt.hora,
-        doorsOpen: evt.doorsOpen || evt.hora,
-        location: evt.ubicacion,
-        address: evt.direccion || evt.ubicacion,
-        capacity: evt.capacidad,
-        price: evt.precio,
-        category: evt.categoria || 'Fiestas',
-        subcategory: evt.subcategoria || '',
-        organizer: evt.organizer || '365soft Eventos',
-        status: evt.estado,
+        image:           evt.imagenUrl || '/media/banners/default.jpg',
+        date:            evt.fecha,
+        time:            evt.hora,
+        doorsOpen:       evt.doorsOpen || evt.hora,
+        location:        evt.ubicacion,
+        address:         evt.direccion || evt.ubicacion,
+        capacity:        evt.capacidad,
+        price:           evt.precio,
+        category:        evt.categoria || 'Fiestas',
+        subcategory:     evt.subcategoria || '',
+        organizer:       evt.organizer || '365soft Eventos',
+        status:          evt.estado,
         sectors: evt.sectores ? evt.sectores.map((s: any) => ({
-          id: s.id,
-          name: s.nombre,
-          price: s.precio,
+          id:        s.id,
+          name:      s.nombre,
+          price:     s.precio,
           available: s.disponible,
-          total: s.total
+          total:     s.total
         })) : sectors,
-        gallery: data.gallery || [],
-        totalSales: 0,
+        gallery:          data.gallery || [],
+        totalSales:       0,
         totalTicketsSold: 0,
-        createdAt: new Date(evt.createdAt),
-        updatedAt: new Date(evt.updatedAt)
+        createdAt:        new Date(evt.createdAt),
+        updatedAt:        new Date(evt.updatedAt)
       }
     } catch (error: any) {
       console.error('Error creating event:', error)
@@ -869,35 +876,43 @@ export const adminService = {
       if (data.location) backendData.ubicacion = data.location
       if (data.image !== undefined) backendData.imagenUrl = data.image
       if (data.capacity) backendData.capacidad = data.capacity
-      if (data.sectors && data.sectors[0]?.price) backendData.precio = data.sectors[0].price
+      if (data.price !== undefined) backendData.precio = data.price
+      if (data.sectors && data.sectors.length > 0) {
+        backendData.sectores = data.sectors.map(s => ({
+          nombre:     s.name,
+          precio:     s.price,
+          total:      s.total,
+          disponible: s.available ?? s.total  // ← fix disponible
+        }))
+      }
       if (data.status) backendData.estado = data.status
 
       const response = await api.put(`/eventos/${id}`, backendData)
       const evt = response.data.data
 
       return {
-        id: evt.id,
-        title: evt.titulo,
-        description: evt.descripcion || '',
+        id:              evt.id,
+        title:           evt.titulo,
+        description:     evt.descripcion || '',
         longDescription: evt.descripcion || '',
-        image: evt.imagenUrl || '/media/banners/default.jpg',
-        date: evt.fecha,
-        time: evt.hora,
-        doorsOpen: evt.hora,
-        location: evt.ubicacion,
-        address: evt.ubicacion,
-        capacity: evt.capacidad,
-        price: evt.precio,
-        category: 'Fiestas',
-        subcategory: '',
-        organizer: '365soft Eventos',
-        status: evt.estado,
-        sectors: data.sectors || [],
-        gallery: data.gallery || [],
-        totalSales: 0,
+        image:           evt.imagenUrl || '/media/banners/default.jpg',
+        date:            evt.fecha,
+        time:            evt.hora,
+        doorsOpen:       evt.hora,
+        location:        evt.ubicacion,
+        address:         evt.ubicacion,
+        capacity:        evt.capacidad,
+        price:           evt.precio,
+        category:        'Fiestas',
+        subcategory:     '',
+        organizer:       '365soft Eventos',
+        status:          evt.estado,
+        sectors:         data.sectors || [],
+        gallery:         data.gallery || [],
+        totalSales:      0,
         totalTicketsSold: 0,
-        createdAt: new Date(evt.createdAt),
-        updatedAt: new Date(evt.updatedAt)
+        createdAt:       new Date(evt.createdAt),
+        updatedAt:       new Date(evt.updatedAt)
       }
     } catch (error: any) {
       console.error('Error updating event:', error)
@@ -926,7 +941,6 @@ export const adminService = {
     return getStoredUsers()
   },
 
-  // Reportes
   getFinancialReport: async (): Promise<FinancialReport> => {
     await new Promise(resolve => setTimeout(resolve, 400))
 
@@ -937,7 +951,7 @@ export const adminService = {
 
     const porEvento = events.map(event => {
       const eventUsers = users.filter(u => u.eventId === event.id)
-      const sectores = event.sectors.map(sector => {
+      const sectors = event.sectors.map(sector => {
         const ventasSector = eventUsers.filter(u => u.sector === sector.name)
         return {
           name: sector.name,
@@ -951,7 +965,7 @@ export const adminService = {
       return {
         eventId: event.id,
         eventTitle: event.title,
-        sectores,
+        sectors,
         totalRecaudado: event.totalSales,
         totalVendidos: event.totalTicketsSold
       }
@@ -1001,7 +1015,6 @@ export const adminService = {
     const totalUsuarios = users.length
     const proximosEventos = events.filter(e => new Date(e.date) > new Date()).length
 
-    // Ventas última semana
     const hoy = new Date()
     const haceUnaSemana = new Date(hoy.getTime() - 7 * 24 * 60 * 60 * 1000)
     const ventasUltimaSemana = users
@@ -1017,13 +1030,11 @@ export const adminService = {
         return acc
       }, [] as { dia: string; monto: number }[])
 
-    // Ventas por evento
     const ventasPorEvento = events.map(e => ({
       titulo: e.title,
       monto: e.totalSales
     }))
 
-    // Distribución por sector
     const distribucionPorSector = users.reduce((acc, u) => {
       const existing = acc.find(item => item.name === u.sector)
       if (existing) {
@@ -1045,7 +1056,6 @@ export const adminService = {
     }
   },
 
-  // Usuarios
   getUsersList: async (): Promise<User[]> => {
     await new Promise(resolve => setTimeout(resolve, 300))
     return getStoredAdminUsers()
@@ -1083,7 +1093,6 @@ export const adminService = {
     await new Promise(resolve => setTimeout(resolve, 300))
     const users = getStoredAdminUsers()
     const index = users.findIndex(u => u.id === id)
-
     if (index !== -1) {
       users[index].estado = 'BLOQUEADO'
       saveAdminUsers(users)
@@ -1094,14 +1103,12 @@ export const adminService = {
     await new Promise(resolve => setTimeout(resolve, 300))
     const users = getStoredAdminUsers()
     const index = users.findIndex(u => u.id === id)
-
     if (index !== -1) {
       users[index].estado = 'ACTIVO'
       saveAdminUsers(users)
     }
   },
 
-  // Reportes
   getAttendanceReport: async (eventId: string): Promise<AttendanceReport> => {
     await new Promise(resolve => setTimeout(resolve, 300))
 
@@ -1110,7 +1117,7 @@ export const adminService = {
     const event = events.find(e => e.id === eventId)
 
     const confirmados = users.filter(u => u.estadoPago === 'PAGADO').length
-    const asistieron = Math.floor(confirmados * 0.8) // Mock: 80% de asistencia
+    const asistieron = Math.floor(confirmados * 0.8)
     const noShows = confirmados - asistieron
     const tasaAsistencia = confirmados > 0 ? (asistieron / confirmados) * 100 : 0
 
@@ -1126,12 +1133,9 @@ export const adminService = {
     }
   },
 
-  getSalesByPeriod: async (period: 'week' | 'month' | 'custom', startDate?: Date, endDate?: Date): Promise<SalesByPeriod[]> => {
+  getSalesByPeriod: async (period: 'week' | 'month' | 'custom', _startDate?: Date, _endDate?: Date): Promise<SalesByPeriod[]> => {
     await new Promise(resolve => setTimeout(resolve, 400))
 
-    const users = getStoredUsers().filter(u => u.estadoPago === 'PAGADO')
-
-    // Mock: agrupar por período
     if (period === 'week') {
       return [
         { periodo: 'Lun', ventas: 25, ingresos: 6250 },
@@ -1173,7 +1177,6 @@ export const adminService = {
     })
   },
 
-  // Configuración
   getConfig: async (): Promise<Config> => {
     await new Promise(resolve => setTimeout(resolve, 200))
     return getStoredConfig()
@@ -1181,15 +1184,12 @@ export const adminService = {
 
   updateConfig: async (config: Partial<Config>): Promise<Config> => {
     await new Promise(resolve => setTimeout(resolve, 400))
-
     const currentConfig = getStoredConfig()
     const newConfig = { ...currentConfig, ...config }
-
     saveConfig(newConfig)
     return newConfig
   },
 
-  // Accesos - Administradores
   getAdmins: async (): Promise<Admin[]> => {
     await new Promise(resolve => setTimeout(resolve, 300))
     return getStoredAdmins()
@@ -1217,11 +1217,10 @@ export const adminService = {
     admins.push(newAdmin)
     saveAdmins(admins)
 
-    // Agregar log de auditoría
     const logs = getStoredAuditLogs()
     logs.unshift({
       id: `audit${Date.now()}`,
-      adminId: 'current', // Would be actual admin ID
+      adminId: 'current',
       adminNombre: 'Administrador Actual',
       accion: 'CREAR_ADMIN',
       detalles: `Creó al administrador "${data.nombre}" con rol ${data.rol}`,
@@ -1241,15 +1240,9 @@ export const adminService = {
     const admins = getStoredAdmins()
     const index = admins.findIndex(a => a.id === id)
 
-    if (index === -1) {
-      throw new Error('Administrador no encontrado')
-    }
+    if (index === -1) throw new Error('Administrador no encontrado')
 
-    admins[index] = {
-      ...admins[index],
-      ...data
-    }
-
+    admins[index] = { ...admins[index], ...data }
     saveAdmins(admins)
     return admins[index]
   },
@@ -1260,14 +1253,11 @@ export const adminService = {
     const admins = getStoredAdmins()
     const filtered = admins.filter(a => a.id !== id)
 
-    if (filtered.length === admins.length) {
-      throw new Error('Administrador no encontrado')
-    }
+    if (filtered.length === admins.length) throw new Error('Administrador no encontrado')
 
     saveAdmins(filtered)
   },
 
-  // Accesos - Auditoría
   getAuditLogs: async (): Promise<AuditLog[]> => {
     await new Promise(resolve => setTimeout(resolve, 300))
     return getStoredAuditLogs()
@@ -1279,7 +1269,6 @@ export const adminService = {
     return logs.filter(log => log.adminId === adminId)
   },
 
-  // Accesos - Sesiones Activas
   getActiveSessions: async (): Promise<ActiveSession[]> => {
     await new Promise(resolve => setTimeout(resolve, 200))
     return getStoredActiveSessions()
@@ -1291,30 +1280,23 @@ export const adminService = {
     const sessions = getStoredActiveSessions()
     const filtered = sessions.filter(s => s.id !== sessionId)
 
-    if (filtered.length === sessions.length) {
-      throw new Error('Sesión no encontrada')
-    }
+    if (filtered.length === sessions.length) throw new Error('Sesión no encontrada')
 
     saveActiveSessions(filtered)
   },
 
-  // Asistencia
   getEventAttendees: async (eventId: string): Promise<PurchaseWithAttendees[]> => {
     await new Promise(resolve => setTimeout(resolve, 300))
 
     const users = getStoredUsers()
     const attendees = getStoredAttendees()
 
-    // Agrupar asistentes por compra
     return users
       .filter(u => u.eventId === eventId)
-      .map(user => {
-        const userAttendees = attendees.filter(a => a.purchaseId === user.id)
-        return {
-          ...user,
-          invitados: userAttendees
-        }
-      })
+      .map(user => ({
+        ...user,
+        invitados: attendees.filter(a => a.purchaseId === user.id)
+      }))
   },
 
   getAttendeeByQR: async (qrCode: string, eventId: string): Promise<CheckInResult> => {
@@ -1323,34 +1305,11 @@ export const adminService = {
     const attendees = getStoredAttendees()
     const attendee = attendees.find(a => a.qrCode === qrCode && a.eventId === eventId)
 
-    if (!attendee) {
-      return {
-        success: false,
-        message: 'QR no válido o no corresponde a este evento'
-      }
-    }
+    if (!attendee) return { success: false, message: 'QR no válido o no corresponde a este evento' }
+    if (attendee.asistencia === 'ASISTIO') return { success: false, attendee, message: 'Este asistente ya registró su entrada' }
+    if (attendee.asistencia === 'NO_SHOW') return { success: false, attendee, message: 'Este asistente fue marcado como NO SHOW' }
 
-    if (attendee.asistencia === 'ASISTIO') {
-      return {
-        success: false,
-        attendee,
-        message: 'Este asistente ya registró su entrada'
-      }
-    }
-
-    if (attendee.asistencia === 'NO_SHOW') {
-      return {
-        success: false,
-        attendee,
-        message: 'Este asistente fue marcado como NO SHOW'
-      }
-    }
-
-    return {
-      success: true,
-      attendee,
-      message: 'Asistente encontrado correctamente'
-    }
+    return { success: true, attendee, message: 'Asistente encontrado correctamente' }
   },
 
   markAttendance: async (attendeeId: string): Promise<Attendee> => {
@@ -1359,16 +1318,12 @@ export const adminService = {
     const attendees = getStoredAttendees()
     const index = attendees.findIndex(a => a.id === attendeeId)
 
-    if (index === -1) {
-      throw new Error('Asistente no encontrado')
-    }
+    if (index === -1) throw new Error('Asistente no encontrado')
 
     attendees[index].asistencia = 'ASISTIO'
     attendees[index].horaCheckIn = new Date()
-
     saveAttendees(attendees)
 
-    // Agregar log de auditoría
     const logs = getStoredAuditLogs()
     logs.unshift({
       id: `audit${Date.now()}`,
@@ -1392,14 +1347,12 @@ export const adminService = {
     const attendees = getStoredAttendees()
     const index = attendees.findIndex(a => a.id === attendeeId)
 
-    if (index === -1) {
-      throw new Error('Asistente no encontrado')
-    }
+    if (index === -1) throw new Error('Asistente no encontrado')
 
     attendees[index].asistencia = 'CONFIRMADO'
     attendees[index].horaCheckIn = undefined
-
     saveAttendees(attendees)
+
     return attendees[index]
   },
 
@@ -1409,14 +1362,12 @@ export const adminService = {
     const attendees = getStoredAttendees()
     const index = attendees.findIndex(a => a.id === attendeeId)
 
-    if (index === -1) {
-      throw new Error('Asistente no encontrado')
-    }
+    if (index === -1) throw new Error('Asistente no encontrado')
 
     attendees[index].asistencia = 'NO_SHOW'
     attendees[index].horaCheckIn = undefined
-
     saveAttendees(attendees)
+
     return attendees[index]
   },
 
@@ -1432,11 +1383,11 @@ export const adminService = {
     const attendees = getStoredAttendees().filter(a => a.eventId === eventId)
 
     return {
-      total: attendees.length,
+      total:       attendees.length,
       confirmados: attendees.filter(a => a.asistencia === 'CONFIRMADO').length,
-      asistieron: attendees.filter(a => a.asistencia === 'ASISTIO').length,
-      noShows: attendees.filter(a => a.asistencia === 'NO_SHOW').length,
-      pendientes: attendees.filter(a => a.asistencia === 'PENDIENTE').length
+      asistieron:  attendees.filter(a => a.asistencia === 'ASISTIO').length,
+      noShows:     attendees.filter(a => a.asistencia === 'NO_SHOW').length,
+      pendientes:  attendees.filter(a => a.asistencia === 'PENDIENTE').length
     }
   }
 }
