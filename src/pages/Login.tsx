@@ -80,8 +80,11 @@ export default function Login() {
       if (isLogin) {
         await login(formData.email, formData.password)
 
-        // Verificar si es admin por el email (isAdmin no se actualiza inmediatamente)
-        if (formData.email === 'administrador@gmail.com') {
+        // Obtener el estado actualizado del auth store
+        const authState = useAuthStore.getState()
+
+        // Redirigir al dashboard de admin si es administrador
+        if (authState.isAdmin) {
           navigate('/admin/dashboard', { replace: true })
           return
         }

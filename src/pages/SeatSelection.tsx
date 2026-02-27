@@ -5,6 +5,7 @@ import Button from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import socketService from '@/services/socket'
 import api from '@/services/api'
+import asientoService from '@/services/asientoService'
 import { useAuthStore } from '@/store/authStore'
 
 interface Seat {
@@ -109,11 +110,13 @@ export default function SeatSelection() {
 
       try {
         setLoading(true)
+        console.log('🔍 Cargando evento:', eventId)
+
         const response = await api.get(`/eventos/${eventId}`)
         const event = response.data.data
 
-        // ✅ FIX: Guardar precio base del evento para usarlo como fallback en asientos
-        const basePrice = event.precio || event.price || 0
+        console.log('✅ Evento cargado:', event.titulo)
+        console.log('📋 Tiene seatMapConfig:', !!event.seatMapConfig)
 
         setEventData({
           id: event.id,
@@ -124,13 +127,18 @@ export default function SeatSelection() {
 
         if (event.seatMapConfig) {
           setSeatMapConfig(event.seatMapConfig)
-          // ✅ FIX: Pasar el precio base del evento al generador de asientos
-          generateSeatsFromConfig(event.seatMapConfig, basePrice)
+
+          // ✅ Solución temporal: usar los asientos que ya vienen en el evento
+          // El endpoint /api/asientos/evento/:id tiene problemas de conexión
+          const asientosDelEvento = event.asientos || []
+          console.log('✅ Usando asientos del evento:', asientosDelEvento.length)
+
+          generateSeatsFromConfig(event.seatMapConfig, asientosDelEvento)
         } else {
           setDemoMode(true)
         }
       } catch (error) {
-        console.error('Error loading event:', error)
+        console.error('❌ Error loading event:', error)
         setDemoMode(true)
       } finally {
         setLoading(false)
@@ -140,9 +148,16 @@ export default function SeatSelection() {
     loadEventData()
   }, [eventId])
 
-  // ✅ FIX: Recibe basePrice del evento para no hardcodear 150
-  const generateSeatsFromConfig = (config: SeatMapConfig, basePrice: number) => {
+  // Generar asientos basados en la configuración del mapa
+  const generateSeatsFromConfig = (config: SeatMapConfig, asientosReales: any[] = []) => {
     if (!config.rows || config.rows.length === 0) return
+
+    // Crear mapa de asientos reales por fila-numero para búsqueda rápida
+    const asientosMap = new Map<string, any>()
+    asientosReales.forEach(asiento => {
+      const key = `${asiento.fila}-${asiento.numero}`
+      asientosMap.set(key, asiento)
+    })
 
     const generatedSeats: Seat[] = []
 
@@ -164,10 +179,29 @@ export default function SeatSelection() {
         let sectorName = specialSeat?.sectorName || sector?.name || 'General'
         let sectorId = sector?.id
 
-        const status: 'AVAILABLE' | 'OCCUPIED' = 'AVAILABLE'
+        if (specialSeat) {
+          price = specialSeat.price || price
+          color = specialSeat.color || color
+          sectorName = specialSeat.sectorName || sectorName
+        }
+
+        // Buscar el asiento real en la BD por fila-numero
+        const key = `${row.name}-${i + 1}`
+        const asientoReal = asientosMap.get(key)
+
+        // Determinar el estado basado en el asiento real
+        let status: 'AVAILABLE' | 'OCCUPIED' = 'AVAILABLE'
+        if (asientoReal) {
+          if (asientoReal.estado === 'VENDIDO' || asientoReal.estado === 'BLOQUEADO') {
+            status = 'OCCUPIED'
+          }
+        }
+
+        // Usar el UUID real de la BD, o generar uno temporal si no existe
+        const seatId = asientoReal?.id || `${row.name}-${i + 1}`
 
         generatedSeats.push({
-          id: `${row.name}-${i + 1}`,
+          id: seatId, // ✅ Ahora usa el UUID real de la BD
           row: row.name,
           number: i + 1,
           status,

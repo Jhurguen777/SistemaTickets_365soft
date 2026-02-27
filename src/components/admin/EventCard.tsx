@@ -11,9 +11,7 @@ interface EventCardProps {
 
 export default function EventCard({ event, onViewDetails }: EventCardProps) {
   const availableTickets = event.sectors.reduce((sum, sector) => sum + sector.available, 0)
-  const totalCapacity = event.sectors.reduce((sum, sector) => sum + (sector.total || 0), 0)
   const soldTickets = event.totalTicketsSold
-  const reservedTickets = Math.max(0, totalCapacity - availableTickets - soldTickets)
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -47,43 +45,39 @@ export default function EventCard({ event, onViewDetails }: EventCardProps) {
 
       {/* Content */}
       <CardContent className="p-4">
-        <h3 className="font-bold text-lg text-gray-900 mb-1 line-clamp-2 min-h-[3.5rem]">
+        <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-1 line-clamp-2 min-h-[3.5rem]">
           {event.title}
         </h3>
 
         {event.description && (
-          <p className="text-sm text-gray-500 line-clamp-2 mb-3 leading-relaxed">
+          <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mb-3 leading-relaxed">
             {event.description}
           </p>
         )}
 
         <div className="space-y-2 mb-4">
-          <div className="flex items-center text-sm text-gray-600">
+          <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
             <Calendar size={16} className="mr-2 flex-shrink-0 text-primary" />
             <span className="line-clamp-1">
               {formatDate(event.date)} - {event.time}
             </span>
           </div>
 
-          <div className="flex items-center text-sm text-gray-600">
+          <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
             <MapPin size={16} className="mr-2 flex-shrink-0 text-primary" />
             <span className="line-clamp-1">{event.location}</span>
           </div>
         </div>
 
         {/* Stats grid */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          <div className="border border-green-200 bg-green-50 rounded-lg p-1.5 text-center">
-            <p className="text-sm font-black text-green-600">{availableTickets}</p>
-            <p className="text-xs font-semibold uppercase text-gray-500">Disponibles</p>
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <div className="border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/30 rounded-lg p-1.5 text-center">
+            <p className="text-sm font-black text-green-600 dark:text-green-400">{availableTickets}</p>
+            <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Disponibles</p>
           </div>
-          <div className="border border-orange-200 bg-orange-50 rounded-lg p-1.5 text-center">
-            <p className="text-sm font-black text-orange-600">{reservedTickets}</p>
-            <p className="text-xs font-semibold uppercase text-gray-500">Reservados</p>
-          </div>
-          <div className="border border-red-200 bg-red-50 rounded-lg p-1.5 text-center">
-            <p className="text-sm font-black text-red-600">{soldTickets}</p>
-            <p className="text-xs font-semibold uppercase text-gray-500">Vendidos</p>
+          <div className="border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 rounded-lg p-1.5 text-center">
+            <p className="text-sm font-black text-red-600 dark:text-red-400">{soldTickets}</p>
+            <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Vendidos</p>
           </div>
         </div>
 

@@ -1057,39 +1057,58 @@ export const adminService = {
   },
 
   getUsersList: async (): Promise<User[]> => {
-    await new Promise(resolve => setTimeout(resolve, 300))
-    return getStoredAdminUsers()
+    try {
+      const response = await api.get('/admin/users')
+      return response.data.data
+    } catch (error) {
+      console.error('Error fetching users from backend, using fallback:', error)
+      // Fallback a localStorage si el backend falla
+      return getStoredAdminUsers()
+    }
   },
 
   getUserById: async (id: string): Promise<User | null> => {
-    await new Promise(resolve => setTimeout(resolve, 200))
-    const users = getStoredAdminUsers()
-    return users.find(u => u.id === id) || null
+    try {
+      const response = await api.get(`/admin/users`)
+      const users: User[] = response.data.data
+      return users.find(u => u.id === id) || null
+    } catch (error) {
+      console.error('Error fetching user from backend:', error)
+      const users = getStoredAdminUsers()
+      return users.find(u => u.id === id) || null
+    }
   },
 
   getUserPurchases: async (userId: string): Promise<UserPurchase[]> => {
-    await new Promise(resolve => setTimeout(resolve, 300))
-    const users = getStoredUsers()
-    const events = getStoredEvents()
+    try {
+      const response = await api.get(`/admin/users/${userId}/purchases`)
+      return response.data.data
+    } catch (error) {
+      console.error('Error fetching purchases from backend:', error)
+      // Fallback a localStorage si el backend falla
+      const users = getStoredUsers()
+      const events = getStoredEvents()
 
-    return users
-      .filter(u => u.id === userId)
-      .map(purchase => {
-        const event = events.find(e => e.id === purchase.eventId)
-        return {
-          id: purchase.id,
-          eventId: purchase.eventId,
-          eventTitle: purchase.eventTitle,
-          eventDate: event ? new Date(event.date) : new Date(),
-          cantidad: purchase.cantidad,
-          totalPagado: purchase.totalPagado,
-          estadoPago: purchase.estadoPago,
-          fechaCompra: purchase.fechaCompra
-        }
-      })
+      return users
+        .filter(u => u.id === userId)
+        .map(purchase => {
+          const event = events.find(e => e.id === purchase.eventId)
+          return {
+            id: purchase.id,
+            eventId: purchase.eventId,
+            eventTitle: purchase.eventTitle,
+            eventDate: event ? new Date(event.date) : new Date(),
+            cantidad: purchase.cantidad,
+            totalPagado: purchase.totalPagado,
+            estadoPago: purchase.estadoPago,
+            fechaCompra: purchase.fechaCompra
+          }
+        })
+    }
   },
 
   blockUser: async (id: string): Promise<void> => {
+    // TODO: Implementar en backend cuando sea necesario
     await new Promise(resolve => setTimeout(resolve, 300))
     const users = getStoredAdminUsers()
     const index = users.findIndex(u => u.id === id)
@@ -1100,6 +1119,7 @@ export const adminService = {
   },
 
   unblockUser: async (id: string): Promise<void> => {
+    // TODO: Implementar en backend cuando sea necesario
     await new Promise(resolve => setTimeout(resolve, 300))
     const users = getStoredAdminUsers()
     const index = users.findIndex(u => u.id === id)
@@ -1190,72 +1210,104 @@ export const adminService = {
     return newConfig
   },
 
+  // Accesos - Administradores (ahora conectados a API real)
   getAdmins: async (): Promise<Admin[]> => {
-    await new Promise(resolve => setTimeout(resolve, 300))
-    return getStoredAdmins()
+    try {
+      const response = await api.get('/admin/roles')
+      return response.data.data.map((r: any) => ({
+        id: r.id,
+        nombre: r.nombre,
+        email: r.email,
+        rol: r.tipoRol,
+        estado: r.estado,
+        ultimoAcceso: r.ultimoAcceso ? new Date(r.ultimoAcceso) : undefined,
+        createdAt: new Date(r.createdAt)
+      }))
+    } catch (error) {
+      console.error('Error fetching admins from backend, using fallback:', error)
+      // Fallback a localStorage si el backend falla
+      return getStoredAdmins()
+    }
   },
 
   getAdminById: async (id: string): Promise<Admin | null> => {
-    await new Promise(resolve => setTimeout(resolve, 200))
-    const admins = getStoredAdmins()
-    return admins.find(a => a.id === id) || null
+    try {
+      const response = await api.get(`/admin/roles/${id}`)
+      const r = response.data.data
+      return {
+        id: r.id,
+        nombre: r.nombre,
+        email: r.email,
+        rol: r.tipoRol,
+        estado: r.estado,
+        ultimoAcceso: r.ultimoAcceso ? new Date(r.ultimoAcceso) : undefined,
+        createdAt: new Date(r.createdAt)
+      }
+    } catch (error) {
+      console.error('Error fetching admin from backend:', error)
+      const admins = getStoredAdmins()
+      return admins.find(a => a.id === id) || null
+    }
   },
 
   createAdmin: async (data: CreateAdminDTO): Promise<Admin> => {
-    await new Promise(resolve => setTimeout(resolve, 500))
+    try {
+      const response = await api.post('/admin/roles', {
+        nombre: data.nombre,
+        email: data.email,
+        password: data.password,
+        tipoRol: data.rol
+      })
 
-    const admins = getStoredAdmins()
-    const newAdmin: Admin = {
-      id: `admin${Date.now()}`,
-      nombre: data.nombre,
-      email: data.email,
-      rol: data.rol,
-      estado: 'ACTIVO',
-      createdAt: new Date()
+      const r = response.data.data
+      return {
+        id: r.id,
+        nombre: r.nombre,
+        email: r.email,
+        rol: r.tipoRol,
+        estado: r.estado,
+        ultimoAcceso: undefined,
+        createdAt: new Date(r.createdAt)
+      }
+    } catch (error: any) {
+      console.error('Error creating admin:', error)
+      throw new Error(error.response?.data?.error || 'Error al crear administrador')
     }
-
-    admins.push(newAdmin)
-    saveAdmins(admins)
-
-    const logs = getStoredAuditLogs()
-    logs.unshift({
-      id: `audit${Date.now()}`,
-      adminId: 'current',
-      adminNombre: 'Administrador Actual',
-      accion: 'CREAR_ADMIN',
-      detalles: `Creó al administrador "${data.nombre}" con rol ${data.rol}`,
-      ip: '192.168.1.1',
-      dispositivo: 'Desktop',
-      navegador: 'Chrome',
-      fecha: new Date()
-    })
-    saveAuditLogs(logs)
-
-    return newAdmin
   },
 
   updateAdmin: async (id: string, data: Partial<CreateAdminDTO>): Promise<Admin> => {
-    await new Promise(resolve => setTimeout(resolve, 400))
+    try {
+      const updateData: any = {}
+      if (data.nombre) updateData.nombre = data.nombre
+      if (data.email) updateData.email = data.email
+      if (data.password) updateData.password = data.password
+      if (data.rol) updateData.tipoRol = data.rol
 
-    const admins = getStoredAdmins()
-    const index = admins.findIndex(a => a.id === id)
+      const response = await api.put(`/admin/roles/${id}`, updateData)
 
-    if (index === -1) throw new Error('Administrador no encontrado')
-
-    admins[index] = { ...admins[index], ...data }
-    saveAdmins(admins)
-    return admins[index]
+      const r = response.data.data
+      return {
+        id: r.id,
+        nombre: r.nombre,
+        email: r.email,
+        rol: r.tipoRol,
+        estado: r.estado,
+        ultimoAcceso: r.ultimoAcceso ? new Date(r.ultimoAcceso) : undefined,
+        createdAt: new Date(r.createdAt)
+      }
+    } catch (error: any) {
+      console.error('Error updating admin:', error)
+      throw new Error(error.response?.data?.error || 'Error al actualizar administrador')
+    }
   },
 
   deleteAdmin: async (id: string): Promise<void> => {
-    await new Promise(resolve => setTimeout(resolve, 300))
-
-    const admins = getStoredAdmins()
-    const filtered = admins.filter(a => a.id !== id)
-
-    if (filtered.length === admins.length) throw new Error('Administrador no encontrado')
-
-    saveAdmins(filtered)
+    try {
+      await api.delete(`/admin/roles/${id}`)
+    } catch (error: any) {
+      console.error('Error deleting admin:', error)
+      throw new Error(error.response?.data?.error || 'Error al eliminar administrador')
+    }
   },
 
   getAuditLogs: async (): Promise<AuditLog[]> => {
