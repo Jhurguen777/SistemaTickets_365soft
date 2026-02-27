@@ -33,6 +33,8 @@ import UsersList from './pages/admin/users/UsersList'
 import Reports from './pages/admin/Reports'
 import Settings from './pages/admin/Settings'
 import AccessManagement from './pages/admin/AccessManagement'
+import Attendance from './pages/admin/Attendance'
+import CertificateTemplates from './pages/admin/CertificateTemplates'
 
 type ModalType = 'login' | 'howToBuy' | 'faq' | 'storeLocations' | 'terms' | 'privacy' | 'paymentMethods' | null
 
@@ -83,6 +85,8 @@ function App() {
             <Route path="eventos/:id" element={<AdminEventDetail />} />
             <Route path="eventos/:id/clientes" element={<EventClientsPage />} />
             <Route path="usuarios" element={<UsersList />} />
+            <Route path="asistencia/registrar" element={<Attendance />} />
+            <Route path="asistencia/plantillas" element={<CertificateTemplates />} />
             <Route path="reportes" element={<Reports />} />
             <Route path="accesos" element={<AccessManagement />} />
             <Route path="configuracion" element={<Settings />} />

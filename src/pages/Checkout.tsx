@@ -437,10 +437,12 @@ export default function Checkout() {
 
       // Guardar datos del QR y la compra
       setCurrentQRData({
-        alias: response.compra.qrCode, // Este es el alias único del QR
+        id: response.qrPago.id, // ID del QR de pago en la BD
+        alias: response.qrPago.alias, // Alias del QR del banco
         monto: response.compra.monto,
         moneda: response.compra.moneda,
-        fechaVencimiento: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 horas
+        imagenQr: response.qrPago.imagenQr, // Imagen del QR del banco
+        fechaVencimiento: response.qrPago.fechaVencimiento,
         detalleGlosa: `Ticket: ${event.title} - Asiento: ${firstSeat.row}${firstSeat.number}`
       })
 

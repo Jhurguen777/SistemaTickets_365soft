@@ -34,6 +34,7 @@ export default function AuthSuccess() {
         nombre: decoded.nombre || '',
         apellido: decoded.apellido || '',
         agencia: decoded.agencia || '',
+        isAdmin: decoded.isAdmin || false,
         rol: decoded.rol
       }
 

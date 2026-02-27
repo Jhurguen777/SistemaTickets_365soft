@@ -12,21 +12,35 @@ import {
   Menu,
   X,
   ChevronUp,
-  User
+  ChevronDown,
+  User,
+  ScanLine
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/contexts/ThemeContext'
 
 interface NavItem {
   label: string
-  path: string
+  path?: string
   icon: React.ElementType
+  children?: {
+    label: string
+    path: string
+  }[]
 }
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Eventos', path: '/admin/eventos', icon: Calendar },
   { label: 'Usuarios', path: '/admin/usuarios', icon: Users },
+  {
+    label: 'Asistencia',
+    icon: ScanLine,
+    children: [
+      { label: 'Registrar Asistencia', path: '/admin/asistencia/registrar' },
+      { label: 'Plantillas de Certificado', path: '/admin/asistencia/plantillas' }
+    ]
+  },
   { label: 'Reportes', path: '/admin/reportes', icon: DollarSign }
 ]
 
@@ -36,6 +50,7 @@ export default function AdminLayout() {
   const { theme } = useTheme()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
   // Close dropdown when clicking outside
@@ -53,6 +68,20 @@ export default function AdminLayout() {
   const handleLogout = () => {
     logout()
     window.location.href = '/login'
+  }
+
+  const toggleDropdown = (label: string) => {
+    setOpenDropdown(openDropdown === label ? null : label)
+  }
+
+  const isItemActive = (item: NavItem): boolean => {
+    if (item.path) {
+      return location.pathname.startsWith(item.path)
+    }
+    if (item.children) {
+      return item.children.some(child => location.pathname.startsWith(child.path))
+    }
+    return false
   }
 
   return (
@@ -82,7 +111,18 @@ export default function AdminLayout() {
           {/* Page Title - Desktop */}
           <div className="hidden md:block flex-1 ml-8">
             <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200">
-              {navItems.find(item => location.pathname.startsWith(item.path))?.label || 'Panel'}
+              {(() => {
+                for (const item of navItems) {
+                  if (item.path && location.pathname.startsWith(item.path)) {
+                    return item.label
+                  }
+                  if (item.children) {
+                    const child = item.children.find(c => location.pathname.startsWith(c.path))
+                    if (child) return child.label
+                  }
+                }
+                return 'Panel'
+              })()}
             </h2>
           </div>
 
@@ -125,45 +165,81 @@ export default function AdminLayout() {
         >
           {/* Navigation */}
           <nav className="flex flex-col h-full">
-            <div className="flex-1 overflow-y-auto px-3 py-6">
-              <div className="space-y-0">
-                {navItems.map((item, index) => {
-                  const isActive = location.pathname.startsWith(item.path)
-                  const Icon = item.icon
-                  const isFirst = index === 0
+            <div className="flex-1 overflow-y-auto py-6">
+              {navItems.map((item, index) => {
+                const isActive = isItemActive(item)
+                const hasChildren = item.children && item.children.length > 0
+                const Icon = item.icon
+                const isDropdownOpen = openDropdown === item.label
 
-                  return (
-                    <div key={item.path} className={`relative ${isFirst ? 'border-b' : 'border-t border-b'} border-gray-200 dark:border-gray-700`}>
-                      <Link
-                        to={item.path}
-                        onClick={() => setSidebarOpen(false)}
-                        className="group flex items-center gap-3 px-4 py-3 -mx-3 transition-all"
-                      >
-                        {isActive && (
-                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-primary rounded-r-full"></div>
-                        )}
-                        <Icon size={16} className={`transition-colors ${
-                          isActive ? 'text-gray-900 dark:text-white' : 'text-gray-400 group-hover:text-gray-500 dark:text-gray-500 dark:group-hover:text-gray-400'
-                        }`} />
-                        <span className={`text-xs font-medium tracking-wide transition-colors ${
-                          isActive ? 'text-gray-900 dark:text-white' : 'text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300'
-                        }`}>{item.label.toUpperCase()}</span>
-                      </Link>
+                return (
+                  <div key={item.label || item.path} className="border-b border-gray-300">
+                    {hasChildren ? (
+                        // Dropdown Item
+                        <div>
+                          <button
+                            onClick={() => toggleDropdown(item.label)}
+                            className="w-full flex items-center justify-between px-4 py-3 transition-all hover:bg-gray-50"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Icon size={16} className="text-gray-700" />
+                              <span className="text-xs font-bold tracking-wide text-gray-700">
+                                {item.label.toUpperCase()}
+                              </span>
+                            </div>
+                            <ChevronDown size={14} className="text-gray-700 transition-transform" style={{
+                              transform: isDropdownOpen ? 'rotate(180deg)' : 'none'
+                            }} />
+                          </button>
+
+                          {/* Dropdown Submenu */}
+                          {isDropdownOpen && item.children && (
+                            <div className="border-t border-gray-300">
+                              {item.children.map((child) => {
+                                const isChildActive = location.pathname.startsWith(child.path)
+                                return (
+                                  <Link
+                                    key={child.path}
+                                    to={child.path}
+                                    onClick={() => {
+                                      setSidebarOpen(false)
+                                    }}
+                                    className="block px-10 py-3 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors border-b border-gray-300 last:border-b-0"
+                                  >
+                                    {child.label}
+                                  </Link>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        // Regular Link Item
+                        <Link
+                          to={item.path!}
+                          onClick={() => setSidebarOpen(false)}
+                          className="flex items-center gap-3 px-4 py-3 transition-all hover:bg-gray-50"
+                        >
+                          <Icon size={16} className="text-gray-700" />
+                          <span className="text-xs font-bold tracking-wide text-gray-700">
+                            {item.label.toUpperCase()}
+                          </span>
+                        </Link>
+                      )}
                     </div>
                   )
                 })}
-              </div>
             </div>
 
             {/* Ver Sitio - Justo arriba del usuario */}
-            <div className="border-t border-gray-200 dark:border-gray-700 px-3 py-3">
+            <div className="border-t border-gray-300 px-3 py-3">
               <Link
                 to="/"
                 onClick={() => setSidebarOpen(false)}
-                className="group flex items-center gap-3 px-4 py-2 -mx-3 rounded-lg transition-all hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="flex items-center gap-3 px-4 py-2 transition-all hover:bg-gray-50"
               >
-                <Home size={16} className="text-gray-400 group-hover:text-gray-500 dark:text-gray-500 dark:group-hover:text-gray-400 transition-colors" />
-                <span className="text-xs font-medium tracking-wide text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300 transition-colors">
+                <Home size={16} className="text-gray-700" />
+                <span className="text-xs font-bold tracking-wide text-gray-700">
                   VER SITIO
                 </span>
               </Link>

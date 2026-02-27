@@ -7,6 +7,7 @@ interface QRPaymentModalProps {
   isOpen: boolean
   onClose: () => void
   qrData: {
+    id: string
     alias: string
     monto: number
     moneda: string
@@ -60,7 +61,7 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
     const checkPaymentStatus = async () => {
       setIsChecking(true)
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/compras/verificar-pago/${qrData.alias}`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/compras/verificar-pago/${qrData.id}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
@@ -173,7 +174,7 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
           <div className="bg-white p-4 rounded-lg inline-block border-2 border-gray-200">
             {qrData.imagenQr ? (
               <img
-                src={`data:image/png;base64,${qrData.imagenQr}`}
+                src={qrData.imagenQr.startsWith('http') ? qrData.imagenQr : `data:image/png;base64,${qrData.imagenQr}`}
                 alt="QR de pago"
                 className="w-64 h-64"
               />

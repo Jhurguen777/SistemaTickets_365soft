@@ -1,5 +1,6 @@
 // src/store/authStore.ts
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import api from '@/services/api'
 
 interface User {
@@ -56,86 +57,94 @@ const getStoredUser = (): User | null => {
   }
 }
 
-export const useAuthStore = create<AuthState>((set, get) => {
-  const user = getStoredUser()
-  const token = localStorage.getItem('token')
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
+      user: getStoredUser(),
+      token: localStorage.getItem('token'),
+      isAuthenticated: !!(getStoredUser() && localStorage.getItem('token')),
+      isAdmin: !!(getStoredUser()?.isAdmin),
 
-  return {
-    user,
-    token,
-    isAuthenticated: !!(user && token),
-    isAdmin: !!(user && user.isAdmin),
-
-    setAuth: (user, token) => {
-      localStorage.setItem('token', token)
-      localStorage.setItem('user', JSON.stringify(user))
-      set({
-        user,
-        token,
-        isAuthenticated: true,
-        isAdmin: user.isAdmin
-      })
-    },
-
-    login: async (email: string, password: string) => {
-      try {
-        const response = await api.post('/auth/login', { email, password })
-        const { token, usuario } = response.data
-
-        const user: User = {
-          id: usuario.id,
-          email: usuario.email,
-          nombre: usuario.nombre,
-          apellido: usuario.apellido,
-          agencia: usuario.agencia,
-          isAdmin: usuario.isAdmin || false,
-          rol: usuario.rol
-        }
-
-        get().setAuth(user, token)
-      } catch (error: any) {
-        throw new Error(error.response?.data?.error || 'Credenciales inválidas')
-      }
-    },
-
-    register: async (data: RegisterData) => {
-      try {
-        const response = await api.post('/auth/register', {
-          email: data.email,
-          password: data.password,
-          nombre: data.nombre,
-          apellido: data.apellido
+      setAuth: (user, token) => {
+        localStorage.setItem('token', token)
+        localStorage.setItem('user', JSON.stringify(user))
+        set({
+          user,
+          token,
+          isAuthenticated: true,
+          isAdmin: user.isAdmin
         })
+      },
 
-        const { token, usuario } = response.data
+      login: async (email: string, password: string) => {
+        try {
+          const response = await api.post('/auth/login', { email, password })
+          const { token, usuario } = response.data
 
-        const user: User = {
-          id: usuario.id,
-          email: usuario.email,
-          nombre: usuario.nombre,
-          apellido: usuario.apellido,
-          isAdmin: false
+          const user: User = {
+            id: usuario.id,
+            email: usuario.email,
+            nombre: usuario.nombre,
+            apellido: usuario.apellido,
+            agencia: usuario.agencia,
+            isAdmin: usuario.isAdmin || false,
+            rol: usuario.rol
+          }
+
+          get().setAuth(user, token)
+        } catch (error: any) {
+          throw new Error(error.response?.data?.error || 'Credenciales inválidas')
         }
+      },
 
-        get().setAuth(user, token)
-      } catch (error: any) {
-        throw new Error(error.response?.data?.error || 'Error al registrar usuario')
+      register: async (data: RegisterData) => {
+        try {
+          const response = await api.post('/auth/register', {
+            email: data.email,
+            password: data.password,
+            nombre: data.nombre,
+            apellido: data.apellido
+          })
+
+          const { token, usuario } = response.data
+
+          const user: User = {
+            id: usuario.id,
+            email: usuario.email,
+            nombre: usuario.nombre,
+            apellido: usuario.apellido,
+            isAdmin: false
+          }
+
+          get().setAuth(user, token)
+        } catch (error: any) {
+          throw new Error(error.response?.data?.error || 'Error al registrar usuario')
+        }
+      },
+
+      logout: () => {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        set({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          isAdmin: false
+        })
+      },
+
+      checkIsAdmin: () => {
+        return get().user?.isAdmin === true
       }
-    },
-
-    logout: () => {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      set({
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        isAdmin: false
+    }),
+    {
+      name: 'auth-storage',
+      partialize: (state) => ({
+        user: state.user,
+        token: state.token,
+        isAuthenticated: state.isAuthenticated,
+        isAdmin: state.isAdmin
       })
-    },
-
-    checkIsAdmin: () => {
-      return get().user?.isAdmin === true
     }
-  }
-})
+  )
+)
