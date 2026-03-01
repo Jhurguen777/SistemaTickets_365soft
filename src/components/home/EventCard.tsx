@@ -35,6 +35,15 @@ const EventCard: React.FC<EventCardProps> = ({
     })
   }
 
+  const getImageSrc = (imageUrl: string) => {
+    // Si es un data URI (base64), usarlo directamente
+    if (imageUrl?.startsWith('data:')) {
+      return imageUrl
+    }
+    // Si no, usar una imagen por defecto
+    return 'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=400&h=500&fit=crop'
+  }
+
   const handleClick = () => {
     // Navigate to event detail
     window.location.href = `/eventos/${id}`
@@ -49,7 +58,7 @@ const EventCard: React.FC<EventCardProps> = ({
       {/* Image */}
       <div className="relative overflow-hidden aspect-[3/4]">
         <img
-          src={image}
+          src={getImageSrc(image)}
           alt={title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           loading="lazy"

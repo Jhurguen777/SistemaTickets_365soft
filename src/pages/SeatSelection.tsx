@@ -128,10 +128,11 @@ export default function SeatSelection() {
         if (event.seatMapConfig) {
           setSeatMapConfig(event.seatMapConfig)
 
-          // ✅ Solución temporal: usar los asientos que ya vienen en el evento
-          // El endpoint /api/asientos/evento/:id tiene problemas de conexión
-          const asientosDelEvento = event.asientos || []
-          console.log('✅ Usando asientos del evento:', asientosDelEvento.length)
+          // ✅ Cargar los asientos desde el endpoint correcto
+          console.log('🔍 Cargando asientos desde API...')
+          const asientosResponse = await api.get(`/asientos/evento/${eventId}`)
+          const asientosDelEvento = asientosResponse.data.data || []
+          console.log('✅ Asientos cargados:', asientosDelEvento.length)
 
           generateSeatsFromConfig(event.seatMapConfig, asientosDelEvento)
         } else {
@@ -514,6 +515,53 @@ export default function SeatSelection() {
                 {/* Grid de asientos */}
                 {seatMapConfig && seatMapConfig.rows ? (
                   <div className="space-y-3">
+                    {/* Cabecera con números de asiento - MISMA ESTRUCTURA que las filas */}
+                    {(() => {
+                      // Obtener la primera fila ordenada
+                      const sortedRows = [...seatMapConfig.rows].sort((a: Row, b: Row) => a.order - b.order)
+                      const firstRow = sortedRows[0]
+                      if (!firstRow) return null
+
+                      // Obtener asientos REALES de la primera fila (filtrados por nombre de fila)
+                      const rowSeats = seats.filter((seat) => seat.row === firstRow.name)
+                      const sector = seatMapConfig.sectors?.find((s: Sector) => s.id === firstRow.sectorId)
+
+                      // MISMA LÓGICA que en el render de filas
+                      const seatsPerColumn = Math.ceil(firstRow.seats / (firstRow.columns || 1))
+                      const columns = []
+
+                      // Dividir asientos en columnas - IGUAL que en el render
+                      for (let col = 0; col < (firstRow.columns || 1); col++) {
+                        const startSeat = col * seatsPerColumn
+                        const endSeat = Math.min(startSeat + seatsPerColumn, firstRow.seats)
+                        const columnSeats = rowSeats.slice(startSeat, endSeat)
+                        columns.push(columnSeats)
+                      }
+
+                      return (
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-xs font-medium text-gray-600 w-24 text-right flex-shrink-0"></span>
+                          <div className="flex gap-1.5">
+                            {columns.map((columnSeats, colIndex) => (
+                              <React.Fragment key={colIndex}>
+                                <div className="flex gap-1">
+                                  {columnSeats.map((seat) => (
+                                    <div key={seat.id} className="w-8 h-6 flex items-center justify-center">
+                                      <span className="text-xs font-bold text-primary">{seat.number}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                {colIndex < columns.length - 1 && columns.length > 1 && (
+                                  <div className="w-8 flex items-center justify-center">
+                                    <div className="w-0.5 h-4 bg-gray-300 rounded"></div>
+                                  </div>
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })()}
                     {seatMapConfig.rows
                       .sort((a: Row, b: Row) => a.order - b.order)
                       .map((row: Row) => {
@@ -539,7 +587,7 @@ export default function SeatSelection() {
                                         key={seat.id}
                                         onClick={() => toggleSeat(seat)}
                                         disabled={seat.status !== 'AVAILABLE'}
-                                        className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-medium border transition-all"
+                                        className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-medium border transition-all relative"
                                         style={{
                                           backgroundColor: getSeatBackgroundColor(seat),
                                           borderColor: getSeatBackgroundColor(seat),

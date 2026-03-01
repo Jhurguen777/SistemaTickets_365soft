@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, CreditCard, Users, ChevronDown, Check } from 'lucide-react'
+import { ArrowLeft, Users, ChevronDown, Check } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -26,18 +26,15 @@ interface CheckoutState {
 }
 
 interface FormData {
+  // Attendee info
   nombre: string
   apellido: string
   email: string
   telefono: string
   documento: string
   oficina: string
-}
-
-interface BillingData {
-  ciudad: string
-  direccion: string
-  codigoPostal: string
+  otraOficina: boolean
+  otraOficinaNombre: string
 }
 
 interface PaymentData {
@@ -48,24 +45,10 @@ interface FormErrors {
   [key: string]: string
 }
 
-// Interfaz normalizada del evento
-interface NormalizedEvent {
-  id: string
-  title: string
-  image: string
-  date: string
-  time: string
-  location: string
-  address: string
-  price: number
-  // Campos originales del backend también disponibles
-  [key: string]: any
-}
-
 export default function Checkout() {
   const navigate = useNavigate()
   const location = useLocation() as CheckoutState
-  const { } = useAuthStore()
+  const { user } = useAuthStore()
 
   const { eventId, sectorId, seats } = location.state || {
     eventId: '',
@@ -73,9 +56,9 @@ export default function Checkout() {
     seats: []
   }
 
-  // ✅ FIX: Tipado correcto con NormalizedEvent
-  const [event, setEvent] = useState<NormalizedEvent | null>(null)
+  const [event, setEvent] = useState<any>(null)
 
+  // Estado para múltiples asistentes
   const [attendees, setAttendees] = useState<FormData[]>(
     seats.map(() => ({
       nombre: '',
@@ -83,18 +66,15 @@ export default function Checkout() {
       email: '',
       telefono: '',
       documento: '',
-      oficina: ''
+      oficina: '',
+      otraOficina: false,
+      otraOficinaNombre: ''
     }))
   )
   const [completedAttendees, setCompletedAttendees] = useState<Set<number>>(new Set())
   const [expandedAttendee, setExpandedAttendee] = useState<number>(0)
 
-  const [billingData, setBillingData] = useState<BillingData>({
-    ciudad: '',
-    direccion: '',
-    codigoPostal: ''
-  })
-
+  // Datos de pago
   const [paymentData, setPaymentData] = useState<PaymentData>({
     medioPago: ''
   })
@@ -143,10 +123,12 @@ export default function Checkout() {
   const [processing, setProcessing] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
 
+  // Estados para el modal de QR
   const [showQRModal, setShowQRModal] = useState(false)
   const [currentQRData, setCurrentQRData] = useState<any>(null)
   const [currentPurchaseId, setCurrentPurchaseId] = useState<string>('')
 
+  // Actualizar attendees cuando cambian los asientos
   useEffect(() => {
     setAttendees(seats.map(() => ({
       nombre: '',
@@ -154,7 +136,9 @@ export default function Checkout() {
       email: '',
       telefono: '',
       documento: '',
-      oficina: ''
+      oficina: '',
+      otraOficina: false,
+      otraOficinaNombre: ''
     })))
     setCompletedAttendees(new Set())
     setExpandedAttendee(0)
@@ -168,69 +152,67 @@ export default function Checkout() {
     }
   }, [eventId])
 
-  // ✅ FIX PRINCIPAL: Normalizar los campos del backend al formato del frontend
   const loadEvent = async () => {
     try {
-      // ✅ FIX: Renombrado a 'rawEvent' para evitar conflicto con el tipo nativo DOM 'Event'
-      const rawEvent = await adminService.getEventById(eventId) as any
-
-      // El backend devuelve: titulo, imagenUrl, fecha, hora, ubicacion, precio
-      // El frontend espera: title, image, date, time, location, price
-      const normalized: NormalizedEvent = {
-        ...rawEvent,
-        // ✅ FIX: id garantizado como string (nunca undefined)
-        id:       String(rawEvent.id || eventId),
-        // Mapear campos del backend → frontend con fallback bidireccional
-        title:    rawEvent.titulo    || rawEvent.title    || 'Evento',
-        image:    rawEvent.imagenUrl || rawEvent.image    || '/media/banners/default.jpg',
-        date:     rawEvent.fecha     || rawEvent.date     || '',
-        time:     rawEvent.hora      || rawEvent.time     || '',
-        location: rawEvent.ubicacion || rawEvent.location || '',
-        address:  rawEvent.direccion || rawEvent.address  || '',
-        price:    rawEvent.precio    || rawEvent.price    || 0,
-      }
-
-      setEvent(normalized)
+      const eventData = await adminService.getEventById(eventId)
+      setEvent(eventData)
     } catch (error) {
       console.error('Error loading event:', error)
     }
   }
 
-  // ✅ Helper para formatear fecha legible en español
-  const formatEventDate = (dateStr: string, timeStr: string): string => {
-    if (!dateStr) return ''
-    try {
-      const date = new Date(dateStr)
-      const formatted = date.toLocaleDateString('es-ES', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      })
-      return timeStr ? `${formatted} - ${timeStr}` : formatted
-    } catch {
-      return dateStr
-    }
-  }
-
-  const validateAttendeeField = (_attendeeIndex: number, name: string, value: string): string | null => {
+  // Validation functions
+  const validateAttendeeField = (attendeeIndex: number, name: string, value: string): string | null => {
     switch (name) {
       case 'nombre':
       case 'apellido':
-        if (!value || value.length < 3) return `El ${name} debe tener al menos 3 letras`
-        if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(value)) return `El ${name} solo puede contener letras`
+        if (!value || value.length < 3) {
+          return `El ${name} debe tener al menos 3 letras`
+        }
+        if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(value)) {
+          return `El ${name} solo puede contener letras`
+        }
         return null
+
       case 'email':
-        if (!value || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'El email no es válido'
+        // Opcional - solo validar si tiene valor
+        if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          return 'El email no es válido'
+        }
         return null
+
       case 'telefono':
-        if (!value || !/^\d+$/.test(value)) return 'El teléfono solo debe contener números'
+        if (!value || !/^\d+$/.test(value)) {
+          return 'El teléfono solo debe contener números'
+        }
         return null
+
       case 'documento':
-        if (!value || value.length < 5 || !/^\d+$/.test(value)) return 'El documento debe tener al menos 5 dígitos y solo números'
+        // Opcional - solo validar si tiene valor
+        if (value && (value.length < 5 || !/^\d+$/.test(value))) {
+          return 'El documento debe tener al menos 5 dígitos y solo números'
+        }
         return null
+
       case 'oficina':
-        if (!value) return 'Debes seleccionar una oficina'
+        // Si está marcado "otra oficina", validar el campo personalizado
+        const attendee = attendees[parseInt(name.split('_')[0])]
+        if (attendee && attendee.otraOficina) {
+          const nombreOtraOficina = attendee.otraOficinaNombre
+          if (!nombreOtraOficina || nombreOtraOficina.trim().length < 3) {
+            return 'Debes ingresar el nombre de tu oficina Alfa'
+          }
+        } else if (!value) {
+          return 'Debes seleccionar una oficina Alfa'
+        }
         return null
+
+      case 'otraOficinaNombre':
+        if (value && value.trim().length < 3) {
+          return 'El nombre debe tener al menos 3 caracteres'
+        }
+        return null
+
       default:
         return null
     }
@@ -239,34 +221,70 @@ export default function Checkout() {
   const validateAttendee = (attendeeIndex: number): boolean => {
     const attendee = attendees[attendeeIndex]
     const newErrors: FormErrors = {}
+
     Object.keys(attendee).forEach((key) => {
       const error = validateAttendeeField(attendeeIndex, key, attendee[key as keyof FormData])
-      if (error) newErrors[`${attendeeIndex}_${key}`] = error
+      if (error) {
+        newErrors[`${attendeeIndex}_${key}`] = error
+      }
     })
+
     setErrors((prev) => ({ ...prev, ...newErrors }))
     return Object.keys(newErrors).length === 0
   }
 
   const handleAttendeeChange = (attendeeIndex: number, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
+    const target = e.target
+    const name = target.name
+    const value = target.type === 'checkbox' ? (target as HTMLInputElement).checked : target.value
+
     setAttendees((prev) => {
       const newAttendees = [...prev]
-      newAttendees[attendeeIndex] = { ...newAttendees[attendeeIndex], [name]: value }
+      const updatedAttendee = {
+        ...newAttendees[attendeeIndex],
+        [name]: value
+      }
+
+      // Si se marca "otra oficina", limpiar la selección del dropdown
+      if (name === 'otraOficina' && value === true) {
+        updatedAttendee.oficina = ''
+      }
+
+      // Si se desmarca "otra oficina", limpiar el nombre personalizado
+      if (name === 'otraOficina' && value === false) {
+        updatedAttendee.otraOficinaNombre = ''
+      }
+
+      newAttendees[attendeeIndex] = updatedAttendee
       return newAttendees
     })
+
+    // Clear error when user starts typing
     const errorKey = `${attendeeIndex}_${name}`
     if (errors[errorKey]) {
-      setErrors((prev) => { const n = { ...prev }; delete n[errorKey]; return n })
+      setErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors[errorKey]
+        return newErrors
+      })
     }
   }
 
   const handleSaveAttendee = (attendeeIndex: number) => {
     if (validateAttendee(attendeeIndex)) {
+      // Marcar como completado
       setCompletedAttendees((prev) => new Set([...prev, attendeeIndex]))
+
+      // Cerrar acordeón actual y abrir el siguiente
       if (attendeeIndex < seats.length - 1) {
-        setTimeout(() => setExpandedAttendee(attendeeIndex + 1), 300)
+        setTimeout(() => {
+          setExpandedAttendee(attendeeIndex + 1)
+        }, 300)
       } else {
-        setTimeout(() => setExpandedAttendee(-1), 300)
+        // Si es el último, cerrar y scroll a facturación
+        setTimeout(() => {
+          setExpandedAttendee(-1)
+        }, 300)
       }
     }
   }
@@ -275,28 +293,42 @@ export default function Checkout() {
     setExpandedAttendee(attendeeIndex)
   }
 
-  const handleBillingChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setBillingData((prev) => ({ ...prev, [name]: value }))
-    if (errors[name]) {
-      setErrors((prev) => { const n = { ...prev }; delete n[name]; return n })
+  // Validation functions for payment
+  const validateField = (name: string, value: string): string | null => {
+    switch (name) {
+      case 'medioPago':
+        if (!value) {
+          return 'Debes seleccionar un medio de pago'
+        }
+        return null
+
+      default:
+        return null
     }
   }
 
+  // Handler para payment
   const handlePaymentChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setPaymentData((prev) => ({ ...prev, [name]: value }))
+
     if (errors[name]) {
-      setErrors((prev) => { const n = { ...prev }; delete n[name]; return n })
+      setErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors[name]
+        return newErrors
+      })
     }
   }
 
-  const validateBillingAndPayment = (): boolean => {
+  const validatePayment = (): boolean => {
     const newErrors: FormErrors = {}
-    if (!billingData.ciudad) newErrors['ciudad'] = 'La ciudad es requerida'
-    if (!billingData.direccion) newErrors['direccion'] = 'La dirección es requerida'
-    if (!billingData.codigoPostal) newErrors['codigoPostal'] = 'El código postal es requerido'
-    if (!paymentData.medioPago) newErrors['medioPago'] = 'Debes seleccionar un medio de pago'
+
+    // Validar payment
+    if (!paymentData.medioPago) {
+      newErrors['medioPago'] = 'Debes seleccionar un medio de pago'
+    }
+
     setErrors((prev) => ({ ...prev, ...newErrors }))
     return Object.keys(newErrors).length === 0
   }
@@ -304,38 +336,59 @@ export default function Checkout() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Validar que todos los asistentes estén completados
     if (completedAttendees.size !== seats.length) {
       alert('Por favor completa los datos de todos los asistentes antes de continuar')
       return
     }
-    if (!validateBillingAndPayment()) {
-      alert('Por favor corrige los errores en facturación y pago antes de continuar')
+
+    if (!validatePayment()) {
+      alert('Por favor selecciona un método de pago antes de continuar')
       return
     }
+
     if (!termsAccepted) {
       alert('Debes aceptar los términos y condiciones para continuar')
       return
     }
+
     if (!event) {
       alert('Error al cargar los datos del evento')
       return
     }
+
+    // Validar que sea pago QR
     if (paymentData.medioPago !== 'qr') {
       alert('Actualmente solo aceptamos pagos con QR')
       return
     }
 
     setProcessing(true)
+
     try {
+      // Por ahora, solo procesaremos el PRIMER asiento
+      // TODO: Implementar múltiples asientos en una sola compra cuando el backend lo soporte
       const firstSeat = seats[0]
+      const firstAttendee = attendees[0]
+
+      // Iniciar pago QR con el backend
+      console.log('Iniciando pago QR...', {
+        asientoId: firstSeat.id,
+        eventoId: eventId
+      })
 
       const response = await paymentService.iniciarPagoQR({
         asientoId: firstSeat.id,
         eventoId: eventId
       })
 
-      if (!response.success) throw new Error(response.message || 'Error al iniciar el pago')
+      console.log('Respuesta del backend:', response)
 
+      if (!response.success) {
+        throw new Error(response.message || 'Error al iniciar el pago')
+      }
+
+      // Guardar datos del QR y la compra
       setCurrentQRData({
         id: response.qrPago.id, // ID del QR de pago en la BD
         alias: response.qrPago.alias, // Alias del QR del banco
@@ -347,6 +400,8 @@ export default function Checkout() {
       })
 
       setCurrentPurchaseId(response.compra.id)
+
+      // Mostrar modal con el QR
       setShowQRModal(true)
 
     } catch (error: any) {
@@ -360,15 +415,15 @@ export default function Checkout() {
   const handlePaymentSuccess = () => {
     setShowQRModal(false)
 
-    // ✅ FIX: usar campos normalizados (event.title, event.image, etc.)
+    // Crear compra en localStorage para compatibilidad con el resto del sistema
     const purchase = purchasesService.createPurchase({
       eventoId: eventId,
-      eventoTitulo: event!.title,
-      eventoImagen: event!.image,
-      eventoFecha: event!.date,
-      eventoHora: event!.time,
-      eventoUbicacion: event!.location,
-      eventoDireccion: event!.address,
+      eventoTitulo: event.title,
+      eventoImagen: event.image,
+      eventoFecha: event.date,
+      eventoHora: event.time,
+      eventoUbicacion: event.location,
+      eventoDireccion: event.address,
       asientos: seats.map((seat, index) => ({
         fila: seat.row,
         numero: seat.number,
@@ -380,6 +435,7 @@ export default function Checkout() {
       monto: totalPrice
     })
 
+    // Navegar a pantalla de éxito
     navigate('/compra-exitosa', {
       state: {
         purchaseId: purchase.id,
@@ -431,7 +487,7 @@ export default function Checkout() {
           {/* Form */}
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit}>
-              {/* Attendee Information */}
+              {/* Attendee Information - Accordions */}
               <div className="mb-6">
                 <h2 className="text-xl font-bold mb-6 flex items-center">
                   <Users className="mr-2 text-primary" size={24} />
@@ -447,9 +503,12 @@ export default function Checkout() {
                     return (
                       <Card
                         key={seat.id}
-                        className={`transition-all duration-300 ${isCompleted ? 'border-green-500 bg-green-50' : ''}`}
+                        className={`transition-all duration-300 ${
+                          isCompleted ? 'border-green-500 bg-green-50' : ''
+                        }`}
                       >
                         <CardContent className="p-0">
+                          {/* Accordion Header */}
                           <button
                             type="button"
                             onClick={() => isCompleted ? handleEditAttendee(index) : setExpandedAttendee(isExpanded ? -1 : index)}
@@ -467,39 +526,95 @@ export default function Checkout() {
                               )}
                               <div className="text-left">
                                 <p className="font-semibold">
-                                  Asistente {index + 1}{isCompleted && ' - Completado'}
+                                  Asistente {index + 1}
+                                  {isCompleted && ' - Completado'}
                                 </p>
                                 <p className="text-sm text-gray-600">
-                                  Fila {seat.row} - Asiento {seat.number}
+                                  {seat.row} - Asiento {seat.number}
                                 </p>
                               </div>
                             </div>
                             <ChevronDown
                               size={20}
-                              className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                              className={`transition-transform duration-300 ${
+                                isExpanded ? 'rotate-180' : ''
+                              }`}
                             />
                           </button>
 
-                          <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                          {/* Accordion Content */}
+                          <div
+                            className={`overflow-hidden transition-all duration-300 ${
+                              isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+                            }`}
+                          >
                             <div className="px-6 pb-6 pt-2 border-t">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                <Input label="Nombre" name="nombre" value={attendee.nombre} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_nombre`]} placeholder="Tu nombre" required />
-                                <Input label="Apellido" name="apellido" value={attendee.apellido} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_apellido`]} placeholder="Tu apellido" required />
-                                <Input label="Email" name="email" type="email" value={attendee.email} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_email`]} placeholder="tu@email.com" required />
-                                <Input label="Teléfono" name="telefono" type="tel" value={attendee.telefono} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_telefono`]} placeholder="Tu número de teléfono" required />
-                                <Input label="Documento de identidad" name="documento" value={attendee.documento} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_documento`]} placeholder="Número de documento" required />
+                                <Input
+                                  label="Nombre"
+                                  name="nombre"
+                                  value={attendee.nombre}
+                                  onChange={(e) => handleAttendeeChange(index, e)}
+                                  error={errors[`${index}_nombre`]}
+                                  placeholder="Tu nombre"
+                                  required
+                                />
+
+                                <Input
+                                  label="Apellido"
+                                  name="apellido"
+                                  value={attendee.apellido}
+                                  onChange={(e) => handleAttendeeChange(index, e)}
+                                  error={errors[`${index}_apellido`]}
+                                  placeholder="Tu apellido"
+                                  required
+                                />
+
+                                <Input
+                                  label="Email (opcional)"
+                                  name="email"
+                                  type="email"
+                                  value={attendee.email}
+                                  onChange={(e) => handleAttendeeChange(index, e)}
+                                  error={errors[`${index}_email`]}
+                                  placeholder="tu@email.com"
+                                />
+
+                                <Input
+                                  label="Teléfono"
+                                  name="telefono"
+                                  type="tel"
+                                  value={attendee.telefono}
+                                  onChange={(e) => handleAttendeeChange(index, e)}
+                                  error={errors[`${index}_telefono`]}
+                                  placeholder="Tu número de teléfono"
+                                  required
+                                />
+
+                                <Input
+                                  label="Documento de identidad (opcional)"
+                                  name="documento"
+                                  value={attendee.documento}
+                                  onChange={(e) => handleAttendeeChange(index, e)}
+                                  error={errors[`${index}_documento`]}
+                                  placeholder="Número de documento"
+                                />
+
                                 <div>
                                   <label className="block text-sm font-semibold mb-2">
-                                    Oficina <span className="text-red-500">*</span>
+                                    Oficina Alfa <span className="text-red-500">*</span>
                                   </label>
                                   <select
                                     name="oficina"
                                     value={attendee.oficina}
                                     onChange={(e) => handleAttendeeChange(index, e)}
-                                    className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all ${errors[`${index}_oficina`] ? 'border-red-500' : 'border-gray-300'}`}
+                                    disabled={attendee.otraOficina}
+                                    className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all ${
+                                      errors[`${index}_oficina`] ? 'border-red-500' : 'border-gray-300'
+                                    } ${attendee.otraOficina ? 'bg-gray-100 cursor-not-allowed opacity-50' : ''}`}
                                     required
                                   >
-                                    <option value="">Selecciona tu oficina</option>
+                                    <option value="">Selecciona tu oficina Alfa</option>
                                     {oficinas.map((oficina) => (
                                       <option key={oficina.codigo} value={oficina.codigo}>
                                         {oficina.codigo} - {oficina.nombre}
@@ -510,9 +625,43 @@ export default function Checkout() {
                                     <p className="mt-1 text-sm text-red-500">{errors[`${index}_oficina`]}</p>
                                   )}
                                 </div>
+
+                                <div>
+                                  <label className="flex items-center space-x-2 cursor-pointer mt-6">
+                                    <input
+                                      type="checkbox"
+                                      name="otraOficina"
+                                      checked={attendee.otraOficina}
+                                      onChange={(e) => handleAttendeeChange(index, e)}
+                                      className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                                    />
+                                    <span className="text-sm text-gray-700">
+                                      Pertenezco a otra oficina Alfa (no listada)
+                                    </span>
+                                  </label>
+                                </div>
+
+                                {attendee.otraOficina && (
+                                  <div className="md:col-span-2">
+                                    <Input
+                                      label="Nombre de tu oficina Alfa"
+                                      name="otraOficinaNombre"
+                                      value={attendee.otraOficinaNombre}
+                                      onChange={(e) => handleAttendeeChange(index, e)}
+                                      error={errors[`${index}_otraOficinaNombre`]}
+                                      placeholder="Ej: Alfa Central"
+                                      required
+                                    />
+                                  </div>
+                                )}
                               </div>
+
                               <div className="mt-6 flex justify-end">
-                                <Button type="button" onClick={() => handleSaveAttendee(index)} className="w-full md:w-auto">
+                                <Button
+                                  type="button"
+                                  onClick={() => handleSaveAttendee(index)}
+                                  className="w-full md:w-auto"
+                                >
                                   {isCompleted ? 'Actualizar' : 'Guardar y continuar'}
                                 </Button>
                               </div>
@@ -525,28 +674,27 @@ export default function Checkout() {
                 </div>
               </div>
 
-              {/* Billing Information */}
-              <Card className="mb-6">
-                <CardContent className="p-6">
-                  <h2 className="text-xl font-bold mb-6 flex items-center">
-                    <CreditCard className="mr-2 text-primary" size={24} />
-                    Datos de facturación
-                  </h2>
-                  <div className="space-y-4">
-                    <Input label="Ciudad" name="ciudad" value={billingData.ciudad} onChange={handleBillingChange} error={errors.ciudad} placeholder="Tu ciudad" required />
-                    <Input label="Dirección" name="direccion" value={billingData.direccion} onChange={handleBillingChange} placeholder="Tu dirección completa" required />
-                    <Input label="Código postal" name="codigoPostal" value={billingData.codigoPostal} onChange={handleBillingChange} error={errors.codigoPostal} placeholder="Código postal" required />
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* Payment Method */}
               <Card className="mb-6">
                 <CardContent className="p-6">
                   <h2 className="text-xl font-bold mb-6">Método de pago</h2>
+
                   <div className="space-y-3">
-                    <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${paymentData.medioPago === 'qr' ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary/50'}`}>
-                      <input type="radio" name="medioPago" value="qr" checked={paymentData.medioPago === 'qr'} onChange={handlePaymentChange} className="mr-3" />
+                    <label
+                      className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        paymentData.medioPago === 'qr'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-gray-200 hover:border-primary/50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="medioPago"
+                        value="qr"
+                        checked={paymentData.medioPago === 'qr'}
+                        onChange={handlePaymentChange}
+                        className="mr-3"
+                      />
                       <span className="text-2xl mr-3">📱</span>
                       <span className="font-semibold">Pago QR - Banco MC4</span>
                     </label>
@@ -554,7 +702,9 @@ export default function Checkout() {
 
                   {paymentData.medioPago === 'qr' && (
                     <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-sm text-blue-800 font-semibold mb-2">ℹ️ ¿Cómo pagar?</p>
+                      <p className="text-sm text-blue-800 font-semibold mb-2">
+                        ℹ️ ¿Cómo pagar?
+                      </p>
                       <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
                         <li>Confirma tu compra</li>
                         <li>Escanea el código QR que aparecerá</li>
@@ -563,7 +713,10 @@ export default function Checkout() {
                       </ol>
                     </div>
                   )}
-                  {errors.medioPago && <p className="mt-3 text-sm text-destructive">{errors.medioPago}</p>}
+
+                  {errors.medioPago && (
+                    <p className="mt-3 text-sm text-destructive">{errors.medioPago}</p>
+                  )}
                 </CardContent>
               </Card>
 
@@ -579,47 +732,61 @@ export default function Checkout() {
                     />
                     <span className="text-sm text-gray-700">
                       Acepto los{' '}
-                      <button type="button" className="text-primary hover:underline font-semibold">términos y condiciones</button>
+                      <button
+                        type="button"
+                        className="text-primary hover:underline font-semibold"
+                      >
+                        términos y condiciones
+                      </button>
                       {' '}y la{' '}
-                      <button type="button" className="text-primary hover:underline font-semibold">política de privacidad</button>.
-                      {' '}Entiendo que una vez realizada la compra no hay cambios ni devoluciones.
+                      <button
+                        type="button"
+                        className="text-primary hover:underline font-semibold"
+                      >
+                        política de privacidad
+                      </button>
+                      . Entiendo que una vez realizada la compra no hay cambios ni devoluciones.
                     </span>
                   </label>
                 </CardContent>
               </Card>
 
-              <Button type="submit" size="lg" disabled={processing || !termsAccepted} className="w-full">
+              <Button
+                type="submit"
+                size="lg"
+                disabled={processing || !termsAccepted}
+                className="w-full"
+              >
                 {processing ? 'Procesando...' : 'Confirmar compra'}
               </Button>
             </form>
           </div>
 
-          {/* ✅ FIX: Order Summary con datos dinámicos del evento */}
+          {/* Order Summary */}
           <div className="lg:col-span-1">
             <Card className="sticky top-24">
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-6">Resumen del pedido</h3>
 
-                {/* ✅ FIX: Event Info DINÁMICO - ya no hardcodeado */}
+                {/* Event Info */}
                 <div className="mb-6 pb-6 border-b">
                   {event ? (
                     <>
                       <p className="font-semibold text-lg">{event.title}</p>
                       <p className="text-sm text-gray-600">{sectorId || 'General'}</p>
                       <p className="text-sm text-gray-600">
-                        {formatEventDate(event.date, event.time)}
+                        {event.date && new Date(event.date).toLocaleDateString('es-ES', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })} - {event.time || '20:00'}
                       </p>
-                      {event.location && (
-                        <p className="text-sm text-gray-500 mt-1">📍 {event.location}</p>
-                      )}
                     </>
                   ) : (
-                    // Estado de carga mientras se obtiene el evento
-                    <div className="space-y-2">
-                      <div className="h-5 bg-gray-200 rounded animate-pulse w-3/4" />
-                      <div className="h-4 bg-gray-100 rounded animate-pulse w-1/2" />
-                      <div className="h-4 bg-gray-100 rounded animate-pulse w-2/3" />
-                    </div>
+                    <>
+                      <p className="font-semibold text-lg">Cargando evento...</p>
+                      <p className="text-sm text-gray-600">Sector {sectorId || 'General'}</p>
+                    </>
                   )}
                 </div>
 
@@ -628,8 +795,13 @@ export default function Checkout() {
                   <h4 className="font-semibold mb-3">Asientos seleccionados:</h4>
                   <div className="space-y-2">
                     {seats.map((seat, index) => (
-                      <div key={seat.id} className="flex justify-between items-center text-sm">
-                        <span>Asiento {index + 1}: Fila {seat.row} - {seat.number}</span>
+                      <div
+                        key={seat.id}
+                        className="flex justify-between items-center text-sm"
+                      >
+                        <span>
+                          Asiento {index + 1}: {seat.row} - {seat.number}
+                        </span>
                         <span className="font-semibold">Bs {seat.price.toFixed(2)}</span>
                       </div>
                     ))}
@@ -654,8 +826,12 @@ export default function Checkout() {
 
                 {/* Security Note */}
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-sm text-green-800 font-semibold mb-1">🔒 Compra segura</p>
-                  <p className="text-xs text-green-700">Tus datos están protegidos con encriptación SSL de 256 bits</p>
+                  <p className="text-sm text-green-800 font-semibold mb-1">
+                    🔒 Compra segura
+                  </p>
+                  <p className="text-xs text-green-700">
+                    Tus datos están protegidos con encriptación SSL de 256 bits
+                  </p>
                 </div>
               </CardContent>
             </Card>
