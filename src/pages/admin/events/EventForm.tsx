@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Upload, X, Image as ImageIcon, Plus } from 'lucide-react'
+import { ArrowLeft, Upload, X, Image as ImageIcon } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -22,72 +22,68 @@ export default function EventForm() {
     time: '',
     doorsOpen: '',
     capacity: 0,
+    // ✅ FIX: Agregar campo precio con valor inicial 0
+    precio: 0,
     category: 'Fiestas',
     subcategory: '',
     organizer: '365soft Eventos',
     status: 'ACTIVO' as 'ACTIVO' | 'INACTIVO' | 'CANCELADO',
     image: '/media/banners/vibra-carnavalera.jpg',
-    gallery: [],
+    gallery: [] as string[],
     permitirMultiplesAsientos: false,
     limiteAsientosPorUsuario: 1
   })
 
-  // Estado local para manejar las imágenes y la principal
   const [images, setImages] = useState<string[]>([])
   const [mainImageIndex, setMainImageIndex] = useState<number>(0)
-
   const [loading, setLoading] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
   const [loadingEvent, setLoadingEvent] = useState(false)
 
-  // Cargar datos del evento si estamos editando
   useEffect(() => {
     const loadEvent = async () => {
       if (!id) return
-
       setLoadingEvent(true)
       try {
         const events = await adminService.getEvents()
-        const event = events.find(e => e.id === id)
+        const event = events.find((e: any) => e.id === id)
 
         if (event) {
-          // Convertir fecha al formato que espera el input date
           const formatDateForInput = (date: Date | string) => {
             const d = new Date(date)
             return d.toISOString().split('T')[0]
           }
 
-          // Cargar imágenes
           const eventImages: string[] = []
-          if (event.image) {
-            eventImages.push(event.image)
-          }
-          if (event.gallery && event.gallery.length > 0) {
-            eventImages.push(...event.gallery)
-          }
+          if (event.image) eventImages.push(event.image)
+          if (event.gallery && event.gallery.length > 0) eventImages.push(...event.gallery)
 
           setImages(eventImages)
           setMainImageIndex(0)
 
+        // ✅ FIX: Cast a 'any' para evitar conflictos con el tipo AdminEvent
+        const e = event as any
+
           setFormData({
-            title: event.title || '',
-            description: event.description || '',
-            longDescription: event.longDescription || '',
-            location: event.location || '',
-            address: event.address || '',
-            date: formatDateForInput(event.date),
-            time: event.time || '',
-            doorsOpen: event.doorsOpen || '',
-            capacity: event.capacity || 0,
-            category: event.category || 'Fiestas',
-            subcategory: event.subcategory || '',
-            organizer: event.organizer || '365soft Eventos',
-            status: event.status || 'ACTIVO',
-            image: event.image || '',
-            gallery: event.gallery || [],
-            permitirMultiplesAsientos: event.permitirMultiplesAsientos || false,
-            limiteAsientosPorUsuario: event.limiteAsientosPorUsuario || 1
+            title: e.title || e.titulo || '',
+            description: e.description || '',
+            longDescription: e.longDescription || '',
+            location: e.location || e.ubicacion || '',
+            address: e.address || e.direccion || '',
+            date: formatDateForInput(e.date || e.fecha),
+            time: e.time || e.hora || '',
+            doorsOpen: e.doorsOpen || '',
+            capacity: e.capacity || e.capacidad || 0,
+            precio: e.precio || e.price || 0,
+            category: e.category || e.categoria || 'Fiestas',
+            subcategory: e.subcategory || '',
+            organizer: e.organizer || '365soft Eventos',
+            status: e.status || e.estado || 'ACTIVO',
+            image: e.image || e.imagenUrl || '',
+            gallery: e.gallery || [],
+            permitirMultiplesAsientos: e.permitirMultiplesAsientos || false,
+            limiteAsientosPorUsuario: e.limiteAsientosPorUsuario || 1
           })
         }
       } catch (error) {
@@ -97,7 +93,6 @@ export default function EventForm() {
         setLoadingEvent(false)
       }
     }
-
     loadEvent()
   }, [id])
 
@@ -105,7 +100,6 @@ export default function EventForm() {
     e.preventDefault()
     setErrors({})
 
-    // Validaciones básicas
     const newErrors: { [key: string]: string } = {}
 
     if (!formData.title || formData.title.length < 3) {
@@ -126,6 +120,9 @@ export default function EventForm() {
     if (formData.capacity < 1) {
       newErrors.capacity = 'La capacidad debe ser al menos 1'
     }
+    if (formData.precio < 0) {
+      newErrors.precio = 'El precio no puede ser negativo'
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
@@ -133,15 +130,33 @@ export default function EventForm() {
     }
 
     setLoading(true)
-
     try {
-      // Actualizar formData con la imagen principal (la primera del array o la marcada)
       const mainImage = images.length > 0 ? images[mainImageIndex] : formData.image
 
       const finalFormData = {
-        ...formData,
-        image: mainImage,
-        images: images // Todas las imágenes
+        title:           formData.title,
+        description:     formData.description,
+        longDescription: formData.longDescription,
+        location:        formData.location,
+        address:         formData.address,
+        date:            formData.date,
+        time:            formData.time,
+        doorsOpen:       formData.doorsOpen,
+        capacity:        formData.capacity,
+        price:           formData.precio,   // ← 'precio' del form → 'price' del DTO
+        category:        formData.category,
+        subcategory:     formData.subcategory,
+        organizer:       formData.organizer,
+        status:          formData.status,
+        image:           mainImage,
+        gallery:         images,
+        sectors:         [{               // ← sector por defecto con el precio correcto
+          id:        '1',
+          name:      'General',
+          price:     formData.precio,
+          available: formData.capacity,
+          total:     formData.capacity
+        }]
       }
 
       if (isEditing && id) {
@@ -162,7 +177,6 @@ export default function EventForm() {
     if (!files || files.length === 0) return
 
     setUploadingImage(true)
-
     try {
       const newImages: string[] = []
 
@@ -173,66 +187,50 @@ export default function EventForm() {
           alert(`El archivo "${file.name}" no es una imagen válida`)
           continue
         }
-
         if (!isValidImageSize(file, 5)) {
           alert(`La imagen "${file.name}" supera los 5MB`)
           continue
         }
 
-        // Convertir a WebP y luego a base64
         const webpFile = await convertImageFileToWebP(file, 85)
-
-        // Convertir el WebP a base64
         const reader = new FileReader()
         const base64Promise = new Promise<string>((resolve, reject) => {
           reader.onload = () => resolve(reader.result as string)
           reader.onerror = reject
         })
         reader.readAsDataURL(webpFile)
-
         const base64Image = await base64Promise
         newImages.push(base64Image)
       }
 
-      // Si es la primera imagen que se sube, hacerla principal automáticamente
-      if (images.length === 0 && newImages.length > 0) {
-        setMainImageIndex(0)
-      }
-
+      if (images.length === 0 && newImages.length > 0) setMainImageIndex(0)
       setImages([...images, ...newImages])
     } catch (error) {
       console.error('Error al convertir imágenes:', error)
       alert('Error al procesar las imágenes. Por favor intenta con otras imágenes.')
     } finally {
       setUploadingImage(false)
-      // Limpiar el input para permitir subir el mismo archivo nuevamente si se desea
       e.target.value = ''
     }
   }
 
-  const handleSetMainImage = (index: number) => {
-    setMainImageIndex(index)
-  }
+  const handleSetMainImage = (index: number) => setMainImageIndex(index)
 
   const handleRemoveImage = (index: number) => {
     const newImages = images.filter((_, i) => i !== index)
     setImages(newImages)
-
-    // Si eliminamos la imagen principal, ajustar el índice
     if (index === mainImageIndex) {
-      setMainImageIndex(newImages.length > 0 ? 0 : 0)
+      setMainImageIndex(0)
     } else if (index < mainImageIndex) {
-      // Si eliminamos una imagen antes de la principal, ajustar el índice
       setMainImageIndex(mainImageIndex - 1)
     }
   }
 
-  // Mostrar indicador de carga cuando se está cargando el evento
   if (loadingEvent) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-gray-600 font-medium">Cargando evento...</p>
         </div>
       </div>
@@ -243,10 +241,7 @@ export default function EventForm() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center space-x-4">
-        <button
-          onClick={() => navigate(-1)}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
+        <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
           <ArrowLeft size={24} />
         </button>
         <div>
@@ -274,9 +269,7 @@ export default function EventForm() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Información Básica</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Título del Evento *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Título del Evento *</label>
                   <Input
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -286,9 +279,7 @@ export default function EventForm() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Categoría *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Categoría *</label>
                   <select
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
@@ -303,9 +294,7 @@ export default function EventForm() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Descripción Corta *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Descripción Corta *</label>
                   <Input
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -315,9 +304,7 @@ export default function EventForm() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Descripción Larga
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Descripción Larga</label>
                   <textarea
                     value={formData.longDescription}
                     onChange={(e) => setFormData({ ...formData, longDescription: e.target.value })}
@@ -364,9 +351,7 @@ export default function EventForm() {
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-primary transition-colors">
                   <label htmlFor="imagesUpload" className="cursor-pointer">
                     <ImageIcon size={48} className="text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-700 font-medium mb-1">
-                      No hay imágenes subidas
-                    </p>
+                    <p className="text-gray-700 font-medium mb-1">No hay imágenes subidas</p>
                     <p className="text-gray-500 text-sm">
                       Haz clic para subir una o varias imágenes (PNG, JPG, GIF, WebP - máx 5MB c/u)
                     </p>
@@ -377,7 +362,6 @@ export default function EventForm() {
                 </div>
               ) : (
                 <div>
-                  {/* Grid de imágenes */}
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {images.map((imageUrl, index) => (
                       <div
@@ -390,41 +374,25 @@ export default function EventForm() {
                         }`}
                         title="Doble clic para hacer principal"
                       >
-                        {/* Imagen */}
                         <div className="aspect-square">
-                          <img
-                            src={imageUrl}
-                            alt={`Imagen ${index + 1}`}
-                            className="w-full h-full object-cover"
-                          />
+                          <img src={imageUrl} alt={`Imagen ${index + 1}`} className="w-full h-full object-cover" />
                         </div>
-
-                        {/* Badge PRINCIPAL */}
                         {index === mainImageIndex && (
                           <div className="absolute top-2 left-2 bg-primary text-white px-2 py-1 rounded text-xs font-bold shadow-lg">
                             PRINCIPAL
                           </div>
                         )}
-
-                        {/* Contador */}
                         <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white px-2 py-0.5 rounded text-xs">
                           #{index + 1}
                         </div>
-
-                        {/* Botón eliminar */}
                         <button
                           type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleRemoveImage(index)
-                          }}
+                          onClick={(e) => { e.stopPropagation(); handleRemoveImage(index) }}
                           className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-lg z-10"
                           title="Eliminar imagen"
                         >
                           <X size={16} />
                         </button>
-
-                        {/* Tooltip en hover */}
                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center pointer-events-none">
                           <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-medium bg-black bg-opacity-70 px-2 py-1 rounded pointer-events-none">
                             Doble clic para hacer principal
@@ -433,28 +401,20 @@ export default function EventForm() {
                       </div>
                     ))}
                   </div>
-
-                  {/* Contador de imágenes */}
                   <div className="mt-4 flex items-center justify-between text-sm">
-                    <span className="text-gray-600">
-                      Total de imágenes: <strong>{images.length}</strong>
-                    </span>
-                    <span className="text-gray-500">
-                      Imagen principal: <strong>Imagen #{mainImageIndex + 1}</strong>
-                    </span>
+                    <span className="text-gray-600">Total de imágenes: <strong>{images.length}</strong></span>
+                    <span className="text-gray-500">Imagen principal: <strong>Imagen #{mainImageIndex + 1}</strong></span>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Fecha y Ubicación */}
+            {/* Fecha, Ubicación y Precio */}
             <div className="border-t pt-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Fecha y Ubicación</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Fecha, Ubicación y Precio</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Fecha del Evento *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Fecha del Evento *</label>
                   <Input
                     type="date"
                     value={formData.date}
@@ -464,9 +424,7 @@ export default function EventForm() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Horario del Evento *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Horario del Evento *</label>
                   <Input
                     type="time"
                     value={formData.time}
@@ -476,9 +434,7 @@ export default function EventForm() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Hora Apertura Puertas
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Hora Apertura Puertas</label>
                   <Input
                     type="time"
                     value={formData.doorsOpen}
@@ -487,9 +443,7 @@ export default function EventForm() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Capacidad Total *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Capacidad Total *</label>
                   <Input
                     type="number"
                     value={formData.capacity}
@@ -497,6 +451,28 @@ export default function EventForm() {
                     error={errors.capacity}
                     placeholder="Ej: 15000"
                   />
+                </div>
+
+                {/* ✅ FIX: Campo precio base del evento */}
+                <div className="md:col-span-2">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <label className="block text-sm font-semibold text-amber-900 mb-1">
+                      💰 Precio base del evento (Bs) *
+                    </label>
+                    <p className="text-xs text-amber-700 mb-3">
+                      Este es el precio que se mostrará en el listado de eventos. 
+                      Los precios por sector se configuran en el Mapa de Asientos y pueden sobrescribir este valor.
+                    </p>
+                    <Input
+                      type="number"
+                      value={formData.precio}
+                      onChange={(e) => setFormData({ ...formData, precio: parseFloat(e.target.value) || 0 })}
+                      error={errors.precio}
+                      placeholder="Ej: 150"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
                 </div>
 
                 <div className="md:col-span-2">
@@ -553,9 +529,7 @@ export default function EventForm() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Lugar / Ubicación *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Lugar / Ubicación *</label>
                   <Input
                     value={formData.location}
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
@@ -565,9 +539,7 @@ export default function EventForm() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Dirección Completa
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Dirección Completa</label>
                   <Input
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
@@ -582,9 +554,7 @@ export default function EventForm() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Estado del Evento</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Estado
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Estado</label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
@@ -597,9 +567,7 @@ export default function EventForm() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Organizador
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Organizador</label>
                   <Input
                     value={formData.organizer}
                     onChange={(e) => setFormData({ ...formData, organizer: e.target.value })}
@@ -615,18 +583,16 @@ export default function EventForm() {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Configuración de Asientos</h3>
                   <p className="text-sm text-gray-500 mt-1">
-                    Dibuja el mapa del escenario y configura los sectores
+                    Dibuja el mapa del escenario y configura los sectores con sus precios individuales
                   </p>
                 </div>
                 {(isEditing || formData.title) && (
                   <button
                     type="button"
                     onClick={() => {
-                      // Si es edición, usar el ID existente, si no, guardar primero
                       if (isEditing && id) {
                         navigate(`/admin/eventos/${id}/dibujar-mapa`)
                       } else {
-                        // Primero guardar el evento básico, luego ir a dibujar mapa
                         handleSubmit(new Event('submit') as any)
                       }
                     }}
@@ -645,12 +611,7 @@ export default function EventForm() {
 
             {/* Actions */}
             <div className="border-t pt-6 flex justify-end space-x-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate(-1)}
-                disabled={loading}
-              >
+              <Button type="button" variant="outline" onClick={() => navigate(-1)} disabled={loading}>
                 Cancelar
               </Button>
               <Button type="submit" disabled={loading}>

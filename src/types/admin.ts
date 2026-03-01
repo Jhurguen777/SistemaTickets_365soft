@@ -1,11 +1,11 @@
-// Tipos para el panel de administración
+// src/types/admin.ts
 
 export interface Sector {
   id: string
   name: string
   price: number
   available: number
-  total?: number
+  total: number  // ← era optional, lo hacemos requerido
 }
 
 export interface Event {
@@ -24,18 +24,17 @@ export interface Event {
   category: string
   subcategory?: string
   organizer: string
-  status: 'ACTIVO' | 'INACTIVO' | 'CANCELADO'
+  status: 'ACTIVO' | 'INACTIVO' | 'CANCELADO' | 'PAUSADO' | 'FINALIZADO'
   sectors: Sector[]
   gallery: string[]
-  createdAt?: Date
-  updatedAt?: Date
+  totalSales: number        // ← movido aquí desde AdminEvent
+  totalTicketsSold: number  // ← movido aquí desde AdminEvent
+  createdAt: Date
+  updatedAt: Date
 }
 
 export interface AdminEvent extends Event {
-  totalSales: number
-  totalTicketsSold: number
-  createdAt: Date
-  updatedAt: Date
+  // Ya hereda todo de Event, no necesita redefinir nada
 }
 
 export interface RegisteredUser {
@@ -53,20 +52,20 @@ export interface RegisteredUser {
   asientos?: string[]
 }
 
-export interface EventReport {
-  eventId: string
-  eventTitle: string
-  sectors: SectorReport[]
-  totalRecaudado: number
-  totalVendidos: number
-}
-
 export interface SectorReport {
   name: string
   price: number
   vendidos: number
   disponibles: number
   totalRecaudado: number
+}
+
+export interface EventReport {
+  eventId: string
+  eventTitle: string
+  sectors: SectorReport[]   // ← era "sectores", debe ser "sectors" para coincidir con el tipo
+  totalRecaudado: number
+  totalVendidos: number
 }
 
 export interface FinancialReport {
@@ -113,20 +112,20 @@ export interface CreateEventDTO {
   time: string
   doorsOpen: string
   capacity: number
+  price: number             // ← agregado, faltaba
   category: string
   subcategory?: string
   organizer: string
-  status: 'ACTIVO' | 'INACTIVO' | 'CANCELADO'
+  status: 'ACTIVO' | 'INACTIVO' | 'CANCELADO' | 'PAUSADO' | 'FINALIZADO'
   image: string
   gallery: string[]
-  sectors: Omit<Sector, 'id'>[]
+  sectors: Sector[]         // ← era Omit<Sector, 'id'>[], ahora es Sector[] completo
 }
 
 export interface UpdateEventDTO extends Partial<CreateEventDTO> {
   id: string
 }
 
-// Tipos para Usuarios
 export interface User {
   id: string
   nombre: string
@@ -153,7 +152,6 @@ export interface UserPurchase {
   fechaCompra: Date
 }
 
-// Tipos para Reportes
 export interface AttendanceReport {
   eventId: string
   eventTitle: string
@@ -178,7 +176,6 @@ export interface SectorStats {
   porcentaje: number
 }
 
-// Tipos para Configuración
 export interface SiteConfig {
   nombre: string
   logo: string
@@ -218,7 +215,6 @@ export interface Config extends SiteConfig {
   textosLegales: LegalTexts
 }
 
-// Tipos para Accesos
 export type AdminRole =
   | 'SUPER_ADMIN'
   | 'GESTOR_EVENTOS'
@@ -278,7 +274,6 @@ export interface ActiveSession {
   dispositivo: string
 }
 
-// Tipos para Asistencia
 export type AsistenciaStatus = 'PENDIENTE' | 'CONFIRMADO' | 'ASISTIO' | 'NO_SHOW'
 
 export interface Attendee {
