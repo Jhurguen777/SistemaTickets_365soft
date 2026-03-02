@@ -10,12 +10,7 @@ import purchasesService from '@/services/purchasesService'
 import paymentService from '@/services/paymentService'
 import QRPaymentModal from '@/components/modals/QRPaymentModal'
 
-interface CheckoutSeat {
-  id: string
-  row: string
-  number: number
-  price: number
-}
+interface CheckoutSeat { id: string; row: string; number: number; price: number }
 
 interface CheckoutState {
   state?: {
@@ -25,8 +20,8 @@ interface CheckoutState {
   }
 }
 
+// ✅ MAIN: incluye otraOficina y otraOficinaNombre
 interface FormData {
-  // Attendee info
   nombre: string
   apellido: string
   email: string
@@ -58,7 +53,7 @@ export default function Checkout() {
 
   const [event, setEvent] = useState<any>(null)
 
-  // Estado para múltiples asistentes
+  // ✅ MAIN: estado inicial con otraOficina
   const [attendees, setAttendees] = useState<FormData[]>(
     seats.map(() => ({
       nombre: '',
@@ -74,61 +69,40 @@ export default function Checkout() {
   const [completedAttendees, setCompletedAttendees] = useState<Set<number>>(new Set())
   const [expandedAttendee, setExpandedAttendee] = useState<number>(0)
 
-  // Datos de pago
-  const [paymentData, setPaymentData] = useState<PaymentData>({
-    medioPago: ''
-  })
-
-  const oficinas = [
-    { codigo: '2526', nombre: 'ALFA FORZA' },
-    { codigo: '2527', nombre: 'ALFA DIAMOND' },
-    { codigo: '2528', nombre: 'ALFA PRO' },
-    { codigo: '2529', nombre: 'ALFA HABITAT' },
-    { codigo: '2530', nombre: 'ALFA ÉLITE' },
-    { codigo: '2531', nombre: 'ALFA FUTURO' },
-    { codigo: '2532', nombre: 'ALFA GRAND CONTINENTAL' },
-    { codigo: '2533', nombre: 'ALFA LUX' },
-    { codigo: '2534', nombre: 'ALFA PREMIER' },
-    { codigo: '2535', nombre: 'ALFA LINK' },
-    { codigo: '2536', nombre: 'ALFA NYSSA' },
-    { codigo: '2537', nombre: 'ALFA CAPITAL' },
-    { codigo: '2538', nombre: 'ALFA MAX' },
-    { codigo: '2539', nombre: 'ALFA MASTER' },
-    { codigo: '2540', nombre: 'ALFA GRAND CENTRAL' },
-    { codigo: '2541', nombre: 'ALFA GRAND SKY' },
-    { codigo: '2546', nombre: 'ALFA TOP' },
-    { codigo: '2547', nombre: 'ALFA PLUS' },
-    { codigo: '2548', nombre: 'ALFA NOVA' },
-    { codigo: '2549', nombre: 'ALFA NEXUS' },
-    { codigo: '2550', nombre: 'ALFA DUO' },
-    { codigo: '2551', nombre: 'ALFA PRIME' },
-    { codigo: '2552', nombre: 'ALFA RESIDENCE' },
-    { codigo: '2553', nombre: 'ALFA GOLDEN' },
-    { codigo: '2554', nombre: 'ALFA EMPORIO' },
-    { codigo: '2555', nombre: 'ALFA GRAND HORIZONTE' },
-    { codigo: '2556', nombre: 'ALFA GLOBAL' },
-    { codigo: '2557', nombre: 'ALFA VIP INVERSIONES' },
-    { codigo: '2559', nombre: 'ALFA BLUE AVENUE' },
-    { codigo: '2560', nombre: 'ALFA SMART' },
-    { codigo: '2561', nombre: 'ALFA HOME' },
-    { codigo: '2562', nombre: 'ALFA NEW LIFE' },
-    { codigo: '2563', nombre: 'ALFA TITANIUM' },
-    { codigo: '2564', nombre: 'ALFA RED' },
-    { codigo: '2565', nombre: 'ALFA CLICK' },
-    { codigo: '2605', nombre: 'ALFA ULTRA' },
-    { codigo: '2606', nombre: 'ALFA CITY' }
-  ]
-
+  const [paymentData, setPaymentData] = useState<PaymentData>({ medioPago: '' })
   const [errors, setErrors] = useState<FormErrors>({})
   const [processing, setProcessing] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
-
-  // Estados para el modal de QR
   const [showQRModal, setShowQRModal] = useState(false)
   const [currentQRData, setCurrentQRData] = useState<any>(null)
   const [currentPurchaseId, setCurrentPurchaseId] = useState<string>('')
 
-  // Actualizar attendees cuando cambian los asientos
+  // ✅ RESPONSIVE: toggle resumen en móvil
+  const [showMobileSummary, setShowMobileSummary] = useState(false)
+
+  const oficinas = [
+    { codigo: '2526', nombre: 'ALFA FORZA' }, { codigo: '2527', nombre: 'ALFA DIAMOND' },
+    { codigo: '2528', nombre: 'ALFA PRO' }, { codigo: '2529', nombre: 'ALFA HABITAT' },
+    { codigo: '2530', nombre: 'ALFA ÉLITE' }, { codigo: '2531', nombre: 'ALFA FUTURO' },
+    { codigo: '2532', nombre: 'ALFA GRAND CONTINENTAL' }, { codigo: '2533', nombre: 'ALFA LUX' },
+    { codigo: '2534', nombre: 'ALFA PREMIER' }, { codigo: '2535', nombre: 'ALFA LINK' },
+    { codigo: '2536', nombre: 'ALFA NYSSA' }, { codigo: '2537', nombre: 'ALFA CAPITAL' },
+    { codigo: '2538', nombre: 'ALFA MAX' }, { codigo: '2539', nombre: 'ALFA MASTER' },
+    { codigo: '2540', nombre: 'ALFA GRAND CENTRAL' }, { codigo: '2541', nombre: 'ALFA GRAND SKY' },
+    { codigo: '2546', nombre: 'ALFA TOP' }, { codigo: '2547', nombre: 'ALFA PLUS' },
+    { codigo: '2548', nombre: 'ALFA NOVA' }, { codigo: '2549', nombre: 'ALFA NEXUS' },
+    { codigo: '2550', nombre: 'ALFA DUO' }, { codigo: '2551', nombre: 'ALFA PRIME' },
+    { codigo: '2552', nombre: 'ALFA RESIDENCE' }, { codigo: '2553', nombre: 'ALFA GOLDEN' },
+    { codigo: '2554', nombre: 'ALFA EMPORIO' }, { codigo: '2555', nombre: 'ALFA GRAND HORIZONTE' },
+    { codigo: '2556', nombre: 'ALFA GLOBAL' }, { codigo: '2557', nombre: 'ALFA VIP INVERSIONES' },
+    { codigo: '2559', nombre: 'ALFA BLUE AVENUE' }, { codigo: '2560', nombre: 'ALFA SMART' },
+    { codigo: '2561', nombre: 'ALFA HOME' }, { codigo: '2562', nombre: 'ALFA NEW LIFE' },
+    { codigo: '2563', nombre: 'ALFA TITANIUM' }, { codigo: '2564', nombre: 'ALFA RED' },
+    { codigo: '2565', nombre: 'ALFA CLICK' }, { codigo: '2605', nombre: 'ALFA ULTRA' },
+    { codigo: '2606', nombre: 'ALFA CITY' }
+  ]
+
+  // ✅ MAIN: reset con otraOficina
   useEffect(() => {
     setAttendees(seats.map(() => ({
       nombre: '',
@@ -146,11 +120,7 @@ export default function Checkout() {
 
   const totalPrice = seats.reduce((sum, seat) => sum + seat.price, 0)
 
-  useEffect(() => {
-    if (eventId) {
-      loadEvent()
-    }
-  }, [eventId])
+  useEffect(() => { if (eventId) loadEvent() }, [eventId])
 
   const loadEvent = async () => {
     try {
@@ -161,58 +131,37 @@ export default function Checkout() {
     }
   }
 
-  // Validation functions
+  // ✅ MAIN: email y documento opcionales, otraOficina/otraOficinaNombre
   const validateAttendeeField = (attendeeIndex: number, name: string, value: string): string | null => {
     switch (name) {
       case 'nombre':
       case 'apellido':
-        if (!value || value.length < 3) {
-          return `El ${name} debe tener al menos 3 letras`
-        }
-        if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(value)) {
-          return `El ${name} solo puede contener letras`
-        }
+        if (!value || value.length < 3) return `El ${name} debe tener al menos 3 letras`
+        if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(value)) return `El ${name} solo puede contener letras`
         return null
-
       case 'email':
-        // Opcional - solo validar si tiene valor
-        if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-          return 'El email no es válido'
-        }
+        if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'El email no es válido'
         return null
-
       case 'telefono':
-        if (!value || !/^\d+$/.test(value)) {
-          return 'El teléfono solo debe contener números'
-        }
+        if (!value || !/^\d+$/.test(value)) return 'El teléfono solo debe contener números'
         return null
-
       case 'documento':
-        // Opcional - solo validar si tiene valor
-        if (value && (value.length < 5 || !/^\d+$/.test(value))) {
-          return 'El documento debe tener al menos 5 dígitos y solo números'
-        }
+        if (value && (value.length < 5 || !/^\d+$/.test(value))) return 'El documento debe tener al menos 5 dígitos y solo números'
         return null
-
-      case 'oficina':
-        // Si está marcado "otra oficina", validar el campo personalizado
-        const attendee = attendees[parseInt(name.split('_')[0])]
-        if (attendee && attendee.otraOficina) {
-          const nombreOtraOficina = attendee.otraOficinaNombre
-          if (!nombreOtraOficina || nombreOtraOficina.trim().length < 3) {
+      case 'oficina': {
+        const attendee = attendees[attendeeIndex]
+        if (attendee?.otraOficina) {
+          if (!attendee.otraOficinaNombre || attendee.otraOficinaNombre.trim().length < 3) {
             return 'Debes ingresar el nombre de tu oficina Alfa'
           }
         } else if (!value) {
           return 'Debes seleccionar una oficina Alfa'
         }
         return null
-
+      }
       case 'otraOficinaNombre':
-        if (value && value.trim().length < 3) {
-          return 'El nombre debe tener al menos 3 caracteres'
-        }
+        if (value && value.trim().length < 3) return 'El nombre debe tener al menos 3 caracteres'
         return null
-
       default:
         return null
     }
@@ -221,18 +170,16 @@ export default function Checkout() {
   const validateAttendee = (attendeeIndex: number): boolean => {
     const attendee = attendees[attendeeIndex]
     const newErrors: FormErrors = {}
-
     Object.keys(attendee).forEach((key) => {
-      const error = validateAttendeeField(attendeeIndex, key, attendee[key as keyof FormData])
-      if (error) {
-        newErrors[`${attendeeIndex}_${key}`] = error
-      }
+      const val = attendee[key as keyof FormData]
+      const error = validateAttendeeField(attendeeIndex, key, String(val))
+      if (error) newErrors[`${attendeeIndex}_${key}`] = error
     })
-
     setErrors((prev) => ({ ...prev, ...newErrors }))
     return Object.keys(newErrors).length === 0
   }
 
+  // ✅ MAIN: maneja checkbox otraOficina
   const handleAttendeeChange = (attendeeIndex: number, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const target = e.target
     const name = target.name
@@ -240,182 +187,78 @@ export default function Checkout() {
 
     setAttendees((prev) => {
       const newAttendees = [...prev]
-      const updatedAttendee = {
-        ...newAttendees[attendeeIndex],
-        [name]: value
-      }
-
-      // Si se marca "otra oficina", limpiar la selección del dropdown
-      if (name === 'otraOficina' && value === true) {
-        updatedAttendee.oficina = ''
-      }
-
-      // Si se desmarca "otra oficina", limpiar el nombre personalizado
-      if (name === 'otraOficina' && value === false) {
-        updatedAttendee.otraOficinaNombre = ''
-      }
-
-      newAttendees[attendeeIndex] = updatedAttendee
+      const updated: FormData = { ...newAttendees[attendeeIndex], [name]: value }
+      if (name === 'otraOficina' && value === true) updated.oficina = ''
+      if (name === 'otraOficina' && value === false) updated.otraOficinaNombre = ''
+      newAttendees[attendeeIndex] = updated
       return newAttendees
     })
 
-    // Clear error when user starts typing
     const errorKey = `${attendeeIndex}_${name}`
-    if (errors[errorKey]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev }
-        delete newErrors[errorKey]
-        return newErrors
-      })
-    }
+    if (errors[errorKey]) setErrors((prev) => { const n = { ...prev }; delete n[errorKey]; return n })
   }
 
   const handleSaveAttendee = (attendeeIndex: number) => {
     if (validateAttendee(attendeeIndex)) {
-      // Marcar como completado
       setCompletedAttendees((prev) => new Set([...prev, attendeeIndex]))
-
-      // Cerrar acordeón actual y abrir el siguiente
-      if (attendeeIndex < seats.length - 1) {
-        setTimeout(() => {
-          setExpandedAttendee(attendeeIndex + 1)
-        }, 300)
-      } else {
-        // Si es el último, cerrar y scroll a facturación
-        setTimeout(() => {
-          setExpandedAttendee(-1)
-        }, 300)
-      }
+      if (attendeeIndex < seats.length - 1) setTimeout(() => setExpandedAttendee(attendeeIndex + 1), 300)
+      else setTimeout(() => setExpandedAttendee(-1), 300)
     }
   }
 
-  const handleEditAttendee = (attendeeIndex: number) => {
-    setExpandedAttendee(attendeeIndex)
-  }
-
-  // Validation functions for payment
-  const validateField = (name: string, value: string): string | null => {
-    switch (name) {
-      case 'medioPago':
-        if (!value) {
-          return 'Debes seleccionar un medio de pago'
-        }
-        return null
-
-      default:
-        return null
-    }
-  }
-
-  // Handler para payment
   const handlePaymentChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setPaymentData((prev) => ({ ...prev, [name]: value }))
-
-    if (errors[name]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev }
-        delete newErrors[name]
-        return newErrors
-      })
-    }
+    if (errors[name]) setErrors((prev) => { const n = { ...prev }; delete n[name]; return n })
   }
 
   const validatePayment = (): boolean => {
     const newErrors: FormErrors = {}
-
-    // Validar payment
-    if (!paymentData.medioPago) {
-      newErrors['medioPago'] = 'Debes seleccionar un medio de pago'
-    }
-
+    if (!paymentData.medioPago) newErrors['medioPago'] = 'Debes seleccionar un medio de pago'
     setErrors((prev) => ({ ...prev, ...newErrors }))
     return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    // Validar que todos los asistentes estén completados
     if (completedAttendees.size !== seats.length) {
       alert('Por favor completa los datos de todos los asistentes antes de continuar')
       return
     }
-
     if (!validatePayment()) {
       alert('Por favor selecciona un método de pago antes de continuar')
       return
     }
-
     if (!termsAccepted) {
       alert('Debes aceptar los términos y condiciones para continuar')
       return
     }
-
-    if (!event) {
-      alert('Error al cargar los datos del evento')
-      return
-    }
-
-    // Validar que sea pago QR
-    if (paymentData.medioPago !== 'qr') {
-      alert('Actualmente solo aceptamos pagos con QR')
-      return
-    }
+    if (!event) { alert('Error al cargar los datos del evento'); return }
+    if (paymentData.medioPago !== 'qr') { alert('Actualmente solo aceptamos pagos con QR'); return }
 
     setProcessing(true)
-
     try {
-      // Por ahora, solo procesaremos el PRIMER asiento
-      // TODO: Implementar múltiples asientos en una sola compra cuando el backend lo soporte
       const firstSeat = seats[0]
-      const firstAttendee = attendees[0]
-
-      // Iniciar pago QR con el backend
-      console.log('Iniciando pago QR...', {
-        asientoId: firstSeat.id,
-        eventoId: eventId
-      })
-
-      const response = await paymentService.iniciarPagoQR({
-        asientoId: firstSeat.id,
-        eventoId: eventId
-      })
-
-      console.log('Respuesta del backend:', response)
-
-      if (!response.success) {
-        throw new Error(response.message || 'Error al iniciar el pago')
-      }
-
-      // Guardar datos del QR y la compra
+      const response = await paymentService.iniciarPagoQR({ asientoId: firstSeat.id, eventoId: eventId })
+      if (!response.success) throw new Error(response.message || 'Error al iniciar el pago')
       setCurrentQRData({
-        id: response.qrPago.id, // ID del QR de pago en la BD
-        alias: response.qrPago.alias, // Alias del QR del banco
+        id: response.qrPago.id,
+        alias: response.qrPago.alias,
         monto: response.compra.monto,
         moneda: response.compra.moneda,
-        imagenQr: response.qrPago.imagenQr, // Imagen del QR del banco
+        imagenQr: response.qrPago.imagenQr,
         fechaVencimiento: response.qrPago.fechaVencimiento,
         detalleGlosa: `Ticket: ${event.title} - Asiento: ${firstSeat.row}${firstSeat.number}`
       })
-
       setCurrentPurchaseId(response.compra.id)
-
-      // Mostrar modal con el QR
       setShowQRModal(true)
-
     } catch (error: any) {
-      console.error('Error al iniciar pago:', error)
-      alert(`Error: ${error.message || 'Hubo un error al procesar tu compra. Por favor intenta nuevamente.'}`)
-    } finally {
-      setProcessing(false)
-    }
+      alert(`Error: ${error.message || 'Hubo un error al procesar tu compra.'}`)
+    } finally { setProcessing(false) }
   }
 
   const handlePaymentSuccess = () => {
     setShowQRModal(false)
-
-    // Crear compra en localStorage para compatibilidad con el resto del sistema
     const purchase = purchasesService.createPurchase({
       eventoId: eventId,
       eventoTitulo: event.title,
@@ -425,25 +268,17 @@ export default function Checkout() {
       eventoUbicacion: event.location,
       eventoDireccion: event.address,
       asientos: seats.map((seat, index) => ({
-        fila: seat.row,
-        numero: seat.number,
+        fila: seat.row, numero: seat.number,
         nombre: `${attendees[index].nombre} ${attendees[index].apellido}`.trim(),
-        email: attendees[index].email,
-        ci: attendees[index].documento,
-        sector: sectorId || 'General'
+        email: attendees[index].email, ci: attendees[index].documento, sector: sectorId || 'General'
       })),
       monto: totalPrice
     })
-
-    // Navegar a pantalla de éxito
     navigate('/compra-exitosa', {
       state: {
         purchaseId: purchase.id,
         eventData: event,
-        attendeeData: {
-          asientos: purchase.asientos,
-          total: totalPrice
-        }
+        attendeeData: { asientos: purchase.asientos, total: totalPrice }
       }
     })
   }
@@ -455,9 +290,9 @@ export default function Checkout() {
 
   if (!seats || seats.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="max-w-md mx-auto">
-          <CardContent className="p-8 text-center">
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <Card className="max-w-md w-full mx-auto">
+          <CardContent className="p-6 sm:p-8 text-center">
             <p className="text-gray-600 mb-4">No hay asientos seleccionados</p>
             <Button onClick={() => navigate('/')}>Volver al inicio</Button>
           </CardContent>
@@ -469,139 +304,128 @@ export default function Checkout() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-primary text-white py-6">
-        <div className="container mx-auto px-4">
+      <div className="bg-primary text-white py-4 sm:py-6">
+        <div className="container mx-auto px-3 sm:px-4">
           <button
             onClick={() => navigate(-1)}
-            className="inline-flex items-center text-white/80 hover:text-white mb-4 font-semibold transition-colors"
+            className="inline-flex items-center text-white/80 hover:text-white mb-2 sm:mb-4 font-semibold transition-colors text-sm sm:text-base"
           >
-            <ArrowLeft size={20} className="mr-2" />
+            <ArrowLeft size={18} className="mr-1 sm:mr-2" />
             Volver
           </button>
-          <h1 className="text-3xl font-bold">Finalizar compra</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl sm:text-3xl font-bold">Finalizar compra</h1>
+            {/* ✅ RESPONSIVE: toggle resumen en móvil */}
+            <button
+              onClick={() => setShowMobileSummary(!showMobileSummary)}
+              className="sm:hidden flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-lg text-sm font-semibold"
+            >
+              <span>Bs {totalPrice.toFixed(2)}</span>
+              <ChevronDown size={14} className={`transition-transform ${showMobileSummary ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* ✅ RESPONSIVE: resumen colapsable en móvil */}
+      {showMobileSummary && (
+        <div className="sm:hidden bg-white border-b px-4 py-4 shadow-sm">
+          {event && <p className="font-semibold text-sm mb-2">{event.title}</p>}
+          <div className="space-y-1 mb-3">
+            {seats.map((seat) => (
+              <div key={seat.id} className="flex justify-between text-sm text-gray-600">
+                <span>Fila {seat.row} - Asiento {seat.number}</span>
+                <span>Bs {seat.price.toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between font-bold border-t pt-2 text-sm">
+            <span>Total</span>
+            <span className="text-primary">Bs {totalPrice.toFixed(2)}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-8">
+
           {/* Form */}
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit}>
-              {/* Attendee Information - Accordions */}
-              <div className="mb-6">
-                <h2 className="text-xl font-bold mb-6 flex items-center">
-                  <Users className="mr-2 text-primary" size={24} />
+
+              {/* Asistentes */}
+              <div className="mb-4 sm:mb-6">
+                <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-6 flex items-center">
+                  <Users className="mr-2 text-primary" size={20} />
                   Datos de los asistentes
                 </h2>
-
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {seats.map((seat, index) => {
                     const isCompleted = completedAttendees.has(index)
                     const isExpanded = expandedAttendee === index
                     const attendee = attendees[index]
-
                     return (
                       <Card
                         key={seat.id}
-                        className={`transition-all duration-300 ${
-                          isCompleted ? 'border-green-500 bg-green-50' : ''
-                        }`}
+                        className={`transition-all duration-300 ${isCompleted ? 'border-green-500 bg-green-50' : ''}`}
                       >
                         <CardContent className="p-0">
                           {/* Accordion Header */}
                           <button
                             type="button"
-                            onClick={() => isCompleted ? handleEditAttendee(index) : setExpandedAttendee(isExpanded ? -1 : index)}
-                            className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                            onClick={() => setExpandedAttendee(isExpanded ? -1 : index)}
+                            className="w-full px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
                           >
-                            <div className="flex items-center space-x-3">
-                              {isCompleted ? (
-                                <div className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center">
-                                  <Check size={18} />
-                                </div>
-                              ) : (
-                                <div className="w-8 h-8 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center font-semibold">
-                                  {index + 1}
-                                </div>
-                              )}
+                            <div className="flex items-center gap-2 sm:gap-3">
+                              {isCompleted
+                                ? <div className="w-7 h-7 bg-green-500 text-white rounded-full flex items-center justify-center flex-shrink-0"><Check size={14} /></div>
+                                : <div className="w-7 h-7 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0">{index + 1}</div>
+                              }
                               <div className="text-left">
-                                <p className="font-semibold">
-                                  Asistente {index + 1}
-                                  {isCompleted && ' - Completado'}
+                                <p className="font-semibold text-sm sm:text-base">
+                                  Asistente {index + 1}{isCompleted && ' - Completado'}
                                 </p>
-                                <p className="text-sm text-gray-600">
-                                  {seat.row} - Asiento {seat.number}
+                                <p className="text-xs text-gray-500">
+                                  Fila {seat.row} - Asiento {seat.number}
                                 </p>
                               </div>
                             </div>
                             <ChevronDown
-                              size={20}
-                              className={`transition-transform duration-300 ${
-                                isExpanded ? 'rotate-180' : ''
-                              }`}
+                              size={16}
+                              className={`transition-transform duration-300 flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
                             />
                           </button>
 
                           {/* Accordion Content */}
-                          <div
-                            className={`overflow-hidden transition-all duration-300 ${
-                              isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
-                            }`}
-                          >
-                            <div className="px-6 pb-6 pt-2 border-t">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                <Input
-                                  label="Nombre"
-                                  name="nombre"
-                                  value={attendee.nombre}
-                                  onChange={(e) => handleAttendeeChange(index, e)}
-                                  error={errors[`${index}_nombre`]}
-                                  placeholder="Tu nombre"
-                                  required
-                                />
+                          <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2 border-t">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3">
 
-                                <Input
-                                  label="Apellido"
-                                  name="apellido"
-                                  value={attendee.apellido}
+                                <Input label="Nombre" name="nombre" value={attendee.nombre}
                                   onChange={(e) => handleAttendeeChange(index, e)}
-                                  error={errors[`${index}_apellido`]}
-                                  placeholder="Tu apellido"
-                                  required
-                                />
+                                  error={errors[`${index}_nombre`]} placeholder="Tu nombre" required />
 
-                                <Input
-                                  label="Email (opcional)"
-                                  name="email"
-                                  type="email"
-                                  value={attendee.email}
+                                <Input label="Apellido" name="apellido" value={attendee.apellido}
                                   onChange={(e) => handleAttendeeChange(index, e)}
-                                  error={errors[`${index}_email`]}
-                                  placeholder="tu@email.com"
-                                />
+                                  error={errors[`${index}_apellido`]} placeholder="Tu apellido" required />
 
-                                <Input
-                                  label="Teléfono"
-                                  name="telefono"
-                                  type="tel"
-                                  value={attendee.telefono}
+                                {/* ✅ MAIN: email opcional */}
+                                <Input label="Email (opcional)" name="email" type="email" value={attendee.email}
                                   onChange={(e) => handleAttendeeChange(index, e)}
-                                  error={errors[`${index}_telefono`]}
-                                  placeholder="Tu número de teléfono"
-                                  required
-                                />
+                                  error={errors[`${index}_email`]} placeholder="tu@email.com" />
 
-                                <Input
-                                  label="Documento de identidad (opcional)"
-                                  name="documento"
-                                  value={attendee.documento}
+                                <Input label="Teléfono" name="telefono" type="tel" value={attendee.telefono}
                                   onChange={(e) => handleAttendeeChange(index, e)}
-                                  error={errors[`${index}_documento`]}
-                                  placeholder="Número de documento"
-                                />
+                                  error={errors[`${index}_telefono`]} placeholder="Tu número de teléfono" required />
 
+                                {/* ✅ MAIN: documento opcional */}
+                                <Input label="Documento de identidad (opcional)" name="documento" value={attendee.documento}
+                                  onChange={(e) => handleAttendeeChange(index, e)}
+                                  error={errors[`${index}_documento`]} placeholder="Número de documento" />
+
+                                {/* ✅ MAIN: Oficina Alfa con dropdown deshabilitable */}
                                 <div>
-                                  <label className="block text-sm font-semibold mb-2">
+                                  <label className="block text-sm font-semibold mb-1.5">
                                     Oficina Alfa <span className="text-red-500">*</span>
                                   </label>
                                   <select
@@ -609,25 +433,26 @@ export default function Checkout() {
                                     value={attendee.oficina}
                                     onChange={(e) => handleAttendeeChange(index, e)}
                                     disabled={attendee.otraOficina}
-                                    className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all ${
+                                    className={`w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm transition-all ${
                                       errors[`${index}_oficina`] ? 'border-red-500' : 'border-gray-300'
                                     } ${attendee.otraOficina ? 'bg-gray-100 cursor-not-allowed opacity-50' : ''}`}
-                                    required
+                                    required={!attendee.otraOficina}
                                   >
                                     <option value="">Selecciona tu oficina Alfa</option>
-                                    {oficinas.map((oficina) => (
-                                      <option key={oficina.codigo} value={oficina.codigo}>
-                                        {oficina.codigo} - {oficina.nombre}
+                                    {oficinas.map((o) => (
+                                      <option key={o.codigo} value={o.codigo}>
+                                        {o.codigo} - {o.nombre}
                                       </option>
                                     ))}
                                   </select>
                                   {errors[`${index}_oficina`] && (
-                                    <p className="mt-1 text-sm text-red-500">{errors[`${index}_oficina`]}</p>
+                                    <p className="mt-1 text-xs text-red-500">{errors[`${index}_oficina`]}</p>
                                   )}
                                 </div>
 
-                                <div>
-                                  <label className="flex items-center space-x-2 cursor-pointer mt-6">
+                                {/* ✅ MAIN: checkbox "otra oficina" */}
+                                <div className="flex items-center sm:mt-6">
+                                  <label className="flex items-center gap-2 cursor-pointer">
                                     <input
                                       type="checkbox"
                                       name="otraOficina"
@@ -641,8 +466,9 @@ export default function Checkout() {
                                   </label>
                                 </div>
 
+                                {/* ✅ MAIN: campo nombre oficina personalizada */}
                                 {attendee.otraOficina && (
-                                  <div className="md:col-span-2">
+                                  <div className="sm:col-span-2">
                                     <Input
                                       label="Nombre de tu oficina Alfa"
                                       name="otraOficinaNombre"
@@ -656,12 +482,8 @@ export default function Checkout() {
                                 )}
                               </div>
 
-                              <div className="mt-6 flex justify-end">
-                                <Button
-                                  type="button"
-                                  onClick={() => handleSaveAttendee(index)}
-                                  className="w-full md:w-auto"
-                                >
+                              <div className="mt-4">
+                                <Button type="button" onClick={() => handleSaveAttendee(index)} className="w-full sm:w-auto">
                                   {isCompleted ? 'Actualizar' : 'Guardar y continuar'}
                                 </Button>
                               </div>
@@ -674,38 +496,19 @@ export default function Checkout() {
                 </div>
               </div>
 
-              {/* Payment Method */}
-              <Card className="mb-6">
-                <CardContent className="p-6">
-                  <h2 className="text-xl font-bold mb-6">Método de pago</h2>
-
-                  <div className="space-y-3">
-                    <label
-                      className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        paymentData.medioPago === 'qr'
-                          ? 'border-primary bg-primary/5'
-                          : 'border-gray-200 hover:border-primary/50'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="medioPago"
-                        value="qr"
-                        checked={paymentData.medioPago === 'qr'}
-                        onChange={handlePaymentChange}
-                        className="mr-3"
-                      />
-                      <span className="text-2xl mr-3">📱</span>
-                      <span className="font-semibold">Pago QR - Banco MC4</span>
-                    </label>
-                  </div>
-
+              {/* Método de pago */}
+              <Card className="mb-4 sm:mb-6">
+                <CardContent className="p-4 sm:p-6">
+                  <h2 className="text-base sm:text-xl font-bold mb-4 sm:mb-6">Método de pago</h2>
+                  <label className={`flex items-center p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all ${paymentData.medioPago === 'qr' ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary/50'}`}>
+                    <input type="radio" name="medioPago" value="qr" checked={paymentData.medioPago === 'qr'} onChange={handlePaymentChange} className="mr-3" />
+                    <span className="text-xl mr-2">📱</span>
+                    <span className="font-semibold text-sm sm:text-base">Pago QR - Banco MC4</span>
+                  </label>
                   {paymentData.medioPago === 'qr' && (
-                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-sm text-blue-800 font-semibold mb-2">
-                        ℹ️ ¿Cómo pagar?
-                      </p>
-                      <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+                    <div className="mt-3 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-xs sm:text-sm text-blue-800 font-semibold mb-2">ℹ️ ¿Cómo pagar?</p>
+                      <ol className="text-xs sm:text-sm text-blue-700 space-y-1 list-decimal list-inside">
                         <li>Confirma tu compra</li>
                         <li>Escanea el código QR que aparecerá</li>
                         <li>Paga desde tu app bancaria (Banco MC4)</li>
@@ -713,57 +516,39 @@ export default function Checkout() {
                       </ol>
                     </div>
                   )}
-
-                  {errors.medioPago && (
-                    <p className="mt-3 text-sm text-destructive">{errors.medioPago}</p>
-                  )}
+                  {errors.medioPago && <p className="mt-2 text-sm text-destructive">{errors.medioPago}</p>}
                 </CardContent>
               </Card>
 
-              {/* Terms */}
-              <Card className="mb-6">
-                <CardContent className="p-6">
-                  <label className="flex items-start space-x-3 cursor-pointer">
+              {/* Términos */}
+              <Card className="mb-4 sm:mb-6">
+                <CardContent className="p-4 sm:p-6">
+                  <label className="flex items-start gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={termsAccepted}
                       onChange={(e) => setTermsAccepted(e.target.checked)}
-                      className="mt-1 w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary"
+                      className="mt-0.5 w-4 h-4 sm:w-5 sm:h-5 text-primary border-gray-300 rounded focus:ring-primary flex-shrink-0"
                     />
-                    <span className="text-sm text-gray-700">
+                    <span className="text-xs sm:text-sm text-gray-700">
                       Acepto los{' '}
-                      <button
-                        type="button"
-                        className="text-primary hover:underline font-semibold"
-                      >
-                        términos y condiciones
-                      </button>
+                      <button type="button" className="text-primary hover:underline font-semibold">términos y condiciones</button>
                       {' '}y la{' '}
-                      <button
-                        type="button"
-                        className="text-primary hover:underline font-semibold"
-                      >
-                        política de privacidad
-                      </button>
-                      . Entiendo que una vez realizada la compra no hay cambios ni devoluciones.
+                      <button type="button" className="text-primary hover:underline font-semibold">política de privacidad</button>.
+                      {' '}Entiendo que una vez realizada la compra no hay cambios ni devoluciones.
                     </span>
                   </label>
                 </CardContent>
               </Card>
 
-              <Button
-                type="submit"
-                size="lg"
-                disabled={processing || !termsAccepted}
-                className="w-full"
-              >
+              <Button type="submit" size="lg" disabled={processing || !termsAccepted} className="w-full text-sm sm:text-base">
                 {processing ? 'Procesando...' : 'Confirmar compra'}
               </Button>
             </form>
           </div>
 
-          {/* Order Summary */}
-          <div className="lg:col-span-1">
+          {/* ✅ MAIN: sidebar visible siempre (hidden sm:block en responsive, pero main lo tenía siempre visible) */}
+          <div className="hidden sm:block lg:col-span-1">
             <Card className="sticky top-24">
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-6">Resumen del pedido</h3>
@@ -776,16 +561,14 @@ export default function Checkout() {
                       <p className="text-sm text-gray-600">{sectorId || 'General'}</p>
                       <p className="text-sm text-gray-600">
                         {event.date && new Date(event.date).toLocaleDateString('es-ES', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
+                          year: 'numeric', month: 'long', day: 'numeric'
                         })} - {event.time || '20:00'}
                       </p>
                     </>
                   ) : (
                     <>
-                      <p className="font-semibold text-lg">Cargando evento...</p>
-                      <p className="text-sm text-gray-600">Sector {sectorId || 'General'}</p>
+                      <div className="h-5 bg-gray-200 rounded animate-pulse w-3/4 mb-2" />
+                      <div className="h-4 bg-gray-100 rounded animate-pulse w-1/2" />
                     </>
                   )}
                 </div>
@@ -795,13 +578,8 @@ export default function Checkout() {
                   <h4 className="font-semibold mb-3">Asientos seleccionados:</h4>
                   <div className="space-y-2">
                     {seats.map((seat, index) => (
-                      <div
-                        key={seat.id}
-                        className="flex justify-between items-center text-sm"
-                      >
-                        <span>
-                          Asiento {index + 1}: {seat.row} - {seat.number}
-                        </span>
+                      <div key={seat.id} className="flex justify-between items-center text-sm">
+                        <span>Asiento {index + 1}: Fila {seat.row} - {seat.number}</span>
                         <span className="font-semibold">Bs {seat.price.toFixed(2)}</span>
                       </div>
                     ))}
@@ -810,28 +588,17 @@ export default function Checkout() {
 
                 {/* Totals */}
                 <div className="space-y-3 mb-6">
-                  <div className="flex justify-between text-gray-600">
-                    <span>Subtotal</span>
-                    <span>Bs {totalPrice.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span>Tarifa de servicio</span>
-                    <span>Bs 0.00</span>
-                  </div>
+                  <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>Bs {totalPrice.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-gray-600"><span>Tarifa de servicio</span><span>Bs 0.00</span></div>
                   <div className="flex justify-between text-xl font-bold pt-3 border-t">
                     <span>Total</span>
                     <span className="text-primary">Bs {totalPrice.toFixed(2)}</span>
                   </div>
                 </div>
 
-                {/* Security Note */}
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-sm text-green-800 font-semibold mb-1">
-                    🔒 Compra segura
-                  </p>
-                  <p className="text-xs text-green-700">
-                    Tus datos están protegidos con encriptación SSL de 256 bits
-                  </p>
+                  <p className="text-sm text-green-800 font-semibold mb-1">🔒 Compra segura</p>
+                  <p className="text-xs text-green-700">Tus datos están protegidos con encriptación SSL de 256 bits</p>
                 </div>
               </CardContent>
             </Card>
@@ -839,7 +606,6 @@ export default function Checkout() {
         </div>
       </div>
 
-      {/* Modal de Pago QR */}
       <QRPaymentModal
         isOpen={showQRModal}
         onClose={() => setShowQRModal(false)}

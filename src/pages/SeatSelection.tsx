@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Check, Wifi, Clock } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import socketService from '@/services/socket'
 import api from '@/services/api'
-import asientoService from '@/services/asientoService'
 import { useAuthStore } from '@/store/authStore'
 
 interface Seat {
@@ -58,7 +57,6 @@ interface EventData {
 }
 
 export default function SeatSelection() {
-  // ✅ FIX: Siempre usar el 'id' de la URL como fuente de verdad
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuthStore()
@@ -69,13 +67,9 @@ export default function SeatSelection() {
   const [selectedSeats, setSelectedSeats] = useState<Seat[]>([])
   const [loading, setLoading] = useState(true)
   const [demoMode, setDemoMode] = useState(false)
-
-  // Timer de selección
   const [timeLeft, setTimeLeft] = useState(600)
   const [isTimerActive, setIsTimerActive] = useState(true)
 
-  // ✅ FIX: Usar siempre el id de la URL, ignorar location.state.eventId
-  // location.state puede tener el eventId de una navegación anterior (bug original)
   const eventId = id!
 
   const formatTime = (seconds: number) => {
@@ -84,9 +78,9 @@ export default function SeatSelection() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
+  // ── TIMER ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isTimerActive || timeLeft <= 0) return
-
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -99,21 +93,69 @@ export default function SeatSelection() {
         return prev - 1
       })
     }, 1000)
-
     return () => clearInterval(timer)
   }, [isTimerActive, timeLeft])
 
-  // Cargar datos del evento
-  useEffect(() => {
-    const loadEventData = async () => {
-      if (!eventId) return
+  // ── GENERAR ASIENTOS DESDE CONFIG ──────────────────────────────────
+  // ✅ RESPONSIVE: función separada para que el finally del useEffect siempre ejecute
+  const generateSeatsFromConfig = (
+    config: SeatMapConfig,
+    asientosReales: any[],
+    eventoPrecio: number
+  ) => {
+    if (!config.rows || config.rows.length === 0) {
+      console.warn('⚠️ seatMapConfig no tiene rows')
+      return
+    }
 
+    const asientosMap = new Map<string, any>()
+    asientosReales.forEach(a => {
+      asientosMap.set(`${a.fila}-${a.numero}`, a)
+    })
+
+    const generatedSeats: Seat[] = []
+    const sortedRows = [...config.rows].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+
+    sortedRows.forEach(row => {
+      for (let i = 0; i < row.seats; i++) {
+        const specialSeat = config.specialSeats?.find(
+          s => s.rowId === row.id && s.seatIndex === i
+        )
+        const sector = config.sectors?.find(s => s.id === row.sectorId)
+        const price = specialSeat?.price ?? sector?.price ?? eventoPrecio
+        const color = specialSeat?.color || sector?.color || '#10B981'
+        const sectorName = specialSeat?.sectorName || sector?.name || 'General'
+        const sectorId = sector?.id
+
+        const asientoReal = asientosMap.get(`${row.name}-${i + 1}`)
+        let status: 'AVAILABLE' | 'OCCUPIED' = 'AVAILABLE'
+        if (asientoReal) {
+          const estado = asientoReal.estado
+          if (estado === 'VENDIDO' || estado === 'BLOQUEADO' || estado === 'RESERVANDO') {
+            status = 'OCCUPIED'
+          }
+        }
+
+        const seatId = asientoReal?.id || `temp-${row.name}-${i + 1}`
+        generatedSeats.push({ id: seatId, row: row.name, number: i + 1, status, price, sectorId, sectorName, color })
+      }
+    })
+
+    console.log(`✅ ${generatedSeats.length} asientos generados`)
+    setSeats(generatedSeats)
+  }
+
+  // ── CARGAR EVENTO Y ASIENTOS ────────────────────────────────────────
+  useEffect(() => {
+    if (!eventId) return
+    const loadEventData = async () => {
       try {
         setLoading(true)
-        console.log('🔍 Cargando evento:', eventId)
+        setSeats([])
 
         const response = await api.get(`/eventos/${eventId}`)
         const event = response.data.data
+        const eventoPrecio: number = event.precio || 0
 
         console.log('✅ Evento cargado:', event.titulo)
         console.log('📋 Tiene seatMapConfig:', !!event.seatMapConfig)
@@ -121,199 +163,120 @@ export default function SeatSelection() {
         setEventData({
           id: event.id,
           title: event.titulo || event.title || 'Evento',
-          precio: basePrice,
+          precio: eventoPrecio,
           seatMapConfig: event.seatMapConfig
         })
 
-        if (event.seatMapConfig) {
-          setSeatMapConfig(event.seatMapConfig)
-
-          // ✅ Cargar los asientos desde el endpoint correcto
-          console.log('🔍 Cargando asientos desde API...')
-          const asientosResponse = await api.get(`/asientos/evento/${eventId}`)
-          const asientosDelEvento = asientosResponse.data.data || []
-          console.log('✅ Asientos cargados:', asientosDelEvento.length)
-
-          generateSeatsFromConfig(event.seatMapConfig, asientosDelEvento)
-        } else {
+        if (!event.seatMapConfig) {
           setDemoMode(true)
+          setLoading(false)
+          return
         }
+
+        setSeatMapConfig(event.seatMapConfig)
+
+        // ✅ RESPONSIVE: timeout 3s — nunca se queda colgado esperando asientos
+        let asientosReales: any[] = []
+        try {
+          const controller = new AbortController()
+          const timeout = setTimeout(() => controller.abort(), 3000)
+          const asientosResponse = await api.get(`/asientos/evento/${eventId}`, {
+            signal: controller.signal
+          })
+          clearTimeout(timeout)
+          asientosReales = asientosResponse.data.data || []
+          console.log('✅ Asientos cargados:', asientosReales.length)
+        } catch (err: any) {
+          if (err.name === 'CanceledError' || err.name === 'AbortError') {
+            console.warn('⚠️ Timeout asientos, usando fallback del evento')
+          }
+          asientosReales = event.asientos || []
+        }
+
+        generateSeatsFromConfig(event.seatMapConfig, asientosReales, eventoPrecio)
       } catch (error) {
-        console.error('❌ Error loading event:', error)
+        console.error('❌ Error cargando evento:', error)
         setDemoMode(true)
       } finally {
+        // ✅ RESPONSIVE: SIEMPRE se ejecuta — nunca queda en loading infinito
         setLoading(false)
       }
     }
-
     loadEventData()
   }, [eventId])
 
-  // Generar asientos basados en la configuración del mapa
-  const generateSeatsFromConfig = (config: SeatMapConfig, asientosReales: any[] = []) => {
-    if (!config.rows || config.rows.length === 0) return
-
-    // Crear mapa de asientos reales por fila-numero para búsqueda rápida
-    const asientosMap = new Map<string, any>()
-    asientosReales.forEach(asiento => {
-      const key = `${asiento.fila}-${asiento.numero}`
-      asientosMap.set(key, asiento)
-    })
-
-    const generatedSeats: Seat[] = []
-
-    config.rows.forEach(row => {
-      for (let i = 0; i < row.seats; i++) {
-        const specialSeat = config.specialSeats?.find(
-          s => s.rowId === row.id && s.seatIndex === i
-        )
-
-        const sector = config.sectors?.find(s => s.id === row.sectorId)
-
-        // ✅ FIX: Jerarquía de precios correcta:
-        // 1. Precio del asiento especial (más específico)
-        // 2. Precio del sector
-        // 3. Precio base del evento (ya no hardcodeado a 150)
-        let price = specialSeat?.price ?? sector?.price ?? basePrice
-
-        let color = specialSeat?.color || sector?.color || '#10B981'
-        let sectorName = specialSeat?.sectorName || sector?.name || 'General'
-        let sectorId = sector?.id
-
-        if (specialSeat) {
-          price = specialSeat.price || price
-          color = specialSeat.color || color
-          sectorName = specialSeat.sectorName || sectorName
-        }
-
-        // Buscar el asiento real en la BD por fila-numero
-        const key = `${row.name}-${i + 1}`
-        const asientoReal = asientosMap.get(key)
-
-        // Determinar el estado basado en el asiento real
-        let status: 'AVAILABLE' | 'OCCUPIED' = 'AVAILABLE'
-        if (asientoReal) {
-          if (asientoReal.estado === 'VENDIDO' || asientoReal.estado === 'BLOQUEADO') {
-            status = 'OCCUPIED'
-          }
-        }
-
-        // Usar el UUID real de la BD, o generar uno temporal si no existe
-        const seatId = asientoReal?.id || `${row.name}-${i + 1}`
-
-        generatedSeats.push({
-          id: seatId, // ✅ Ahora usa el UUID real de la BD
-          row: row.name,
-          number: i + 1,
-          status,
-          price,
-          sectorId,
-          sectorName,
-          color
-        })
-      }
-    })
-
-    setSeats(generatedSeats)
-  }
-
-  // Socket connection
+  // ── SOCKET ──────────────────────────────────────────────────────────
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout>
-
-    const connectSocket = () => {
+    try {
       socketService.connect()
-
       socketService.onConnected(() => {
         console.log('Socket conectado')
         socketService.joinEvent(eventId)
       })
-
       socketService.onConnectError(() => {
         console.log('Socket no disponible, modo demo')
         setDemoMode(true)
       })
-
       socketService.onSeatReserved((data) => {
-        setSeats((prevSeats) =>
-          prevSeats.map((seat) =>
+        setSeats(prev =>
+          prev.map(seat =>
             seat.id === data.seatId ? { ...seat, status: 'OCCUPIED' } : seat
           )
         )
       })
-
       timeoutId = setTimeout(() => {
-        if (!socketService.isConnected()) {
-          console.log('Timeout de conexión Socket, usando modo demo')
-          setDemoMode(true)
-        }
+        if (!socketService.isConnected()) setDemoMode(true)
       }, 3000)
+    } catch {
+      setDemoMode(true)
     }
-
-    connectSocket()
-
     return () => {
       if (timeoutId) clearTimeout(timeoutId)
-      socketService.disconnect()
+      try { socketService.disconnect() } catch {}
     }
   }, [eventId])
 
-  const toggleSeat = useCallback((seat: Seat) => {
+  // ── TOGGLE ASIENTO ──────────────────────────────────────────────────
+  const toggleSeat = (seat: Seat) => {
     if (seat.status !== 'AVAILABLE') return
-
-    setSelectedSeats((prev) => {
-      const isSelected = prev.some((s) => s.id === seat.id)
-
-      if (isSelected) {
-        return prev.filter((s) => s.id !== seat.id)
-      } else {
-        if (prev.length >= 10) {
-          alert('Máximo 10 asientos por persona')
-          return prev
-        }
-        return [...prev, seat]
+    setSelectedSeats(prev => {
+      const isSelected = prev.some(s => s.id === seat.id)
+      if (isSelected) return prev.filter(s => s.id !== seat.id)
+      if (prev.length >= 10) {
+        alert('Máximo 10 asientos por persona')
+        return prev
       }
+      return [...prev, seat]
     })
-
-    if (socketService.isConnected() && !selectedSeats.some((s) => s.id === seat.id)) {
+    if (socketService.isConnected() && !selectedSeats.some(s => s.id === seat.id)) {
       socketService.reserveSeat({
         eventoId: eventId,
         asientoId: seat.id,
         userId: user?.id || 'guest'
       })
     }
-  }, [eventId, selectedSeats, user])
+  }
 
   const proceedToCheckout = () => {
     if (selectedSeats.length === 0) {
       alert('Por favor selecciona al menos un asiento')
       return
     }
-
     if (!user) {
       navigate('/login', {
         state: {
           redirectTo: `/eventos/${id}/asientos`,
-          eventData: {
-            eventId,
-            selectedSeats: selectedSeats.map((s) => s.id)
-          }
+          eventData: { eventId, selectedSeats: selectedSeats.map(s => s.id) }
         }
       })
       return
     }
-
-    // ✅ FIX: Navegar con eventId de la URL (siempre correcto)
-    navigate('/checkout', {
-      state: {
-        eventId,
-        seats: selectedSeats
-      }
-    })
+    navigate('/checkout', { state: { eventId, seats: selectedSeats } })
   }
 
   const getSeatBackgroundColor = (seat: Seat) => {
-    if (selectedSeats.some((s) => s.id === seat.id)) return '#8B5CF6'
+    if (selectedSeats.some(s => s.id === seat.id)) return '#8B5CF6'
     if (seat.status === 'OCCUPIED') return '#EF4444'
     return seat.color || '#10B981'
   }
@@ -344,7 +307,6 @@ export default function SeatSelection() {
               <ArrowLeft size={18} className="mr-1" />
               Volver
             </button>
-
             <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg">
               <Clock size={14} className={timeLeft < 60 ? 'text-red-300' : 'text-yellow-300'} />
               <div className="text-right">
@@ -355,13 +317,10 @@ export default function SeatSelection() {
               </div>
             </div>
           </div>
-
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <h1 className="text-3xl font-bold mb-2">Selecciona tus asientos</h1>
-              <p className="text-white/80">
-                Evento: {eventData?.title || 'Cargando...'}
-              </p>
+              <p className="text-white/80">Evento: {eventData?.title || 'Cargando...'}</p>
             </div>
             {demoMode && (
               <div className="flex items-center space-x-2 bg-yellow-500 text-white px-4 py-2 rounded-lg">
@@ -375,12 +334,12 @@ export default function SeatSelection() {
 
       <div className="w-full px-0 py-0">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
           {/* Sidebar */}
           <div className="lg:col-span-1 space-y-6">
             <Card className="sticky top-24">
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-4">Resumen de compra</h3>
-
                 <div className="mb-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
                   <div className="flex items-center gap-3">
                     <Clock className={timeLeft < 60 ? 'text-red-600' : 'text-primary'} size={20} />
@@ -392,7 +351,6 @@ export default function SeatSelection() {
                     </div>
                   </div>
                 </div>
-
                 <div className="space-y-4 mb-6">
                   <div className="flex justify-between items-center pb-3 border-b">
                     <span className="text-gray-600">Asientos seleccionados</span>
@@ -403,7 +361,6 @@ export default function SeatSelection() {
                     <span className="font-bold text-primary">Bs {totalPrice.toFixed(2)}</span>
                   </div>
                 </div>
-
                 <Button
                   onClick={() => {
                     if (selectedSeats.length === 0) {
@@ -412,8 +369,8 @@ export default function SeatSelection() {
                     }
                     const seatList = selectedSeats.map(s => `${s.row}${s.number}`).join(', ')
                     const total = selectedSeats.reduce((sum, s) => sum + s.price, 0)
-                    if (confirm(`Verificando disponibilidad...\n\nAsientos: ${seatList}\nTotal: Bs ${total.toFixed(2)}\n\n¿Confirmar que estos asientos están disponibles?`)) {
-                      alert('✅ ¡Asientos verificados y reservados!\n\nTienes 10 minutos para completar tu compra.')
+                    if (confirm(`Verificando disponibilidad...\n\nAsientos: ${seatList}\nTotal: Bs ${total.toFixed(2)}\n\n¿Confirmar disponibilidad?`)) {
+                      alert('✅ ¡Asientos verificados!\n\nTienes 10 minutos para completar tu compra.')
                     }
                   }}
                   disabled={selectedSeats.length === 0}
@@ -421,22 +378,19 @@ export default function SeatSelection() {
                 >
                   Verificar Disponibilidad
                 </Button>
-
                 <Button size="lg" onClick={proceedToCheckout} disabled={selectedSeats.length === 0} className="w-full">
                   Continuar al pago
                 </Button>
-
                 <div className="text-center text-sm text-gray-500 mt-3">
                   <p>Tienes 10 minutos para completar tu compra</p>
                 </div>
-
                 {selectedSeats.length > 0 && (
                   <div className="mt-6 pt-6 border-t">
                     <h4 className="font-semibold mb-3">Tus asientos:</h4>
                     <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {selectedSeats.map((seat) => (
+                      {selectedSeats.map(seat => (
                         <div key={seat.id} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded">
-                          <span>Fila {seat.row} - Asiento {seat.number}</span>
+                          <span>{seat.row} - Asiento {seat.number}</span>
                           <span className="font-semibold">Bs {seat.price}</span>
                         </div>
                       ))}
@@ -447,7 +401,7 @@ export default function SeatSelection() {
             </Card>
           </div>
 
-          {/* Seat Map */}
+          {/* Mapa de asientos */}
           <div className="lg:col-span-3">
             <Card>
               <CardContent className="p-6">
@@ -458,20 +412,17 @@ export default function SeatSelection() {
                 </div>
 
                 {/* Leyenda sectores */}
-                {seatMapConfig && seatMapConfig.sectors && seatMapConfig.sectors.length > 0 && (
+                {seatMapConfig?.sectors && seatMapConfig.sectors.length > 0 && (
                   <div className="mb-4">
                     <p className="text-xs font-semibold text-gray-700 mb-2 text-center">Sectores:</p>
                     <div className="flex flex-wrap gap-3 justify-center">
-                      {seatMapConfig.sectors.map((sector) => (
+                      {seatMapConfig.sectors.map(sector => (
                         <div key={sector.id} className="flex items-center gap-2">
                           <div className="w-5 h-5 rounded border" style={{ backgroundColor: sector.color, borderColor: sector.color }} />
-                          <div>
-                            <span className="text-sm font-medium">{sector.name}</span>
-                            <span className="text-xs text-gray-500 ml-1">Bs {sector.price}</span>
-                          </div>
+                          <span className="text-sm font-medium">{sector.name}</span>
+                          <span className="text-xs text-gray-500">Bs {sector.price}</span>
                         </div>
                       ))}
-
                       {seatMapConfig.specialSeats && seatMapConfig.specialSeats.length > 0 && (() => {
                         const uniqueSectors = new Map<string, any>()
                         seatMapConfig.specialSeats!.forEach((seat: SpecialSeat) => {
@@ -479,13 +430,11 @@ export default function SeatSelection() {
                             uniqueSectors.set(seat.sectorName, { name: seat.sectorName, color: seat.color, price: seat.price })
                           }
                         })
-                        return Array.from(uniqueSectors.values()).map((customSector) => (
-                          <div key={customSector.name} className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded border-2" style={{ backgroundColor: customSector.color, borderColor: customSector.color }} />
-                            <div>
-                              <span className="text-sm font-medium">{customSector.name}</span>
-                              <span className="text-xs text-gray-500 ml-1">Bs {customSector.price}</span>
-                            </div>
+                        return Array.from(uniqueSectors.values()).map(cs => (
+                          <div key={cs.name} className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded border-2" style={{ backgroundColor: cs.color, borderColor: cs.color }} />
+                            <span className="text-sm font-medium">{cs.name}</span>
+                            <span className="text-xs text-gray-500">Bs {cs.price}</span>
                           </div>
                         ))
                       })()}
@@ -513,39 +462,31 @@ export default function SeatSelection() {
                 </div>
 
                 {/* Grid de asientos */}
-                {seatMapConfig && seatMapConfig.rows ? (
-                  <div className="space-y-3">
-                    {/* Cabecera con números de asiento - MISMA ESTRUCTURA que las filas */}
+                {seatMapConfig?.rows && seatMapConfig.rows.length > 0 && seats.length > 0 ? (
+                  <div className="space-y-3 overflow-x-auto">
+
+                    {/* ✅ MAIN: cabecera con números de asiento alineada con las filas */}
                     {(() => {
-                      // Obtener la primera fila ordenada
-                      const sortedRows = [...seatMapConfig.rows].sort((a: Row, b: Row) => a.order - b.order)
+                      const sortedRows = [...seatMapConfig.rows].sort((a: Row, b: Row) => (a.order ?? 0) - (b.order ?? 0))
                       const firstRow = sortedRows[0]
                       if (!firstRow) return null
-
-                      // Obtener asientos REALES de la primera fila (filtrados por nombre de fila)
-                      const rowSeats = seats.filter((seat) => seat.row === firstRow.name)
-                      const sector = seatMapConfig.sectors?.find((s: Sector) => s.id === firstRow.sectorId)
-
-                      // MISMA LÓGICA que en el render de filas
+                      const rowSeats = seats.filter(seat => seat.row === firstRow.name)
                       const seatsPerColumn = Math.ceil(firstRow.seats / (firstRow.columns || 1))
-                      const columns = []
-
-                      // Dividir asientos en columnas - IGUAL que en el render
+                      const columns: Seat[][] = []
                       for (let col = 0; col < (firstRow.columns || 1); col++) {
-                        const startSeat = col * seatsPerColumn
-                        const endSeat = Math.min(startSeat + seatsPerColumn, firstRow.seats)
-                        const columnSeats = rowSeats.slice(startSeat, endSeat)
-                        columns.push(columnSeats)
+                        const start = col * seatsPerColumn
+                        const end = Math.min(start + seatsPerColumn, rowSeats.length)
+                        columns.push(rowSeats.slice(start, end))
                       }
-
                       return (
                         <div className="flex items-center gap-3 mb-2">
-                          <span className="text-xs font-medium text-gray-600 w-24 text-right flex-shrink-0"></span>
+                          {/* Mismo ancho que la etiqueta de fila */}
+                          <span className="w-24 flex-shrink-0" />
                           <div className="flex gap-1.5">
                             {columns.map((columnSeats, colIndex) => (
                               <React.Fragment key={colIndex}>
                                 <div className="flex gap-1">
-                                  {columnSeats.map((seat) => (
+                                  {columnSeats.map(seat => (
                                     <div key={seat.id} className="w-8 h-6 flex items-center justify-center">
                                       <span className="text-xs font-bold text-primary">{seat.number}</span>
                                     </div>
@@ -553,7 +494,7 @@ export default function SeatSelection() {
                                 </div>
                                 {colIndex < columns.length - 1 && columns.length > 1 && (
                                   <div className="w-8 flex items-center justify-center">
-                                    <div className="w-0.5 h-4 bg-gray-300 rounded"></div>
+                                    <div className="w-0.5 h-4 bg-gray-300 rounded" />
                                   </div>
                                 )}
                               </React.Fragment>
@@ -562,27 +503,29 @@ export default function SeatSelection() {
                         </div>
                       )
                     })()}
-                    {seatMapConfig.rows
-                      .sort((a: Row, b: Row) => a.order - b.order)
+
+                    {/* Filas de asientos */}
+                    {[...seatMapConfig.rows]
+                      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
                       .map((row: Row) => {
-                        const rowSeats = seats.filter((seat) => seat.row === row.name)
+                        const rowSeats = seats.filter(seat => seat.row === row.name)
                         const seatsPerColumn = Math.ceil(row.seats / (row.columns || 1))
-                        const columns = []
-
+                        const columns: Seat[][] = []
                         for (let col = 0; col < (row.columns || 1); col++) {
-                          const startSeat = col * seatsPerColumn
-                          const endSeat = Math.min(startSeat + seatsPerColumn, row.seats)
-                          columns.push(rowSeats.slice(startSeat, endSeat))
+                          const start = col * seatsPerColumn
+                          const end = Math.min(start + seatsPerColumn, rowSeats.length)
+                          columns.push(rowSeats.slice(start, end))
                         }
-
                         return (
                           <div key={row.id} className="flex items-center gap-3">
-                            <span className="text-xs font-medium text-gray-600 w-24 text-right flex-shrink-0">{row.name}</span>
+                            <span className="text-xs font-medium text-gray-600 w-24 text-right flex-shrink-0">
+                              {row.name}
+                            </span>
                             <div className="flex gap-1.5">
                               {columns.map((columnSeats, colIndex) => (
                                 <React.Fragment key={colIndex}>
                                   <div className="flex gap-1">
-                                    {columnSeats.map((seat) => (
+                                    {columnSeats.map(seat => (
                                       <button
                                         key={seat.id}
                                         onClick={() => toggleSeat(seat)}
@@ -594,14 +537,15 @@ export default function SeatSelection() {
                                           color: '#FFFFFF',
                                           opacity: seat.status === 'OCCUPIED' ? 0.5 : 1,
                                           cursor: seat.status === 'AVAILABLE' ? 'pointer' : 'not-allowed',
-                                          transform: selectedSeats.some((s) => s.id === seat.id) ? 'scale(1.1)' : 'scale(1)',
-                                          boxShadow: selectedSeats.some((s) => s.id === seat.id) ? '0 0 8px rgba(139, 92, 246, 0.5)' : undefined
+                                          transform: selectedSeats.some(s => s.id === seat.id) ? 'scale(1.1)' : 'scale(1)',
+                                          boxShadow: selectedSeats.some(s => s.id === seat.id) ? '0 0 8px rgba(139,92,246,0.5)' : undefined
                                         }}
-                                        title={`${row.name} - Asiento ${seat.number}${seat.sectorName ? ` (${seat.sectorName})` : ''} - Bs ${seat.price}`}
+                                        title={`${row.name} - Asiento ${seat.number} (${seat.sectorName}) - Bs ${seat.price}`}
                                       >
-                                        {selectedSeats.some((s) => s.id === seat.id) && (
-                                          <Check size={12} className="mx-auto" />
-                                        )}
+                                        {selectedSeats.some(s => s.id === seat.id)
+                                          ? <Check size={12} className="mx-auto" />
+                                          : seat.number
+                                        }
                                       </button>
                                     ))}
                                   </div>
@@ -619,7 +563,20 @@ export default function SeatSelection() {
                   </div>
                 ) : (
                   <div className="text-center py-12 text-gray-500">
-                    <p>No hay configuración de asientos disponible para este evento.</p>
+                    {seatMapConfig?.rows && seatMapConfig.rows.length > 0 && seats.length === 0 ? (
+                      <div>
+                        <p className="font-medium">Error al cargar los asientos.</p>
+                        <p className="text-sm mt-1">Por favor recarga la página.</p>
+                        <button
+                          onClick={() => window.location.reload()}
+                          className="mt-3 px-4 py-2 bg-primary text-white rounded-lg text-sm"
+                        >
+                          Recargar
+                        </button>
+                      </div>
+                    ) : (
+                      <p>No hay configuración de asientos disponible para este evento.</p>
+                    )}
                   </div>
                 )}
               </CardContent>
