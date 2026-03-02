@@ -67,7 +67,6 @@ export default function SeatSelection() {
   const [selectedSeats, setSelectedSeats] = useState<Seat[]>([])
   const [loading, setLoading] = useState(true)
   const [demoMode, setDemoMode] = useState(false)
-
   const [timeLeft, setTimeLeft] = useState(600)
   const [isTimerActive, setIsTimerActive] = useState(true)
 
@@ -79,6 +78,7 @@ export default function SeatSelection() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
+  // ── TIMER ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isTimerActive || timeLeft <= 0) return
     const timer = setInterval(() => {
@@ -97,6 +97,7 @@ export default function SeatSelection() {
   }, [isTimerActive, timeLeft])
 
   // ── GENERAR ASIENTOS DESDE CONFIG ──────────────────────────────────
+  // ✅ RESPONSIVE: función separada para que el finally del useEffect siempre ejecute
   const generateSeatsFromConfig = (
     config: SeatMapConfig,
     asientosReales: any[],
@@ -121,14 +122,12 @@ export default function SeatSelection() {
           s => s.rowId === row.id && s.seatIndex === i
         )
         const sector = config.sectors?.find(s => s.id === row.sectorId)
-
         const price = specialSeat?.price ?? sector?.price ?? eventoPrecio
         const color = specialSeat?.color || sector?.color || '#10B981'
         const sectorName = specialSeat?.sectorName || sector?.name || 'General'
         const sectorId = sector?.id
 
         const asientoReal = asientosMap.get(`${row.name}-${i + 1}`)
-
         let status: 'AVAILABLE' | 'OCCUPIED' = 'AVAILABLE'
         if (asientoReal) {
           const estado = asientoReal.estado
@@ -138,17 +137,7 @@ export default function SeatSelection() {
         }
 
         const seatId = asientoReal?.id || `temp-${row.name}-${i + 1}`
-
-        generatedSeats.push({
-          id: seatId,
-          row: row.name,
-          number: i + 1,
-          status,
-          price,
-          sectorId,
-          sectorName,
-          color
-        })
+        generatedSeats.push({ id: seatId, row: row.name, number: i + 1, status, price, sectorId, sectorName, color })
       }
     })
 
@@ -159,7 +148,6 @@ export default function SeatSelection() {
   // ── CARGAR EVENTO Y ASIENTOS ────────────────────────────────────────
   useEffect(() => {
     if (!eventId) return
-
     const loadEventData = async () => {
       try {
         setLoading(true)
@@ -168,6 +156,9 @@ export default function SeatSelection() {
         const response = await api.get(`/eventos/${eventId}`)
         const event = response.data.data
         const eventoPrecio: number = event.precio || 0
+
+        console.log('✅ Evento cargado:', event.titulo)
+        console.log('📋 Tiene seatMapConfig:', !!event.seatMapConfig)
 
         setEventData({
           id: event.id,
@@ -184,7 +175,7 @@ export default function SeatSelection() {
 
         setSeatMapConfig(event.seatMapConfig)
 
-        // ✅ Timeout 5s — nunca se queda colgado esperando asientos
+        // ✅ RESPONSIVE: timeout 3s — nunca se queda colgado esperando asientos
         let asientosReales: any[] = []
         try {
           const controller = new AbortController()
@@ -194,6 +185,7 @@ export default function SeatSelection() {
           })
           clearTimeout(timeout)
           asientosReales = asientosResponse.data.data || []
+          console.log('✅ Asientos cargados:', asientosReales.length)
         } catch (err: any) {
           if (err.name === 'CanceledError' || err.name === 'AbortError') {
             console.warn('⚠️ Timeout asientos, usando fallback del evento')
@@ -202,36 +194,30 @@ export default function SeatSelection() {
         }
 
         generateSeatsFromConfig(event.seatMapConfig, asientosReales, eventoPrecio)
-
       } catch (error) {
         console.error('❌ Error cargando evento:', error)
         setDemoMode(true)
       } finally {
-        // ✅ SIEMPRE se ejecuta — nunca queda en loading infinito
+        // ✅ RESPONSIVE: SIEMPRE se ejecuta — nunca queda en loading infinito
         setLoading(false)
       }
     }
-
     loadEventData()
   }, [eventId])
 
   // ── SOCKET ──────────────────────────────────────────────────────────
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout>
-
     try {
       socketService.connect()
-
       socketService.onConnected(() => {
         console.log('Socket conectado')
         socketService.joinEvent(eventId)
       })
-
       socketService.onConnectError(() => {
         console.log('Socket no disponible, modo demo')
         setDemoMode(true)
       })
-
       socketService.onSeatReserved((data) => {
         setSeats(prev =>
           prev.map(seat =>
@@ -239,17 +225,12 @@ export default function SeatSelection() {
           )
         )
       })
-
       timeoutId = setTimeout(() => {
-        if (!socketService.isConnected()) {
-          setDemoMode(true)
-        }
+        if (!socketService.isConnected()) setDemoMode(true)
       }, 3000)
-
     } catch {
       setDemoMode(true)
     }
-
     return () => {
       if (timeoutId) clearTimeout(timeoutId)
       try { socketService.disconnect() } catch {}
@@ -259,7 +240,6 @@ export default function SeatSelection() {
   // ── TOGGLE ASIENTO ──────────────────────────────────────────────────
   const toggleSeat = (seat: Seat) => {
     if (seat.status !== 'AVAILABLE') return
-
     setSelectedSeats(prev => {
       const isSelected = prev.some(s => s.id === seat.id)
       if (isSelected) return prev.filter(s => s.id !== seat.id)
@@ -269,7 +249,6 @@ export default function SeatSelection() {
       }
       return [...prev, seat]
     })
-
     if (socketService.isConnected() && !selectedSeats.some(s => s.id === seat.id)) {
       socketService.reserveSeat({
         eventoId: eventId,
@@ -284,7 +263,6 @@ export default function SeatSelection() {
       alert('Por favor selecciona al menos un asiento')
       return
     }
-
     if (!user) {
       navigate('/login', {
         state: {
@@ -294,10 +272,7 @@ export default function SeatSelection() {
       })
       return
     }
-
-    navigate('/checkout', {
-      state: { eventId, seats: selectedSeats }
-    })
+    navigate('/checkout', { state: { eventId, seats: selectedSeats } })
   }
 
   const getSeatBackgroundColor = (seat: Seat) => {
@@ -332,7 +307,6 @@ export default function SeatSelection() {
               <ArrowLeft size={18} className="mr-1" />
               Volver
             </button>
-
             <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg">
               <Clock size={14} className={timeLeft < 60 ? 'text-red-300' : 'text-yellow-300'} />
               <div className="text-right">
@@ -343,7 +317,6 @@ export default function SeatSelection() {
               </div>
             </div>
           </div>
-
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <h1 className="text-3xl font-bold mb-2">Selecciona tus asientos</h1>
@@ -367,7 +340,6 @@ export default function SeatSelection() {
             <Card className="sticky top-24">
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-4">Resumen de compra</h3>
-
                 <div className="mb-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
                   <div className="flex items-center gap-3">
                     <Clock className={timeLeft < 60 ? 'text-red-600' : 'text-primary'} size={20} />
@@ -379,7 +351,6 @@ export default function SeatSelection() {
                     </div>
                   </div>
                 </div>
-
                 <div className="space-y-4 mb-6">
                   <div className="flex justify-between items-center pb-3 border-b">
                     <span className="text-gray-600">Asientos seleccionados</span>
@@ -390,7 +361,6 @@ export default function SeatSelection() {
                     <span className="font-bold text-primary">Bs {totalPrice.toFixed(2)}</span>
                   </div>
                 </div>
-
                 <Button
                   onClick={() => {
                     if (selectedSeats.length === 0) {
@@ -408,15 +378,12 @@ export default function SeatSelection() {
                 >
                   Verificar Disponibilidad
                 </Button>
-
                 <Button size="lg" onClick={proceedToCheckout} disabled={selectedSeats.length === 0} className="w-full">
                   Continuar al pago
                 </Button>
-
                 <div className="text-center text-sm text-gray-500 mt-3">
                   <p>Tienes 10 minutos para completar tu compra</p>
                 </div>
-
                 {selectedSeats.length > 0 && (
                   <div className="mt-6 pt-6 border-t">
                     <h4 className="font-semibold mb-3">Tus asientos:</h4>
@@ -497,19 +464,58 @@ export default function SeatSelection() {
                 {/* Grid de asientos */}
                 {seatMapConfig?.rows && seatMapConfig.rows.length > 0 && seats.length > 0 ? (
                   <div className="space-y-3 overflow-x-auto">
+
+                    {/* ✅ MAIN: cabecera con números de asiento alineada con las filas */}
+                    {(() => {
+                      const sortedRows = [...seatMapConfig.rows].sort((a: Row, b: Row) => (a.order ?? 0) - (b.order ?? 0))
+                      const firstRow = sortedRows[0]
+                      if (!firstRow) return null
+                      const rowSeats = seats.filter(seat => seat.row === firstRow.name)
+                      const seatsPerColumn = Math.ceil(firstRow.seats / (firstRow.columns || 1))
+                      const columns: Seat[][] = []
+                      for (let col = 0; col < (firstRow.columns || 1); col++) {
+                        const start = col * seatsPerColumn
+                        const end = Math.min(start + seatsPerColumn, rowSeats.length)
+                        columns.push(rowSeats.slice(start, end))
+                      }
+                      return (
+                        <div className="flex items-center gap-3 mb-2">
+                          {/* Mismo ancho que la etiqueta de fila */}
+                          <span className="w-24 flex-shrink-0" />
+                          <div className="flex gap-1.5">
+                            {columns.map((columnSeats, colIndex) => (
+                              <React.Fragment key={colIndex}>
+                                <div className="flex gap-1">
+                                  {columnSeats.map(seat => (
+                                    <div key={seat.id} className="w-8 h-6 flex items-center justify-center">
+                                      <span className="text-xs font-bold text-primary">{seat.number}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                {colIndex < columns.length - 1 && columns.length > 1 && (
+                                  <div className="w-8 flex items-center justify-center">
+                                    <div className="w-0.5 h-4 bg-gray-300 rounded" />
+                                  </div>
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Filas de asientos */}
                     {[...seatMapConfig.rows]
                       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
                       .map((row: Row) => {
                         const rowSeats = seats.filter(seat => seat.row === row.name)
                         const seatsPerColumn = Math.ceil(row.seats / (row.columns || 1))
                         const columns: Seat[][] = []
-
                         for (let col = 0; col < (row.columns || 1); col++) {
                           const start = col * seatsPerColumn
                           const end = Math.min(start + seatsPerColumn, rowSeats.length)
                           columns.push(rowSeats.slice(start, end))
                         }
-
                         return (
                           <div key={row.id} className="flex items-center gap-3">
                             <span className="text-xs font-medium text-gray-600 w-24 text-right flex-shrink-0">
@@ -524,7 +530,7 @@ export default function SeatSelection() {
                                         key={seat.id}
                                         onClick={() => toggleSeat(seat)}
                                         disabled={seat.status !== 'AVAILABLE'}
-                                        className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-medium border transition-all"
+                                        className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-medium border transition-all relative"
                                         style={{
                                           backgroundColor: getSeatBackgroundColor(seat),
                                           borderColor: getSeatBackgroundColor(seat),

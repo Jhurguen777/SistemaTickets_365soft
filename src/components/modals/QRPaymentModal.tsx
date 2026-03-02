@@ -69,19 +69,29 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
 
         if (response.ok) {
           const data = await response.json()
-          setPaymentStatus({
-            estado: data.data.qr.estado,
-            mensaje: data.data.message || data.message
-          })
 
-          if (data.data.qr.estado === 'PAGADO') {
-            setTimeout(() => {
-              onPaymentSuccess()
-            }, 1500)
-          } else if (data.data.qr.estado === 'VENCIDO' || data.data.qr.estado === 'CANCELADO') {
-            setTimeout(() => {
-              onPaymentFailed()
-            }, 1500)
+          // El backend devuelve: { success: true, message, qr, estadoTransaccion, pagoProcesado }
+          if (data && data.qr) {
+            setPaymentStatus({
+              estado: data.qr.estado,
+              mensaje: data.message
+            })
+
+            if (data.qr.estado === 'PAGADO') {
+              setTimeout(() => {
+                onPaymentSuccess()
+              }, 1500)
+            } else if (data.qr.estado === 'VENCIDO' || data.qr.estado === 'CANCELADO') {
+              setTimeout(() => {
+                onPaymentFailed()
+              }, 1500)
+            }
+          } else {
+            console.error('QR no encontrado en respuesta:', data)
+            setPaymentStatus({
+              estado: 'PENDIENTE',
+              mensaje: 'No se pudo verificar el estado del pago'
+            })
           }
         }
       } catch (error) {

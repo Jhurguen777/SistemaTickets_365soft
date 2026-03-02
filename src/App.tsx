@@ -11,7 +11,6 @@ import PrivacyModal from '@/components/modals/PrivacyModal'
 import PaymentMethodsModal from '@/components/modals/PaymentMethodsModal'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import AdminLayout from '@/components/admin/AdminLayout'
-import { useAuthStore } from '@/store/authStore'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import Home from './pages/Home'
 import EventDetail from './pages/EventDetail'
@@ -40,7 +39,6 @@ type ModalType = 'login' | 'howToBuy' | 'faq' | 'storeLocations' | 'terms' | 'pr
 
 function App() {
   const [activeModal, setActiveModal] = useState<ModalType>(null)
-  const { isAdmin } = useAuthStore()
   const location = useLocation()
   const isAdminRoute = location.pathname.startsWith('/admin')
 
@@ -55,9 +53,10 @@ function App() {
   return (
     <ThemeProvider>
       <div className="min-h-screen flex flex-col bg-background">
-        <Header onOpenModal={openModal} />
+        {/* Solo mostrar Header en rutas públicas, no en admin */}
+        {!isAdminRoute && <Header onOpenModal={openModal} />}
 
-      <main className="flex-grow">
+      <main className="flex-grow pt-16 md:pt-20">
         <Routes>
           {/* Rutas Públicas */}
           <Route path="/" element={<Home onOpenModal={openModal} />} />
