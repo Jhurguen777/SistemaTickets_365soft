@@ -1,10 +1,10 @@
+// EventGrid.tsx
 import React, { useState, useEffect } from 'react'
 import EventCard, { EventCardProps } from './EventCard'
 import Button from '@/components/ui/Button'
 import api from '@/services/api'
 
 interface EventGridProps {
-  events?: EventCardProps[]
   onLoadMore?: () => void
   hasMore?: boolean
   loading?: boolean
@@ -19,15 +19,12 @@ const EventGrid: React.FC<EventGridProps> = ({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Cargar eventos del backend
   useEffect(() => {
     const fetchEvents = async () => {
       try {
         setLoading(true)
         const response = await api.get('/eventos')
         const eventos = response.data.data.eventos || []
-
-        // Transformar los eventos al formato que espera EventCard
         const formattedEvents: EventCardProps[] = eventos.map((evt: any) => ({
           id: evt.id,
           title: evt.titulo,
@@ -38,7 +35,6 @@ const EventGrid: React.FC<EventGridProps> = ({
           price: evt.precio,
           category: evt.categoria || 'Fiestas'
         }))
-
         setEvents(formattedEvents)
       } catch (err) {
         console.error('Error al cargar eventos:', err)
@@ -47,56 +43,61 @@ const EventGrid: React.FC<EventGridProps> = ({
         setLoading(false)
       }
     }
-
     fetchEvents()
   }, [])
+
   return (
-    <section className="py-12 px-4">
+    <section className="py-6 sm:py-12 px-3 sm:px-4">
       <div className="container mx-auto">
-        {/* Loading State */}
+
+        {/* Loading */}
         {loading && (
-          <div className="flex items-center justify-center py-20">
+          <div className="flex items-center justify-center py-16">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-gray-600">Cargando eventos...</p>
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">Cargando eventos...</p>
             </div>
           </div>
         )}
 
-        {/* Error State */}
+        {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg text-center">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center text-sm">
             <p className="font-medium">{error}</p>
-            <p className="text-sm mt-1">Por favor, recarga la página</p>
+            <p className="text-xs mt-1">Por favor, recarga la página</p>
           </div>
         )}
 
-        {/* Empty State */}
+        {/* Empty */}
         {!loading && !error && events.length === 0 && (
-          <div className="text-center py-20">
-            <div className="text-6xl mb-4">🎟️</div>
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">No hay eventos disponibles</h3>
-            <p className="text-gray-500">Pronto habrá nuevos eventos para ti</p>
+          <div className="text-center py-16">
+            <div className="text-5xl mb-3">🎟️</div>
+            <h3 className="text-lg font-semibold text-gray-700 mb-1">No hay eventos disponibles</h3>
+            <p className="text-gray-500 text-sm">Pronto habrá nuevos eventos para ti</p>
           </div>
         )}
 
-        {/* Grid */}
+        {/* Grid
+          Mobile:  2 columns  (compact cards)
+          SM:      2 columns
+          LG:      3 columns
+          XL:      4 columns
+        */}
         {!loading && !error && events.length > 0 && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5">
               {events.map((event) => (
                 <EventCard key={event.id} {...event} />
               ))}
             </div>
 
-            {/* Load More Button */}
             {hasMoreProp && onLoadMore && (
-              <div className="mt-12 text-center">
+              <div className="mt-8 sm:mt-12 text-center">
                 <Button
                   size="lg"
                   onClick={onLoadMore}
                   disabled={loadingProp}
-                  className="min-w-[200px]"
+                  className="min-w-[160px] text-sm"
                 >
                   {loadingProp ? 'Cargando...' : 'Ver más'}
                 </Button>

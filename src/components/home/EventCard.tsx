@@ -1,3 +1,4 @@
+// EventCard.tsx
 import React from 'react'
 import { Calendar, MapPin } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -27,27 +28,18 @@ const EventCard: React.FC<EventCardProps> = ({
   onBuyClick
 }) => {
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('es-ES', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    })
-  }
-
-  const handleClick = () => {
-    // Navigate to event detail
-    window.location.href = `/eventos/${id}`
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
   return (
     <Card
-      className="group overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer"
+      className="group overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer h-full flex flex-col"
       hoverable
-      onClick={handleClick}
+      onClick={() => { window.location.href = `/eventos/${id}` }}
     >
       {/* Image */}
-      <div className="relative overflow-hidden aspect-[3/4]">
+      <div className="relative overflow-hidden aspect-[4/3] sm:aspect-[3/4]">
         <img
           src={image}
           alt={title}
@@ -55,47 +47,40 @@ const EventCard: React.FC<EventCardProps> = ({
           loading="lazy"
         />
         {category && (
-          <div className="absolute top-3 left-3 px-3 py-1 bg-primary text-white text-xs font-bold uppercase rounded-full">
+          <div className="absolute top-2 left-2 px-2 py-0.5 bg-primary text-white text-[10px] font-bold uppercase rounded-full">
             {category}
           </div>
         )}
       </div>
 
       {/* Content */}
-      <CardContent className="p-4">
-        <h3 className="font-bold text-lg text-gray-900 mb-3 line-clamp-2 min-h-[3.5rem]">
+      <CardContent className="p-3 sm:p-4 flex flex-col flex-1">
+        <h3 className="font-bold text-sm sm:text-base text-gray-900 mb-2 line-clamp-2 min-h-[2.5rem] sm:min-h-[3rem]">
           {title}
         </h3>
 
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center text-sm text-gray-600">
-            <Calendar size={16} className="mr-2 flex-shrink-0 text-primary" />
-            <span className="line-clamp-1">
-              {formatDate(date)} - {time}
-            </span>
+        <div className="space-y-1 mb-3 flex-1">
+          <div className="flex items-center text-xs sm:text-sm text-gray-600">
+            <Calendar size={13} className="mr-1.5 flex-shrink-0 text-primary" />
+            <span className="line-clamp-1">{formatDate(date)} · {time}</span>
           </div>
-
-          <div className="flex items-center text-sm text-gray-600">
-            <MapPin size={16} className="mr-2 flex-shrink-0 text-primary" />
+          <div className="flex items-center text-xs sm:text-sm text-gray-600">
+            <MapPin size={13} className="mr-1.5 flex-shrink-0 text-primary" />
             <span className="line-clamp-1">{location}</span>
           </div>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
           <div>
-            <p className="text-xs text-gray-500">Desde</p>
-            <p className="text-xl font-bold text-primary">
+            <p className="text-[10px] text-gray-400 leading-none">Desde</p>
+            <p className="text-base sm:text-lg font-bold text-primary leading-tight">
               Bs {price.toFixed(2)}
             </p>
           </div>
-
           <Button
             size="sm"
-            onClick={(e) => {
-              e.stopPropagation() // Prevent card click
-              onBuyClick?.()
-            }}
-            className="flex-shrink-0"
+            className="text-xs px-3 py-1.5 flex-shrink-0"
+            onClick={(e) => { e.stopPropagation(); onBuyClick?.() }}
           >
             Comprar
           </Button>

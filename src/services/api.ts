@@ -9,7 +9,6 @@ const api = axios.create({
   },
 })
 
-// Request interceptor para agregar token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token')
@@ -18,19 +17,28 @@ api.interceptors.request.use(
     }
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// Response interceptor para manejar errores
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expirado o inválido
-      localStorage.removeItem('token')
-      window.location.href = '/login'
+      const url: string = error.config?.url || ''
+
+      // ✅ Rutas públicas — nunca redirigir a login
+      const esPublica =
+        url.includes('/asientos') ||
+        url.includes('/eventos')  ||
+        url.includes('/auth/google')
+
+      // ✅ Evitar bucle infinito si ya estamos en /login
+      const yaEnLogin = window.location.pathname === '/login'
+
+      if (!esPublica && !yaEnLogin) {
+        localStorage.removeItem('token')
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }
