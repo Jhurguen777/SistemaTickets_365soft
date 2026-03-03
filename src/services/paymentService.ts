@@ -5,6 +5,8 @@ import api from './api'
 export interface IniciarPagoRequest {
   asientoId: string
   eventoId: string
+  monto?: number
+  asientosIds?: string[]
 }
 
 export interface IniciarPagoResponse {
@@ -45,6 +47,7 @@ export interface VerificarPagoResponse {
  * Crea la compra y genera el QR del banco
  */
 export const iniciarPagoQR = async (params: IniciarPagoRequest): Promise<IniciarPagoResponse> => {
+  console.log('📤 Enviando al backend:', params)
   const response = await api.post<IniciarPagoResponse>('/compras/iniciar-pago', params)
   return response.data
 }

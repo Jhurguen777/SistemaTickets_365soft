@@ -239,16 +239,31 @@ export default function Checkout() {
     setProcessing(true)
     try {
       const firstSeat = seats[0]
-      const response = await paymentService.iniciarPagoQR({ asientoId: firstSeat.id, eventoId: eventId })
-      if (!response.success) throw new Error(response.message || 'Error al iniciar el pago')
+
+      console.log('Iniciando pago QR...', { asientoId: firstSeat.id, eventoId: eventId })
+      console.log('Total a pagar:', totalPrice)
+
+      const response = await paymentService.iniciarPagoQR({
+        asientoId: firstSeat.id,
+        eventoId: eventId,
+        monto: totalPrice,
+        asientosIds: seats.map(s => s.id)
+      })
+
+      console.log('Respuesta del backend:', response)
+
+      if (!response.success) {
+        throw new Error(response.message || 'Error al iniciar el pago')
+      }
+
       setCurrentQRData({
         id: response.qrPago.id,
         alias: response.qrPago.alias,
-        monto: response.compra.monto,
+        monto: totalPrice,
         moneda: response.compra.moneda,
         imagenQr: response.qrPago.imagenQr,
         fechaVencimiento: response.qrPago.fechaVencimiento,
-        detalleGlosa: `Ticket: ${event.title} - Asiento: ${firstSeat.row}${firstSeat.number}`
+        detalleGlosa: `Ticket: ${event.title} - Asientos: ${seats.map(s => `${s.row}${s.number}`).join(', ')}`
       })
       setCurrentPurchaseId(response.compra.id)
       setShowQRModal(true)
@@ -547,7 +562,7 @@ export default function Checkout() {
             </form>
           </div>
 
-          {/* ✅ MAIN: sidebar visible siempre (hidden sm:block en responsive, pero main lo tenía siempre visible) */}
+          {/* Sidebar resumen */}
           <div className="hidden sm:block lg:col-span-1">
             <Card className="sticky top-24">
               <CardContent className="p-6">

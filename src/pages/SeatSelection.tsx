@@ -159,11 +159,13 @@ export default function SeatSelection() {
 
         console.log('✅ Evento cargado:', event.titulo)
         console.log('📋 Tiene seatMapConfig:', !!event.seatMapConfig)
+        console.log('💰 Datos del evento:', event)
 
         setEventData({
           id: event.id,
           title: event.titulo || event.title || 'Evento',
-          precio: eventoPrecio,
+
+          precio: event.precio || event.price || event.basePrice || 0,  // ✅
           seatMapConfig: event.seatMapConfig
         })
 
