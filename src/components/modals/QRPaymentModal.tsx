@@ -61,7 +61,7 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
     const checkPaymentStatus = async () => {
       setIsChecking(true)
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/compras/verificar-pago/${qrData.id}`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/compras/qr/estado/${qrData.id}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
@@ -71,17 +71,17 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
           const data = await response.json()
 
           // El backend devuelve: { success: true, message, qr, estadoTransaccion, pagoProcesado }
-          if (data && data.qr) {
+          if (data && data.estado) {
             setPaymentStatus({
-              estado: data.qr.estado,
+              estado: data.estado,
               mensaje: data.message
             })
 
-            if (data.qr.estado === 'PAGADO') {
+            if (data.estado === 'PAGADO') {
               setTimeout(() => {
                 onPaymentSuccess()
               }, 1500)
-            } else if (data.qr.estado === 'VENCIDO' || data.qr.estado === 'CANCELADO') {
+            } else if (data.estado === 'VENCIDO' || data.estado === 'CANCELADO') {
               setTimeout(() => {
                 onPaymentFailed()
               }, 1500)
@@ -186,7 +186,7 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
               <img
                 src={qrData.imagenQr.startsWith('http') ? qrData.imagenQr : `data:image/png;base64,${qrData.imagenQr}`}
                 alt="QR de pago"
-                className="w-64 h-64"
+                className="w-140 h-1140"
               />
             ) : (
               <div className="w-64 h-64 bg-gray-100 flex items-center justify-center">

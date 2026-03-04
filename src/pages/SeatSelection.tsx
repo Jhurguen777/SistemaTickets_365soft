@@ -56,7 +56,6 @@ interface EventData {
   seatMapConfig?: SeatMapConfig
 }
 
-// Calcula el tamaño óptimo de butaca para que todo el mapa quepa en containerWidth
 function calcSeatSize(
   containerWidth: number,
   maxSeatsPerRow: number,
@@ -65,11 +64,9 @@ function calcSeatSize(
 ): number {
   const rowLabelWidth = isMobile ? 52 : 96
   const gap = 4
-  // cada pasillo vale 20px
   const aisleWidth = maxColumns > 1 ? (maxColumns - 1) * 20 : 0
   const padding = isMobile ? 16 : 48
   const available = containerWidth - rowLabelWidth - aisleWidth - padding
-  // gap entre butacas: (N-1) * gap
   const sizeRaw = (available - (maxSeatsPerRow - 1) * gap) / maxSeatsPerRow
   return Math.min(Math.max(Math.floor(sizeRaw), 16), 36)
 }
@@ -99,12 +96,10 @@ export default function SeatSelection() {
   const formatTime = (s: number) =>
     `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
 
-  // ── CALCULAR TAMAÑO DE BUTACAS según ancho del contenedor ──────────
   const recalcSizes = useCallback(() => {
     if (!seatMapConfig?.rows) return
     const maxSeats = Math.max(...seatMapConfig.rows.map(r => r.seats))
     const maxCols = Math.max(...seatMapConfig.rows.map(r => r.columns || 1))
-
     if (mobileMapRef.current) {
       const w = mobileMapRef.current.offsetWidth
       if (w > 0) setMobileSeatSize(calcSeatSize(w, maxSeats, maxCols, true))
@@ -122,7 +117,6 @@ export default function SeatSelection() {
     return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener('resize', recalcSizes) }
   }, [recalcSizes, seats])
 
-  // ── TIMER ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isTimerActive || timeLeft <= 0) return
     const timer = setInterval(() => {
@@ -140,7 +134,6 @@ export default function SeatSelection() {
     return () => clearInterval(timer)
   }, [isTimerActive, timeLeft])
 
-  // ── GENERAR ASIENTOS ────────────────────────────────────────────────
   const generateSeatsFromConfig = (config: SeatMapConfig, asientosReales: any[], eventoPrecio: number) => {
     if (!config.rows?.length) return
     const asientosMap = new Map<string, any>()
@@ -162,24 +155,51 @@ export default function SeatSelection() {
           const e = asientoReal.estado
           if (e === 'VENDIDO' || e === 'BLOQUEADO' || e === 'RESERVANDO') status = 'OCCUPIED'
         }
-        generated.push({ id: asientoReal?.id || `temp-${row.name}-${i + 1}`, row: row.name, number: i + 1, status, price, sectorId: sector?.id, sectorName, color })
+        generated.push({
+          id: asientoReal?.id || `temp-${row.name}-${i + 1}`,
+          row: row.name,
+          number: i + 1,
+          status,
+          price,
+          sectorId: sector?.id,
+          sectorName,
+          color,
+        })
       }
     })
     setSeats(generated)
   }
 
-  // ── CARGAR EVENTO ───────────────────────────────────────────────────
+  // ── CARGAR EVENTO — MERGE RESUELTO ─────────────────────────────────
+  // Se conserva la versión de 'main' que lee precio desde múltiples
+  // campos (precio / price / basePrice) para mayor compatibilidad.
   useEffect(() => {
     if (!eventId) return
     const load = async () => {
       try {
-        setLoading(true); setSeats([])
+        setLoading(true)
+        setSeats([])
         const response = await api.get(`/eventos/${eventId}`)
         const event = response.data.data
-        const precio: number = event.precio || 0
-        setEventData({ id: event.id, title: event.titulo || event.title || 'Evento', precio, seatMapConfig: event.seatMapConfig })
-        if (!event.seatMapConfig) { setDemoMode(true); setLoading(false); return }
+
+        const eventoPrecio: number =
+          event.precio || event.price || event.basePrice || 0
+
+        setEventData({
+          id: event.id,
+          title: event.titulo || event.title || 'Evento',
+          precio: eventoPrecio,
+          seatMapConfig: event.seatMapConfig,
+        })
+
+        if (!event.seatMapConfig) {
+          setDemoMode(true)
+          setLoading(false)
+          return
+        }
+
         setSeatMapConfig(event.seatMapConfig)
+
         let asientosReales: any[] = []
         try {
           const ctrl = new AbortController()
@@ -187,27 +207,39 @@ export default function SeatSelection() {
           const res = await api.get(`/asientos/evento/${eventId}`, { signal: ctrl.signal })
           clearTimeout(t)
           asientosReales = res.data.data || []
-        } catch { asientosReales = event.asientos || [] }
-        generateSeatsFromConfig(event.seatMapConfig, asientosReales, precio)
-      } catch { setDemoMode(true) } finally { setLoading(false) }
+        } catch {
+          asientosReales = event.asientos || []
+        }
+
+        generateSeatsFromConfig(event.seatMapConfig, asientosReales, eventoPrecio)
+      } catch {
+        setDemoMode(true)
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [eventId])
 
-  // ── SOCKET ──────────────────────────────────────────────────────────
   useEffect(() => {
     let tid: ReturnType<typeof setTimeout>
     try {
       socketService.connect()
       socketService.onConnected(() => socketService.joinEvent(eventId))
       socketService.onConnectError(() => setDemoMode(true))
-      socketService.onSeatReserved(data => setSeats(prev => prev.map(s => s.id === data.seatId ? { ...s, status: 'OCCUPIED' } : s)))
+      socketService.onSeatReserved(data =>
+        setSeats(prev => prev.map(s => s.id === data.seatId ? { ...s, status: 'OCCUPIED' } : s))
+      )
       tid = setTimeout(() => { if (!socketService.isConnected()) setDemoMode(true) }, 3000)
-    } catch { setDemoMode(true) }
-    return () => { if (tid) clearTimeout(tid); try { socketService.disconnect() } catch {} }
+    } catch {
+      setDemoMode(true)
+    }
+    return () => {
+      if (tid) clearTimeout(tid)
+      try { socketService.disconnect() } catch {}
+    }
   }, [eventId])
 
-  // ── TOGGLE ──────────────────────────────────────────────────────────
   const toggleSeat = (seat: Seat) => {
     if (seat.status !== 'AVAILABLE') return
     setSelectedSeats(prev => {
@@ -223,7 +255,12 @@ export default function SeatSelection() {
   const proceedToCheckout = () => {
     if (selectedSeats.length === 0) { alert('Por favor selecciona al menos un asiento'); return }
     if (!user) {
-      navigate('/login', { state: { redirectTo: `/eventos/${id}/asientos`, eventData: { eventId, selectedSeats: selectedSeats.map(s => s.id) } } })
+      navigate('/login', {
+        state: {
+          redirectTo: `/eventos/${id}/asientos`,
+          eventData: { eventId, selectedSeats: selectedSeats.map(s => s.id) },
+        },
+      })
       return
     }
     navigate('/checkout', { state: { eventId, seats: selectedSeats } })
@@ -237,9 +274,6 @@ export default function SeatSelection() {
 
   const totalPrice = selectedSeats.reduce((sum, s) => sum + s.price, 0)
 
-  // ══════════════════════════════════════════════════════════════════
-  // COMPONENTE DEL MAPA — acepta seatSize dinámico
-  // ══════════════════════════════════════════════════════════════════
   const SeatMap = ({ seatSize, isMobile }: { seatSize: number; isMobile: boolean }) => {
     if (!seatMapConfig?.rows || seats.length === 0) {
       return (
@@ -249,7 +283,9 @@ export default function SeatSelection() {
               <p className="font-medium">Error al cargar los asientos.</p>
               <button onClick={() => window.location.reload()} className="mt-3 px-4 py-2 bg-primary text-white rounded-lg text-sm">Recargar</button>
             </div>
-          ) : <p>No hay configuración de asientos disponible.</p>}
+          ) : (
+            <p>No hay configuración de asientos disponible.</p>
+          )}
         </div>
       )
     }
@@ -259,7 +295,6 @@ export default function SeatSelection() {
     const FONT = seatSize <= 20 ? 7 : seatSize <= 24 ? 9 : seatSize <= 28 ? 10 : 11
     const sortedRows = [...seatMapConfig.rows].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 
-    // Cabecera de números (primera fila como referencia)
     const firstRow = sortedRows[0]
     const firstRowSeats = seats.filter(s => s.row === firstRow.name)
     const fCols = firstRow.columns || 1
@@ -270,14 +305,11 @@ export default function SeatSelection() {
 
     return (
       <div style={{ width: '100%' }}>
-
         {/* Escenario */}
         <div style={{
           background: 'linear-gradient(135deg,rgba(59,130,246,0.12),rgba(99,102,241,0.07))',
-          borderRadius: 8,
-          padding: isMobile ? '8px 16px' : '14px 32px',
-          textAlign: 'center',
-          marginBottom: isMobile ? 10 : 18,
+          borderRadius: 8, padding: isMobile ? '8px 16px' : '14px 32px',
+          textAlign: 'center', marginBottom: isMobile ? 10 : 18,
           border: '1px solid rgba(59,130,246,0.15)',
         }}>
           <p style={{ fontWeight: 800, fontSize: isMobile ? 13 : 20, color: '#3B82F6', letterSpacing: '0.12em', margin: 0 }}>ESCENARIO</p>
@@ -318,7 +350,7 @@ export default function SeatSelection() {
           ))}
         </div>
 
-        {/* Números de asiento (cabecera) */}
+        {/* Cabecera números */}
         <div style={{ display: 'flex', alignItems: 'center', gap: GAP, marginBottom: 2 }}>
           <span style={{ width: ROW_LABEL_W, flexShrink: 0 }} />
           <div style={{ display: 'flex', gap: GAP }}>
@@ -341,7 +373,7 @@ export default function SeatSelection() {
           </div>
         </div>
 
-        {/* Filas de asientos */}
+        {/* Filas */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: GAP }}>
           {sortedRows.map(row => {
             const rowSeats = seats.filter(s => s.row === row.name)
@@ -352,7 +384,6 @@ export default function SeatSelection() {
             )
             return (
               <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: GAP }}>
-                {/* Etiqueta */}
                 <span style={{
                   width: ROW_LABEL_W, flexShrink: 0, textAlign: 'right',
                   fontSize: isMobile ? 9 : 11, fontWeight: 500, color: '#9CA3AF', paddingRight: 4,
@@ -360,8 +391,6 @@ export default function SeatSelection() {
                 }}>
                   {row.name}
                 </span>
-
-                {/* Columnas con asientos */}
                 <div style={{ display: 'flex', gap: GAP }}>
                   {columns.map((colSeats, ci) => (
                     <React.Fragment key={ci}>
@@ -376,17 +405,12 @@ export default function SeatSelection() {
                               disabled={seat.status !== 'AVAILABLE'}
                               title={`${row.name} · Asiento ${seat.number} · ${seat.sectorName} · Bs ${seat.price}`}
                               style={{
-                                width: seatSize,
-                                height: seatSize,
+                                width: seatSize, height: seatSize,
                                 borderRadius: Math.max(3, Math.floor(seatSize * 0.2)),
                                 backgroundColor: color,
-                                border: isSelected ? `2px solid rgba(255,255,255,0.6)` : '1px solid transparent',
-                                color: '#fff',
-                                fontSize: FONT,
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
+                                border: isSelected ? '2px solid rgba(255,255,255,0.6)' : '1px solid transparent',
+                                color: '#fff', fontSize: FONT, fontWeight: 700,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 cursor: seat.status === 'AVAILABLE' ? 'pointer' : 'not-allowed',
                                 opacity: seat.status === 'OCCUPIED' ? 0.4 : 1,
                                 boxShadow: isSelected
@@ -394,9 +418,7 @@ export default function SeatSelection() {
                                   : '0 1px 2px rgba(0,0,0,0.15)',
                                 transition: 'transform 0.1s ease, box-shadow 0.1s ease',
                                 transform: isSelected ? 'scale(1.15)' : 'scale(1)',
-                                flexShrink: 0,
-                                padding: 0,
-                                lineHeight: 1,
+                                flexShrink: 0, padding: 0, lineHeight: 1,
                               }}
                             >
                               {isSelected
@@ -406,7 +428,6 @@ export default function SeatSelection() {
                           )
                         })}
                       </div>
-                      {/* Pasillo entre columnas */}
                       {ci < columns.length - 1 && (
                         <div style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <div style={{ width: 1, height: seatSize * 0.55, background: '#D1D5DB', borderRadius: 1 }} />
@@ -423,7 +444,6 @@ export default function SeatSelection() {
     )
   }
 
-  // ── LOADING ─────────────────────────────────────────────────────────
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center">
@@ -433,7 +453,6 @@ export default function SeatSelection() {
     </div>
   )
 
-  // ════════════════════════════════════════════════════════════════════
   return (
     <div className="min-h-screen bg-gray-50">
 
@@ -442,7 +461,7 @@ export default function SeatSelection() {
         <div className="w-full px-4">
           <div className="flex items-center justify-between mb-2">
             <button onClick={() => navigate(-1)} className="inline-flex items-center text-white/80 hover:text-white font-semibold transition-colors text-sm">
-              <ArrowLeft size={18} className="mr-1" />Volver
+              <ArrowLeft size={18} className="mr-1" /> Volver
             </button>
             <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg">
               <Clock size={14} className={timeLeft < 60 ? 'text-red-300' : 'text-yellow-300'} />
@@ -466,11 +485,9 @@ export default function SeatSelection() {
         </div>
       </div>
 
-      {/* ══════ DESKTOP ══════ */}
+      {/* DESKTOP */}
       <div className="hidden lg:block w-full px-4 py-6">
         <div className="grid grid-cols-4 gap-6">
-
-          {/* Sidebar desktop */}
           <div className="col-span-1">
             <Card className="sticky top-24">
               <CardContent className="p-6">
@@ -503,7 +520,9 @@ export default function SeatSelection() {
                   }}
                   disabled={!selectedSeats.length}
                   className="w-full mb-4 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold"
-                >Verificar Disponibilidad</Button>
+                >
+                  Verificar Disponibilidad
+                </Button>
                 <Button size="lg" onClick={proceedToCheckout} disabled={!selectedSeats.length} className="w-full">
                   Continuar al pago
                 </Button>
@@ -524,8 +543,6 @@ export default function SeatSelection() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Mapa desktop */}
           <div className="col-span-3">
             <Card>
               <div ref={desktopMapRef}>
@@ -538,27 +555,15 @@ export default function SeatSelection() {
         </div>
       </div>
 
-      {/* ══════ MÓVIL ══════ */}
+      {/* MÓVIL */}
       <div className="lg:hidden" style={{ paddingBottom: 88 }}>
-        {/*
-          El mapa ocupa todo el ancho de la pantalla.
-          Las butacas se calculan para caber exactamente en ese ancho.
-          Sin transform, sin scroll horizontal.
-        */}
-        <div
-          ref={mobileMapRef}
-          className="bg-white w-full"
-          style={{ padding: '12px 8px 16px 2px' }}
-        >
+        <div ref={mobileMapRef} className="bg-white w-full" style={{ padding: '12px 8px 16px 2px' }}>
           <SeatMap seatSize={mobileSeatSize} isMobile={true} />
         </div>
       </div>
 
-      {/* ══════ BARRA INFERIOR MÓVIL (fija) ══════ */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200"
-        style={{ boxShadow: '0 -4px 20px rgba(0,0,0,0.08)' }}>
-
-        {/* Lista expandible */}
+      {/* BARRA INFERIOR MÓVIL */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200" style={{ boxShadow: '0 -4px 20px rgba(0,0,0,0.08)' }}>
         {showMobileSummary && selectedSeats.length > 0 && (
           <div style={{ borderBottom: '1px solid #F3F4F6', backgroundColor: '#F9FAFB', padding: '10px 16px', maxHeight: 180, overflowY: 'auto' }}>
             <p style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.08em', marginBottom: 8 }}>ASIENTOS SELECCIONADOS</p>
@@ -580,57 +585,27 @@ export default function SeatSelection() {
             </div>
           </div>
         )}
-
-        {/* Barra principal */}
         <div style={{ padding: '10px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-
-            {/* Contador / abrir lista */}
             <button
               onClick={() => selectedSeats.length > 0 && setShowMobileSummary(v => !v)}
               style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, background: 'none', border: 'none', padding: 0, cursor: selectedSeats.length > 0 ? 'pointer' : 'default' }}
             >
-              <div style={{
-                width: 36, height: 36, borderRadius: '50%',
-                backgroundColor: selectedSeats.length > 0 ? '#8B5CF6' : '#D1D5DB',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#fff', fontSize: 14, fontWeight: 800, flexShrink: 0,
-                transition: 'background-color 0.2s',
-              }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: selectedSeats.length > 0 ? '#8B5CF6' : '#D1D5DB', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 800, flexShrink: 0, transition: 'background-color 0.2s' }}>
                 {selectedSeats.length}
               </div>
               <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
                 <p style={{ fontSize: 11, color: '#9CA3AF', margin: 0, lineHeight: 1.2 }}>
-                  {selectedSeats.length === 0
-                    ? 'Toca un asiento para seleccionar'
-                    : `${selectedSeats.length} asiento${selectedSeats.length !== 1 ? 's' : ''} ${showMobileSummary ? '▲' : '▼'}`}
+                  {selectedSeats.length === 0 ? 'Toca un asiento para seleccionar' : `${selectedSeats.length} asiento${selectedSeats.length !== 1 ? 's' : ''} ${showMobileSummary ? '▲' : '▼'}`}
                 </p>
-                <p style={{ fontSize: 16, fontWeight: 800, color: '#111827', margin: 0, lineHeight: 1.2 }}>
-                  Bs {totalPrice.toFixed(2)}
-                </p>
+                <p style={{ fontSize: 16, fontWeight: 800, color: '#111827', margin: 0, lineHeight: 1.2 }}>Bs {totalPrice.toFixed(2)}</p>
               </div>
             </button>
-
-            {/* Timer */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '5px 10px', borderRadius: 8, flexShrink: 0,
-              backgroundColor: timeLeft < 60 ? '#FEF2F2' : '#EFF6FF',
-            }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, flexShrink: 0, backgroundColor: timeLeft < 60 ? '#FEF2F2' : '#EFF6FF' }}>
               <Clock size={12} color={timeLeft < 60 ? '#EF4444' : '#3B82F6'} />
-              <span style={{ fontSize: 13, fontWeight: 800, color: timeLeft < 60 ? '#EF4444' : '#3B82F6', fontVariantNumeric: 'tabular-nums' }}>
-                {formatTime(timeLeft)}
-              </span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: timeLeft < 60 ? '#EF4444' : '#3B82F6', fontVariantNumeric: 'tabular-nums' }}>{formatTime(timeLeft)}</span>
             </div>
-
-            {/* Botón continuar */}
-            <Button
-              onClick={proceedToCheckout}
-              disabled={selectedSeats.length === 0}
-              size="sm"
-              className="flex-shrink-0 font-bold"
-              style={{ padding: '8px 18px', fontSize: 13 } as any}
-            >
+            <Button onClick={proceedToCheckout} disabled={selectedSeats.length === 0} size="sm" className="flex-shrink-0 font-bold" style={{ padding: '8px 18px', fontSize: 13 } as any}>
               Continuar
             </Button>
           </div>
