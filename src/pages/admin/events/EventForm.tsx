@@ -13,19 +13,10 @@ export default function EventForm() {
   const isEditing = !!id
 
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    longDescription: '',
-    location: '',
-    address: '',
-    date: '',
-    time: '',
-    doorsOpen: '',
-    capacity: 0,
-    // ✅ FIX: Agregar campo precio con valor inicial 0
-    precio: 0,
-    category: 'Fiestas',
-    subcategory: '',
+    title: '', description: '', longDescription: '',
+    location: '', address: '', date: '', time: '', doorsOpen: '',
+    capacity: 0, precio: 0,
+    category: 'Fiestas', subcategory: '',
     organizer: '365soft Eventos',
     status: 'ACTIVO' as 'ACTIVO' | 'INACTIVO' | 'CANCELADO',
     image: '/media/banners/vibra-carnavalera.jpg',
@@ -48,30 +39,21 @@ export default function EventForm() {
       try {
         const events = await adminService.getEvents()
         const event = events.find((e: any) => e.id === id)
-
         if (event) {
-          const formatDateForInput = (date: Date | string) => {
-            const d = new Date(date)
-            return d.toISOString().split('T')[0]
-          }
-
+          const formatDate = (d: Date | string) => new Date(d).toISOString().split('T')[0]
           const eventImages: string[] = []
           if (event.image) eventImages.push(event.image)
-          if (event.gallery && event.gallery.length > 0) eventImages.push(...event.gallery)
-
+          if (event.gallery?.length) eventImages.push(...event.gallery)
           setImages(eventImages)
           setMainImageIndex(0)
-
-        // ✅ FIX: Cast a 'any' para evitar conflictos con el tipo AdminEvent
-        const e = event as any
-
+          const e = event as any
           setFormData({
             title: e.title || e.titulo || '',
             description: e.description || '',
             longDescription: e.longDescription || '',
             location: e.location || e.ubicacion || '',
             address: e.address || e.direccion || '',
-            date: formatDateForInput(e.date || e.fecha),
+            date: formatDate(e.date || e.fecha),
             time: e.time || e.hora || '',
             doorsOpen: e.doorsOpen || '',
             capacity: e.capacity || e.capacidad || 0,
@@ -86,12 +68,8 @@ export default function EventForm() {
             limiteAsientosPorUsuario: e.limiteAsientosPorUsuario || 1
           })
         }
-      } catch (error) {
-        console.error('Error al cargar evento:', error)
-        setErrors({ form: 'Error al cargar el evento' })
-      } finally {
-        setLoadingEvent(false)
-      }
+      } catch { setErrors({ form: 'Error al cargar el evento' }) }
+      finally { setLoadingEvent(false) }
     }
     loadEvent()
   }, [id])
@@ -99,522 +77,269 @@ export default function EventForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrors({})
-
-    const newErrors: { [key: string]: string } = {}
-
-    if (!formData.title || formData.title.length < 3) {
-      newErrors.title = 'El título debe tener al menos 3 caracteres'
-    }
-    if (!formData.description) {
-      newErrors.description = 'La descripción es requerida'
-    }
-    if (!formData.location) {
-      newErrors.location = 'La ubicación es requerida'
-    }
-    if (!formData.date) {
-      newErrors.date = 'La fecha es requerida'
-    }
-    if (!formData.time) {
-      newErrors.time = 'El horario es requerido'
-    }
-    if (formData.capacity < 1) {
-      newErrors.capacity = 'La capacidad debe ser al menos 1'
-    }
-    if (formData.precio < 0) {
-      newErrors.precio = 'El precio no puede ser negativo'
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors)
-      return
-    }
+    const newErrors: Record<string, string> = {}
+    if (!formData.title || formData.title.length < 3) newErrors.title = 'El título debe tener al menos 3 caracteres'
+    if (!formData.description) newErrors.description = 'La descripción es requerida'
+    if (!formData.location) newErrors.location = 'La ubicación es requerida'
+    if (!formData.date) newErrors.date = 'La fecha es requerida'
+    if (!formData.time) newErrors.time = 'El horario es requerido'
+    if (formData.capacity < 1) newErrors.capacity = 'La capacidad debe ser al menos 1'
+    if (formData.precio < 0) newErrors.precio = 'El precio no puede ser negativo'
+    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return }
 
     setLoading(true)
     try {
       const mainImage = images.length > 0 ? images[mainImageIndex] : formData.image
-
       const finalFormData = {
-        title:           formData.title,
-        description:     formData.description,
-        longDescription: formData.longDescription,
-        location:        formData.location,
-        address:         formData.address,
-        date:            formData.date,
-        time:            formData.time,
-        doorsOpen:       formData.doorsOpen,
-        capacity:        formData.capacity,
-        price:           formData.precio,   // ← 'precio' del form → 'price' del DTO
-        category:        formData.category,
-        subcategory:     formData.subcategory,
-        organizer:       formData.organizer,
-        status:          formData.status,
-        image:           mainImage,
-        gallery:         images,
-        sectors:         [{               // ← sector por defecto con el precio correcto
-          id:        '1',
-          name:      'General',
-          price:     formData.precio,
-          available: formData.capacity,
-          total:     formData.capacity
-        }]
+        title: formData.title, description: formData.description,
+        longDescription: formData.longDescription, location: formData.location,
+        address: formData.address, date: formData.date, time: formData.time,
+        doorsOpen: formData.doorsOpen, capacity: formData.capacity,
+        price: formData.precio, category: formData.category,
+        subcategory: formData.subcategory, organizer: formData.organizer,
+        status: formData.status, image: mainImage, gallery: images,
+        sectors: [{ id: '1', name: 'General', price: formData.precio, available: formData.capacity, total: formData.capacity }]
       }
-
-      if (isEditing && id) {
-        await adminService.updateEvent(id, finalFormData)
-      } else {
-        await adminService.createEvent(finalFormData)
-      }
+      if (isEditing && id) await adminService.updateEvent(id, finalFormData)
+      else await adminService.createEvent(finalFormData)
       navigate('/admin/eventos')
     } catch (error: any) {
       setErrors({ form: error.message || 'Error al guardar el evento' })
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   const handleImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
-    if (!files || files.length === 0) return
-
+    if (!files?.length) return
     setUploadingImage(true)
     try {
       const newImages: string[] = []
-
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
-
-        if (!isValidImageFile(file)) {
-          alert(`El archivo "${file.name}" no es una imagen válida`)
-          continue
-        }
-        if (!isValidImageSize(file, 5)) {
-          alert(`La imagen "${file.name}" supera los 5MB`)
-          continue
-        }
-
+        if (!isValidImageFile(file)) { alert(`"${file.name}" no es una imagen válida`); continue }
+        if (!isValidImageSize(file, 5)) { alert(`"${file.name}" supera los 5MB`); continue }
         const webpFile = await convertImageFileToWebP(file, 85)
         const reader = new FileReader()
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string)
-          reader.onerror = reject
+        const base64 = await new Promise<string>((res, rej) => {
+          reader.onload = () => res(reader.result as string)
+          reader.onerror = rej
+          reader.readAsDataURL(webpFile)
         })
-        reader.readAsDataURL(webpFile)
-        const base64Image = await base64Promise
-        newImages.push(base64Image)
+        newImages.push(base64)
       }
-
       if (images.length === 0 && newImages.length > 0) setMainImageIndex(0)
       setImages([...images, ...newImages])
-    } catch (error) {
-      console.error('Error al convertir imágenes:', error)
-      alert('Error al procesar las imágenes. Por favor intenta con otras imágenes.')
-    } finally {
-      setUploadingImage(false)
-      e.target.value = ''
-    }
+    } catch { alert('Error al procesar las imágenes.') }
+    finally { setUploadingImage(false); e.target.value = '' }
   }
-
-  const handleSetMainImage = (index: number) => setMainImageIndex(index)
 
   const handleRemoveImage = (index: number) => {
     const newImages = images.filter((_, i) => i !== index)
     setImages(newImages)
-    if (index === mainImageIndex) {
-      setMainImageIndex(0)
-    } else if (index < mainImageIndex) {
-      setMainImageIndex(mainImageIndex - 1)
-    }
+    if (index === mainImageIndex) setMainImageIndex(0)
+    else if (index < mainImageIndex) setMainImageIndex(mainImageIndex - 1)
   }
 
-  if (loadingEvent) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4" />
-          <p className="text-gray-600 font-medium">Cargando evento...</p>
-        </div>
+  const field = (label: string, required = false) => (
+    <label className="block text-sm font-medium text-gray-700 mb-1.5">{label} {required && <span className="text-red-500">*</span>}</label>
+  )
+
+  if (loadingEvent) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4" />
+        <p className="text-gray-600 font-medium">Cargando evento...</p>
       </div>
-    )
-  }
+    </div>
+  )
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center space-x-4">
-        <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-          <ArrowLeft size={24} />
+    <div className="space-y-4 sm:space-y-6">
+
+      {/* ── Header ── */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
+          <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-900">
             {isEditing ? 'Editar Evento' : 'Crear Nuevo Evento'}
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
             {isEditing ? 'Modifica la información del evento' : 'Completa el formulario para crear un nuevo evento'}
           </p>
         </div>
       </div>
 
-      {/* Form */}
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {errors.form && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                {errors.form}
-              </div>
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{errors.form}</div>
             )}
 
-            {/* Información Básica */}
+            {/* ── Información Básica ── */}
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Información Básica</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">Información Básica</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Título del Evento *</label>
-                  <Input
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    error={errors.title}
-                    placeholder="Ej: Concierto de Rock 2026"
-                  />
+                  {field('Título del Evento', true)}
+                  <Input value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} error={errors.title} placeholder="Ej: Concierto de Rock 2026" />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Categoría *</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  >
-                    <option value="Fiestas">Fiestas</option>
-                    <option value="Conciertos">Conciertos</option>
-                    <option value="Teatro">Teatro</option>
-                    <option value="Deportes">Deportes</option>
-                    <option value="Ferias">Ferias</option>
+                  {field('Categoría', true)}
+                  <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm">
+                    {['Fiestas', 'Conciertos', 'Teatro', 'Deportes', 'Ferias'].map(c => <option key={c}>{c}</option>)}
                   </select>
                 </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Descripción Corta *</label>
-                  <Input
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    error={errors.description}
-                    placeholder="Breve descripción del evento"
-                  />
+                <div className="sm:col-span-2">
+                  {field('Descripción Corta', true)}
+                  <Input value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} error={errors.description} placeholder="Breve descripción del evento" />
                 </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Descripción Larga</label>
-                  <textarea
-                    value={formData.longDescription}
-                    onChange={(e) => setFormData({ ...formData, longDescription: e.target.value })}
-                    rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="Descripción detallada del evento..."
-                  />
+                <div className="sm:col-span-2">
+                  {field('Descripción Larga')}
+                  <textarea value={formData.longDescription} onChange={e => setFormData({ ...formData, longDescription: e.target.value })} rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm" placeholder="Descripción detallada..." />
                 </div>
               </div>
             </div>
 
-            {/* Imágenes del Evento */}
-            <div className="border-t pt-6">
-              <div className="flex items-center justify-between mb-4">
+            {/* ── Imágenes ── */}
+            <div className="border-t pt-5">
+              <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Imágenes del Evento</h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Sube las imágenes del evento. La primera será la principal por defecto.
-                  </p>
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">Imágenes del Evento</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">La primera imagen será la principal</p>
                 </div>
                 <div>
-                  <input
-                    type="file"
-                    id="imagesUpload"
-                    accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
-                    multiple
-                    onChange={handleImagesUpload}
-                    className="hidden"
-                    disabled={uploadingImage}
-                  />
-                  <label
-                    htmlFor="imagesUpload"
-                    className="inline-flex items-center space-x-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 cursor-pointer transition-colors shadow-sm"
-                  >
-                    <Upload size={18} />
-                    <span className="text-sm font-medium">
-                      {uploadingImage ? 'Procesando...' : 'Subir imágenes'}
-                    </span>
+                  <input type="file" id="imagesUpload" accept="image/*" multiple onChange={handleImagesUpload} className="hidden" disabled={uploadingImage} />
+                  <label htmlFor="imagesUpload" className="inline-flex items-center gap-2 px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 cursor-pointer text-sm">
+                    <Upload size={16} />
+                    <span>{uploadingImage ? 'Procesando...' : 'Subir'}</span>
                   </label>
                 </div>
               </div>
-
               {images.length === 0 ? (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-primary transition-colors">
-                  <label htmlFor="imagesUpload" className="cursor-pointer">
-                    <ImageIcon size={48} className="text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-700 font-medium mb-1">No hay imágenes subidas</p>
-                    <p className="text-gray-500 text-sm">
-                      Haz clic para subir una o varias imágenes (PNG, JPG, GIF, WebP - máx 5MB c/u)
-                    </p>
-                    <p className="text-gray-400 text-xs mt-2">
-                      Todas las imágenes se convertirán automáticamente a WebP
-                    </p>
-                  </label>
-                </div>
+                <label htmlFor="imagesUpload" className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center block cursor-pointer hover:border-primary transition-colors">
+                  <ImageIcon size={40} className="text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-700 font-medium text-sm mb-1">Sin imágenes subidas</p>
+                  <p className="text-gray-500 text-xs">PNG, JPG, WebP · máx 5MB c/u</p>
+                </label>
               ) : (
                 <div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {images.map((imageUrl, index) => (
-                      <div
-                        key={index}
-                        onDoubleClick={() => handleSetMainImage(index)}
-                        className={`relative group cursor-pointer rounded-lg overflow-hidden border-4 transition-all ${
-                          index === mainImageIndex
-                            ? 'border-primary shadow-lg ring-2 ring-primary ring-offset-2'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                        title="Doble clic para hacer principal"
-                      >
-                        <div className="aspect-square">
-                          <img src={imageUrl} alt={`Imagen ${index + 1}`} className="w-full h-full object-cover" />
-                        </div>
-                        {index === mainImageIndex && (
-                          <div className="absolute top-2 left-2 bg-primary text-white px-2 py-1 rounded text-xs font-bold shadow-lg">
-                            PRINCIPAL
-                          </div>
-                        )}
-                        <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white px-2 py-0.5 rounded text-xs">
-                          #{index + 1}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleRemoveImage(index) }}
-                          className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-lg z-10"
-                          title="Eliminar imagen"
-                        >
-                          <X size={16} />
-                        </button>
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center pointer-events-none">
-                          <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-medium bg-black bg-opacity-70 px-2 py-1 rounded pointer-events-none">
-                            Doble clic para hacer principal
-                          </span>
-                        </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-4">
+                    {images.map((img, idx) => (
+                      <div key={idx} onDoubleClick={() => setMainImageIndex(idx)} className={`relative group cursor-pointer rounded-lg overflow-hidden border-4 transition-all aspect-square ${idx === mainImageIndex ? 'border-primary shadow-lg ring-2 ring-primary ring-offset-1' : 'border-gray-200'}`} title="Doble clic para principal">
+                        <img src={img} alt={`Imagen ${idx + 1}`} className="w-full h-full object-cover" />
+                        {idx === mainImageIndex && <div className="absolute top-1 left-1 bg-primary text-white px-1.5 py-0.5 rounded text-xs font-bold">✓</div>}
+                        <button type="button" onClick={e => { e.stopPropagation(); handleRemoveImage(idx) }} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity z-10"><X size={12} /></button>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Total de imágenes: <strong>{images.length}</strong></span>
-                    <span className="text-gray-500">Imagen principal: <strong>Imagen #{mainImageIndex + 1}</strong></span>
-                  </div>
+                  <p className="text-xs text-gray-500 mt-2">{images.length} imagen(es) · Principal: #{mainImageIndex + 1}</p>
                 </div>
               )}
             </div>
 
-            {/* Fecha, Ubicación y Precio */}
-            <div className="border-t pt-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Fecha, Ubicación y Precio</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* ── Fecha, Ubicación y Precio ── */}
+            <div className="border-t pt-5">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">Fecha, Ubicación y Precio</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Fecha del Evento *</label>
-                  <Input
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    error={errors.date}
-                  />
+                  {field('Fecha del Evento', true)}
+                  <Input type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} error={errors.date} />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Horario del Evento *</label>
-                  <Input
-                    type="time"
-                    value={formData.time}
-                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                    error={errors.time}
-                  />
+                  {field('Horario del Evento', true)}
+                  <Input type="time" value={formData.time} onChange={e => setFormData({ ...formData, time: e.target.value })} error={errors.time} />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Hora Apertura Puertas</label>
-                  <Input
-                    type="time"
-                    value={formData.doorsOpen}
-                    onChange={(e) => setFormData({ ...formData, doorsOpen: e.target.value })}
-                  />
+                  {field('Hora Apertura Puertas')}
+                  <Input type="time" value={formData.doorsOpen} onChange={e => setFormData({ ...formData, doorsOpen: e.target.value })} />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Capacidad Total *</label>
-                  <Input
-                    type="number"
-                    value={formData.capacity}
-                    onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) || 0 })}
-                    error={errors.capacity}
-                    placeholder="Ej: 15000"
-                  />
+                  {field('Capacidad Total', true)}
+                  <Input type="number" value={formData.capacity} onChange={e => setFormData({ ...formData, capacity: parseInt(e.target.value) || 0 })} error={errors.capacity} placeholder="Ej: 1500" />
                 </div>
-
-                {/* ✅ FIX: Campo precio base del evento */}
-                <div className="md:col-span-2">
+                <div className="sm:col-span-2">
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                    <label className="block text-sm font-semibold text-amber-900 mb-1">
-                      💰 Precio base del evento (Bs) *
-                    </label>
-                    <p className="text-xs text-amber-700 mb-3">
-                      Este es el precio que se mostrará en el listado de eventos. 
-                      Los precios por sector se configuran en el Mapa de Asientos y pueden sobrescribir este valor.
-                    </p>
-                    <Input
-                      type="number"
-                      value={formData.precio}
-                      onChange={(e) => setFormData({ ...formData, precio: parseFloat(e.target.value) || 0 })}
-                      error={errors.precio}
-                      placeholder="Ej: 150"
-                      min="0"
-                      step="0.01"
-                    />
+                    <label className="block text-sm font-semibold text-amber-900 mb-1">💰 Precio base del evento (Bs) *</label>
+                    <p className="text-xs text-amber-700 mb-3">Precio base del listado. Los sectores del mapa pueden sobrescribirlo.</p>
+                    <Input type="number" value={formData.precio} onChange={e => setFormData({ ...formData, precio: parseFloat(e.target.value) || 0 })} error={errors.precio} placeholder="Ej: 150" min="0" step="0.01" />
                   </div>
                 </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    ⚙️ Configuración de Compras por Usuario
-                  </label>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
-                    <div className="flex items-start space-x-3">
-                      <input
-                        type="checkbox"
-                        id="permitirMultiplesAsientos"
-                        checked={formData.permitirMultiplesAsientos}
-                        onChange={(e) => {
-                          const permitir = e.target.checked
-                          setFormData({
-                            ...formData,
-                            permitirMultiplesAsientos: permitir,
-                            limiteAsientosPorUsuario: permitir ? formData.limiteAsientosPorUsuario : 1
-                          })
-                        }}
-                        className="mt-1 w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary"
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="permitirMultiplesAsientos" className="font-semibold text-gray-900 cursor-pointer">
-                          Permitir que un usuario compre múltiples asientos
-                        </label>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {formData.permitirMultiplesAsientos
-                            ? 'Los usuarios podrán comprar varios asientos en una sola transacción'
-                            : 'Cada usuario solo podrá comprar UN asiento (recomendado para eventos con certificados individuales)'}
-                        </p>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">⚙️ Configuración de Compras por Usuario</label>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <input type="checkbox" id="permitirMultiplesAsientos" checked={formData.permitirMultiplesAsientos}
+                        onChange={e => setFormData({ ...formData, permitirMultiplesAsientos: e.target.checked, limiteAsientosPorUsuario: e.target.checked ? formData.limiteAsientosPorUsuario : 1 })}
+                        className="mt-1 w-4 h-4 text-primary border-gray-300 rounded" />
+                      <div>
+                        <label htmlFor="permitirMultiplesAsientos" className="text-sm font-semibold text-gray-900 cursor-pointer">Permitir múltiples asientos por usuario</label>
+                        <p className="text-xs text-gray-600 mt-0.5">{formData.permitirMultiplesAsientos ? 'Los usuarios podrán comprar varios asientos' : 'Solo un asiento por usuario'}</p>
                       </div>
                     </div>
-
                     {formData.permitirMultiplesAsientos && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Límite de asientos por usuario
-                        </label>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={50}
-                          value={formData.limiteAsientosPorUsuario}
-                          onChange={(e) => setFormData({ ...formData, limiteAsientosPorUsuario: parseInt(e.target.value) || 1 })}
-                          placeholder="Ej: 5"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Máximo de asientos que un usuario puede comprar en una sola transacción
-                        </p>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Límite de asientos por usuario</label>
+                        <Input type="number" min={1} max={50} value={formData.limiteAsientosPorUsuario} onChange={e => setFormData({ ...formData, limiteAsientosPorUsuario: parseInt(e.target.value) || 1 })} placeholder="Ej: 5" />
                       </div>
                     )}
                   </div>
                 </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Lugar / Ubicación *</label>
-                  <Input
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    error={errors.location}
-                    placeholder="Ej: Estadio Olímpico, La Paz"
-                  />
+                <div className="sm:col-span-2">
+                  {field('Lugar / Ubicación', true)}
+                  <Input value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} error={errors.location} placeholder="Ej: Estadio Olímpico, La Paz" />
                 </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Dirección Completa</label>
-                  <Input
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    placeholder="Ej: Av. Saavedra #1895, La Paz, Bolivia"
-                  />
+                <div className="sm:col-span-2">
+                  {field('Dirección Completa')}
+                  <Input value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Ej: Av. Saavedra #1895, La Paz" />
                 </div>
               </div>
             </div>
 
-            {/* Estado */}
-            <div className="border-t pt-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Estado del Evento</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* ── Estado ── */}
+            <div className="border-t pt-5">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">Estado del Evento</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Estado</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  >
+                  {field('Estado')}
+                  <select value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value as any })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm">
                     <option value="ACTIVO">Activo</option>
                     <option value="INACTIVO">Inactivo</option>
                     <option value="CANCELADO">Cancelado</option>
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Organizador</label>
-                  <Input
-                    value={formData.organizer}
-                    onChange={(e) => setFormData({ ...formData, organizer: e.target.value })}
-                    placeholder="Ej: 365soft Eventos"
-                  />
+                  {field('Organizador')}
+                  <Input value={formData.organizer} onChange={e => setFormData({ ...formData, organizer: e.target.value })} placeholder="Ej: 365soft Eventos" />
                 </div>
               </div>
             </div>
 
-            {/* Configuración de Asientos */}
-            <div className="border-t pt-6">
-              <div className="flex items-center justify-between">
+            {/* ── Configuración de Asientos ── */}
+            <div className="border-t pt-5">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Configuración de Asientos</h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Dibuja el mapa del escenario y configura los sectores con sus precios individuales
-                  </p>
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">Configuración de Asientos</h3>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Dibuja el mapa del escenario y configura sectores</p>
                 </div>
                 {(isEditing || formData.title) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isEditing && id) {
-                        navigate(`/admin/eventos/${id}/dibujar-mapa`)
-                      } else {
-                        handleSubmit(new Event('submit') as any)
-                      }
-                    }}
-                    className="inline-flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-sm"
+                  <button type="button"
+                    onClick={() => { if (isEditing && id) navigate(`/admin/eventos/${id}/dibujar-mapa`); else handleSubmit(new Event('submit') as any) }}
+                    className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium w-full sm:w-auto"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                    </svg>
-                    <span className="text-sm font-medium">
-                      {isEditing ? 'Editar Mapa de Asientos' : 'Dibujar Mapa de Asientos'}
-                    </span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+                    {isEditing ? 'Editar Mapa de Asientos' : 'Dibujar Mapa de Asientos'}
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="border-t pt-6 flex justify-end space-x-4">
-              <Button type="button" variant="outline" onClick={() => navigate(-1)} disabled={loading}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={loading}>
+            {/* ── Actions ── */}
+            <div className="border-t pt-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => navigate(-1)} disabled={loading} className="w-full sm:w-auto">Cancelar</Button>
+              <Button type="submit" disabled={loading} className="w-full sm:w-auto">
                 {loading ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Crear Evento'}
               </Button>
             </div>
