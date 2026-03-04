@@ -1,19 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
-  User,
-  Mail,
-  Phone,
-  Search,
-  Lock,
-  Unlock,
-  History,
-  Filter,
-  MapPin,
-  Calendar,
-  CreditCard,
-  ChevronDown,
-  ChevronUp,
-  X
+  User, Mail, Phone, Search, Lock, Unlock, History,
+  Filter, MapPin, Calendar, CreditCard, ChevronDown, ChevronUp, X
 } from 'lucide-react'
 import { User as UserType, UserPurchase } from '@/types/admin'
 import adminService from '@/services/adminService'
@@ -30,173 +18,118 @@ export default function UsersList() {
   const [loadingPurchases, setLoadingPurchases] = useState(false)
   const [expandedUser, setExpandedUser] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadUsers()
-  }, [])
-
-  useEffect(() => {
-    filterUsers()
-  }, [users, searchTerm, statusFilter])
+  useEffect(() => { loadUsers() }, [])
+  useEffect(() => { filterUsers() }, [users, searchTerm, statusFilter])
 
   const loadUsers = async () => {
-    try {
-      setLoading(true)
-      const data = await adminService.getUsersList()
-      setUsers(data)
-    } catch (error) {
-      console.error('Error loading users:', error)
-    } finally {
-      setLoading(false)
-    }
+    try { setLoading(true); setUsers(await adminService.getUsersList()) }
+    catch (e) { console.error(e) } finally { setLoading(false) }
   }
 
   const filterUsers = () => {
-    let filtered = [...users]
-
-    // Filtro por estado
-    if (statusFilter === 'activo') {
-      filtered = filtered.filter(u => u.estado === 'ACTIVO')
-    } else if (statusFilter === 'bloqueado') {
-      filtered = filtered.filter(u => u.estado === 'BLOQUEADO')
-    }
-
-    // Búsqueda
+    let f = [...users]
+    if (statusFilter === 'activo') f = f.filter(u => u.estado === 'ACTIVO')
+    else if (statusFilter === 'bloqueado') f = f.filter(u => u.estado === 'BLOQUEADO')
     if (searchTerm) {
-      const term = searchTerm.toLowerCase()
-      filtered = filtered.filter(u =>
-        u.nombre.toLowerCase().includes(term) ||
-        u.email.toLowerCase().includes(term) ||
-        u.ci.includes(term)
+      const t = searchTerm.toLowerCase()
+      f = f.filter(u =>
+        u.nombre.toLowerCase().includes(t) ||
+        u.email.toLowerCase().includes(t) ||
+        u.ci.includes(t)
       )
     }
-
-    setFilteredUsers(filtered)
+    setFilteredUsers(f)
   }
 
   const handleViewPurchases = async (user: UserType) => {
-    setSelectedUser(user)
-    setShowPurchases(true)
-    setLoadingPurchases(true)
-
-    try {
-      const purchases = await adminService.getUserPurchases(user.id)
-      setUserPurchases(purchases)
-    } catch (error) {
-      console.error('Error loading purchases:', error)
-    } finally {
-      setLoadingPurchases(false)
-    }
+    setSelectedUser(user); setShowPurchases(true); setLoadingPurchases(true)
+    try { setUserPurchases(await adminService.getUserPurchases(user.id)) }
+    catch { console.error('Error') } finally { setLoadingPurchases(false) }
   }
 
   const handleBlockUser = async (id: string) => {
-    if (!confirm('¿Estás seguro de bloquear este usuario?')) return
-
-    try {
-      await adminService.blockUser(id)
-      await loadUsers()
-      alert('Usuario bloqueado exitosamente')
-    } catch (error) {
-      alert('Error al bloquear usuario')
-    }
+    if (!confirm('¿Bloquear este usuario?')) return
+    try { await adminService.blockUser(id); await loadUsers() }
+    catch { alert('Error al bloquear usuario') }
   }
 
   const handleUnblockUser = async (id: string) => {
-    if (!confirm('¿Estás seguro de desbloquear este usuario?')) return
-
-    try {
-      await adminService.unblockUser(id)
-      await loadUsers()
-      alert('Usuario desbloqueado exitosamente')
-    } catch (error) {
-      alert('Error al desbloquear usuario')
-    }
+    if (!confirm('¿Desbloquear este usuario?')) return
+    try { await adminService.unblockUser(id); await loadUsers() }
+    catch { alert('Error al desbloquear usuario') }
   }
 
-  const toggleExpanded = (userId: string) => {
-    setExpandedUser(expandedUser === userId ? null : userId)
-  }
+  const fmtDate = (d: any) =>
+    d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Nunca'
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+    </div>
+  )
+
+  const statCards = [
+    { label: 'Total Usuarios', value: users.length, border: 'border-blue-500', iconBg: 'bg-blue-50 dark:bg-blue-900/30', icon: User, color: 'text-blue-600 dark:text-blue-400' },
+    { label: 'Activos', value: users.filter(u => u.estado === 'ACTIVO').length, border: 'border-green-500', iconBg: 'bg-green-50 dark:bg-green-900/30', icon: Unlock, color: 'text-green-600 dark:text-green-400' },
+    { label: 'Bloqueados', value: users.filter(u => u.estado === 'BLOQUEADO').length, border: 'border-red-500', iconBg: 'bg-red-50 dark:bg-red-900/30', icon: Lock, color: 'text-red-600 dark:text-red-400' },
+  ]
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-4 sm:space-y-6">
+
+      {/* ── Header ── */}
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">Gestión de Usuarios</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Administra los usuarios registrados en el sistema</p>
+        <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">Gestión de Usuarios</h1>
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">Administra los usuarios registrados</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-800 border-2 border-blue-500 dark:border-blue-500 rounded-lg p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Usuarios</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">{users.length}</p>
-            </div>
-            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-              <User className="text-blue-600 dark:text-blue-400" size={20} />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 border-2 border-green-500 dark:border-green-500 rounded-lg p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Usuarios Activos</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
-                {users.filter(u => u.estado === 'ACTIVO').length}
+      {/* ── Stats — FIXED: en móvil solo número + label + icono pequeño, sin flex-row que desborda ── */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        {statCards.map(({ label, value, border, iconBg, icon: Icon, color }) => (
+          <div key={label} className={`bg-white dark:bg-gray-800 border-2 ${border} rounded-xl overflow-hidden`}>
+            {/* MÓVIL: layout vertical compacto */}
+            <div className="sm:hidden p-2.5">
+              <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide leading-none mb-1 truncate">
+                {label === 'Total Usuarios' ? 'Total' : label}
               </p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white leading-none">{value}</p>
+              <div className={`inline-flex items-center justify-center w-5 h-5 ${iconBg} rounded mt-1.5`}>
+                <Icon className={color} size={11} />
+              </div>
             </div>
-            <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
-              <Unlock className="text-green-600 dark:text-green-400" size={20} />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 border-2 border-red-500 dark:border-red-500 rounded-lg p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Usuarios Bloqueados</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
-                {users.filter(u => u.estado === 'BLOQUEADO').length}
-              </p>
-            </div>
-            <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
-              <Lock className="text-red-600 dark:text-red-400" size={20} />
+            {/* DESKTOP: layout horizontal */}
+            <div className="hidden sm:flex items-center justify-between gap-2 p-5">
+              <div>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</p>
+                <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">{value}</p>
+              </div>
+              <div className={`w-10 h-10 ${iconBg} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                <Icon className={color} size={20} />
+              </div>
             </div>
           </div>
-        </div>
+        ))}
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" size={16} />
+      {/* ── Filters ── */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
             <input
               type="text"
               placeholder="Buscar por nombre, email o CI..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-500 focus:border-gray-400 dark:focus:border-gray-500"
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
             />
           </div>
-
-          {/* Status Filter */}
           <div className="flex items-center gap-2">
-            <Filter size={16} className="text-gray-400 dark:text-gray-500" />
+            <Filter size={15} className="text-gray-400 flex-shrink-0" />
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-500 focus:border-gray-400 dark:focus:border-gray-500"
+              onChange={e => setStatusFilter(e.target.value as any)}
+              className="flex-1 sm:flex-none px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm"
             >
               <option value="todos">Todos</option>
               <option value="activo">Activos</option>
@@ -206,175 +139,82 @@ export default function UsersList() {
         </div>
       </div>
 
-      {/* Users List */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      {/* ── DESKTOP: Table ── */}
+      <div className="hidden lg:block bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-800">
+            <thead className="bg-gray-50 dark:bg-gray-800/80">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                  Usuario
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                  Contacto
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                  Ubicación
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                  Estado
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                  Compras
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                  Total Gastado
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                  Acciones
-                </th>
+                {['Usuario', 'Contacto', 'Ubicación', 'Estado', 'Compras', 'Total Gastado', 'Acciones'].map(h => (
+                  <th key={h} className={`px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide ${
+                    h === 'Estado' ? 'text-center' : ['Compras', 'Total Gastado', 'Acciones'].includes(h) ? 'text-right' : 'text-left'
+                  }`}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {filteredUsers.map((user) => (
+              {filteredUsers.map(user => (
                 <>
-                  <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                    <td className="px-4 py-4">
+                  <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-700 dark:text-gray-300 font-semibold text-sm">
+                        <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center font-semibold text-sm text-gray-700 dark:text-gray-300 flex-shrink-0">
                           {user.nombre.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-white text-sm">{user.nombre}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">CI: {user.ci}</p>
+                          <p className="font-medium text-sm text-gray-900 dark:text-white">{user.nombre}</p>
+                          <p className="text-xs text-gray-500">CI: {user.ci}</p>
                         </div>
                       </div>
                     </td>
-
-                    <td className="px-4 py-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300">
-                          <Mail size={12} />
-                          <span className="text-xs">{user.email}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300">
-                          <Phone size={12} />
-                          <span className="text-xs">{user.telefono}</span>
-                        </div>
-                      </div>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300"><Mail size={11} />{user.email}</div>
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-0.5"><Phone size={11} />{user.telefono}</div>
                     </td>
-
-                    <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-300">
-                      {user.ciudad && (
-                        <div className="flex items-center gap-1">
-                          <MapPin size={12} />
-                          <span className="text-xs">{user.ciudad}</span>
-                        </div>
-                      )}
-                      {user.direccion && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{user.direccion}</p>
-                      )}
+                    <td className="px-4 py-3">
+                      {user.ciudad && <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300"><MapPin size={11} />{user.ciudad}</div>}
                     </td>
-
-                    <td className="px-4 py-4 text-center">
+                    <td className="px-4 py-3 text-center">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${
-                        user.estado === 'ACTIVO'
-                          ? 'bg-green-50 text-green-700'
-                          : 'bg-red-50 text-red-700'
+                        user.estado === 'ACTIVO' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
                       }`}>
-                        {user.estado === 'ACTIVO' ? (
-                          <><Unlock size={12} /> Activo</>
-                        ) : (
-                          <><Lock size={12} /> Bloqueado</>
-                        )}
+                        {user.estado === 'ACTIVO' ? <><Unlock size={11} />Activo</> : <><Lock size={11} />Bloqueado</>}
                       </span>
                     </td>
-
-                    <td className="px-4 py-4 text-center">
-                      <div className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold text-sm">
+                    <td className="px-4 py-3 text-right">
+                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-300">
                         {user.totalCompras}
-                      </div>
+                      </span>
                     </td>
-
-                    <td className="px-4 py-4 text-right">
+                    <td className="px-4 py-3 text-right">
                       <p className="text-sm font-medium text-gray-900 dark:text-white">Bs {user.totalGastado.toLocaleString()}</p>
                     </td>
-
-                    <td className="px-4 py-4">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => toggleExpanded(user.id)}
-                          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                          title="Ver más detalles"
-                        >
-                          {expandedUser === user.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors">
+                          {expandedUser === user.id ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                         </button>
-                        <button
-                          onClick={() => handleViewPurchases(user)}
-                          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                          title="Ver historial de compras"
-                        >
-                          <History size={16} />
-                        </button>
-                        {user.estado === 'ACTIVO' ? (
-                          <button
-                            onClick={() => handleBlockUser(user.id)}
-                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                            title="Bloquear usuario"
-                          >
-                            <Lock size={16} />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleUnblockUser(user.id)}
-                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-                            title="Desbloquear usuario"
-                          >
-                            <Unlock size={16} />
-                          </button>
-                        )}
+                        <button onClick={() => handleViewPurchases(user)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><History size={15} /></button>
+                        {user.estado === 'ACTIVO'
+                          ? <button onClick={() => handleBlockUser(user.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Lock size={15} /></button>
+                          : <button onClick={() => handleUnblockUser(user.id)} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"><Unlock size={15} /></button>}
                       </div>
                     </td>
                   </tr>
-
-                  {/* Expanded Row */}
                   {expandedUser === user.id && (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-4 bg-gray-50 dark:bg-gray-800">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Último Acceso</p>
-                            <p className="font-medium text-gray-900 dark:text-white mt-1 flex items-center gap-2 text-sm">
-                              <Calendar size={14} />
-                              {user.ultimoAcceso
-                                ? new Date(user.ultimoAcceso).toLocaleDateString('es-ES', {
-                                    day: '2-digit',
-                                    month: 'short',
-                                    year: 'numeric'
-                                  })
-                                : 'Nunca'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Miembro Desde</p>
-                            <p className="font-medium text-gray-900 dark:text-white mt-1 flex items-center gap-2 text-sm">
-                              <Calendar size={14} />
-                              {new Date(user.createdAt).toLocaleDateString('es-ES', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric'
-                              })}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Promedio por Compra</p>
-                            <p className="font-medium text-gray-900 dark:text-white mt-1 flex items-center gap-2 text-sm">
-                              <CreditCard size={14} />
-                              Bs {user.totalCompras > 0
-                                ? Math.round(user.totalGastado / user.totalCompras).toLocaleString()
-                                : '0'}
-                            </p>
-                          </div>
+                    <tr key={`${user.id}-exp`}>
+                      <td colSpan={7} className="px-4 py-3 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-100 dark:border-gray-700">
+                        <div className="grid grid-cols-3 gap-4">
+                          {[
+                            { label: 'Último Acceso', value: fmtDate(user.ultimoAcceso) },
+                            { label: 'Miembro Desde', value: fmtDate(user.createdAt) },
+                            { label: 'Promedio Compra', value: `Bs ${user.totalCompras > 0 ? Math.round(user.totalGastado / user.totalCompras).toLocaleString() : '0'}` },
+                          ].map(({ label, value }) => (
+                            <div key={label}>
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
+                              <p className="font-medium text-sm text-gray-900 dark:text-white mt-0.5">{value}</p>
+                            </div>
+                          ))}
                         </div>
                       </td>
                     </tr>
@@ -383,89 +223,143 @@ export default function UsersList() {
               ))}
             </tbody>
           </table>
-
           {filteredUsers.length === 0 && (
             <div className="text-center py-16">
-              <User size={40} className="mx-auto mb-3 text-gray-300 dark:text-gray-400" />
-              <p className="text-sm text-gray-500 dark:text-gray-400">No se encontraron usuarios</p>
+              <User size={36} className="mx-auto mb-3 text-gray-300" />
+              <p className="text-sm text-gray-500">No se encontraron usuarios</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Purchases Modal */}
-      {showPurchases && selectedUser && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-hidden">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Historial de Compras</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{selectedUser.nombre}</p>
+      {/* ── MOBILE: Cards ── */}
+      <div className="lg:hidden space-y-3">
+        {filteredUsers.length === 0 ? (
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+            <User size={36} className="mx-auto mb-3 text-gray-300" />
+            <p className="text-sm text-gray-500">No se encontraron usuarios</p>
+          </div>
+        ) : filteredUsers.map(user => (
+          <div key={user.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+
+            {/* Info principal */}
+            <div className="p-3">
+              <div className="flex items-start gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center font-bold text-gray-700 dark:text-gray-200 text-sm flex-shrink-0">
+                  {user.nombre.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-1.5">
+                    <p className="font-semibold text-gray-900 dark:text-white text-sm leading-tight truncate">{user.nombre}</p>
+                    {/* Badge estado — compacto con text corto */}
+                    <span className={`flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-semibold ${
+                      user.estado === 'ACTIVO' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {user.estado === 'ACTIVO' ? <><Unlock size={9} />Activo</> : <><Lock size={9} />Bloq.</>}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-0.5 truncate">{user.email}</p>
+                  <p className="text-[11px] text-gray-400">CI: {user.ci}</p>
+                </div>
               </div>
-              <button
-                onClick={() => setShowPurchases(false)}
-                className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-              >
-                <X size={18} />
-              </button>
+              {(user.ciudad || user.telefono) && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 pl-[50px]">
+                  {user.ciudad && <span className="flex items-center gap-1 text-[11px] text-gray-400"><MapPin size={9} />{user.ciudad}</span>}
+                  {user.telefono && <span className="flex items-center gap-1 text-[11px] text-gray-400"><Phone size={9} />{user.telefono}</span>}
+                </div>
+              )}
             </div>
 
-            {/* Content */}
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
+            {/* Estadísticas */}
+            <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
+              <div className="px-2 py-2 text-center">
+                <p className="text-[10px] text-gray-400 leading-none">Compras</p>
+                <p className="text-base font-bold text-gray-900 dark:text-white mt-0.5">{user.totalCompras}</p>
+              </div>
+              <div className="px-2 py-2 text-center">
+                <p className="text-[10px] text-gray-400 leading-none">Gastado</p>
+                <p className="text-xs font-bold text-gray-900 dark:text-white mt-0.5">Bs {user.totalGastado.toLocaleString()}</p>
+              </div>
+              <div className="px-2 py-2 text-center">
+                <p className="text-[10px] text-gray-400 leading-none">Promedio</p>
+                <p className="text-xs font-bold text-gray-900 dark:text-white mt-0.5">
+                  Bs {user.totalCompras > 0 ? Math.round(user.totalGastado / user.totalCompras).toLocaleString() : '0'}
+                </p>
+              </div>
+            </div>
+
+            {/* Expanded */}
+            {expandedUser === user.id && (
+              <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 px-3 py-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wide">Último Acceso</p>
+                    <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 mt-0.5">{fmtDate(user.ultimoAcceso)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wide">Miembro desde</p>
+                    <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 mt-0.5">{fmtDate(user.createdAt)}</p>
+                  </div>
+                  {user.direccion && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wide">Dirección</p>
+                      <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 mt-0.5">{user.direccion}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Acciones */}
+            <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
+              <button onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)}
+                className="flex items-center justify-center gap-1 py-2.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                {expandedUser === user.id ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                {expandedUser === user.id ? 'Menos' : 'Más'}
+              </button>
+              <button onClick={() => handleViewPurchases(user)}
+                className="flex items-center justify-center gap-1 py-2.5 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors">
+                <History size={13} /> Compras
+              </button>
+              {user.estado === 'ACTIVO'
+                ? <button onClick={() => handleBlockUser(user.id)} className="flex items-center justify-center gap-1 py-2.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"><Lock size={13} />Bloquear</button>
+                : <button onClick={() => handleUnblockUser(user.id)} className="flex items-center justify-center gap-1 py-2.5 text-xs font-medium text-green-600 hover:bg-green-50 transition-colors"><Unlock size={13} />Activar</button>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Modal Compras ── */}
+      {showPurchases && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+              <div>
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Historial de Compras</h2>
+                <p className="text-xs text-gray-500 mt-0.5">{selectedUser.nombre}</p>
+              </div>
+              <button onClick={() => setShowPurchases(false)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-400"><X size={18} /></button>
+            </div>
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1">
               {loadingPurchases ? (
-                <div className="flex items-center justify-center h-32">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 dark:border-gray-500"></div>
-                </div>
+                <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400" /></div>
               ) : userPurchases.length === 0 ? (
-                <div className="text-center py-12">
-                  <History size={40} className="mx-auto mb-3 text-gray-300 dark:text-gray-400" />
-                  <p className="text-sm text-gray-500 dark:text-gray-400">No hay compras registradas</p>
-                </div>
+                <div className="text-center py-12"><History size={40} className="mx-auto mb-3 text-gray-300" /><p className="text-sm text-gray-500">No hay compras</p></div>
               ) : (
                 <div className="space-y-3">
-                  {userPurchases.map((purchase) => (
-                    <div key={purchase.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <h3 className="font-medium text-gray-900 dark:text-white text-sm">{purchase.eventTitle}</h3>
-                          <div className="mt-2 space-y-1.5 text-xs text-gray-600 dark:text-gray-300">
-                            <div className="flex items-center gap-2">
-                              <Calendar size={13} />
-                              <span>
-                                {new Date(purchase.eventDate).toLocaleDateString('es-ES', {
-                                  weekday: 'long',
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric'
-                                })}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <CreditCard size={13} />
-                              <span>{purchase.cantidad} entrada(s)</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-500 dark:text-gray-400">Comprado el:</span>
-                              <span>
-                                {new Date(purchase.fechaCompra).toLocaleDateString('es-ES', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric'
-                                })}
-                              </span>
-                            </div>
+                  {userPurchases.map(purchase => (
+                    <div key={purchase.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-3 sm:p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 dark:text-white text-sm">{purchase.eventTitle}</p>
+                          <div className="mt-1.5 space-y-1 text-xs text-gray-500">
+                            <div className="flex items-center gap-1.5"><Calendar size={11} />{new Date(purchase.eventDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                            <div className="flex items-center gap-1.5"><CreditCard size={11} />{purchase.cantidad} entrada(s)</div>
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                            Bs {purchase.totalPagado.toLocaleString()}
-                          </p>
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium mt-1 ${
-                            purchase.estadoPago === 'PAGADO'
-                              ? 'bg-green-50 text-green-700'
-                              : 'bg-yellow-50 text-yellow-700'
-                          }`}>
+                          <p className="text-base font-bold text-gray-900 dark:text-white">Bs {purchase.totalPagado.toLocaleString()}</p>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium mt-1 ${purchase.estadoPago === 'PAGADO' ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
                             {purchase.estadoPago}
                           </span>
                         </div>
@@ -475,13 +369,8 @@ export default function UsersList() {
                 </div>
               )}
             </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-end">
-              <button
-                onClick={() => setShowPurchases(false)}
-                className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
+            <div className="px-4 sm:px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
+              <button onClick={() => setShowPurchases(false)} className="w-full sm:w-auto px-4 py-2 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                 Cerrar
               </button>
             </div>
