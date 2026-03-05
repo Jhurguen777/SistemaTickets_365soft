@@ -22,8 +22,7 @@ export default function EventForm() {
     image: '/media/banners/vibra-carnavalera.jpg',
     gallery: [] as string[],
     permitirMultiplesAsientos: false,
-    limiteAsientosPorUsuario: 1,
-    seatMapConfig: null as any
+    limiteAsientosPorUsuario: 1
   })
 
   const [images, setImages] = useState<string[]>([])
@@ -48,11 +47,6 @@ export default function EventForm() {
           setImages(eventImages)
           setMainImageIndex(0)
           const e = event as any
-          console.log('🔧 EventForm loadEvent - Cargando seatMapConfig del evento:', {
-            seatMapConfig: e.seatMapConfig,
-            tipo: typeof e.seatMapConfig,
-            tienePropiedades: e.seatMapConfig ? Object.keys(e.seatMapConfig) : null
-          })
           setFormData({
             title: e.title || e.titulo || '',
             description: e.description || '',
@@ -71,8 +65,7 @@ export default function EventForm() {
             image: e.image || e.imagenUrl || '',
             gallery: e.gallery || [],
             permitirMultiplesAsientos: e.permitirMultiplesAsientos || false,
-            limiteAsientosPorUsuario: e.limiteAsientosPorUsuario || 1,
-            seatMapConfig: e.seatMapConfig || null
+            limiteAsientosPorUsuario: e.limiteAsientosPorUsuario || 1
           })
         }
       } catch { setErrors({ form: 'Error al cargar el evento' }) }
@@ -105,17 +98,8 @@ export default function EventForm() {
         price: formData.precio, category: formData.category,
         subcategory: formData.subcategory, organizer: formData.organizer,
         status: formData.status, image: mainImage, gallery: images,
-        sectors: [{ id: '1', name: 'General', price: formData.precio, available: formData.capacity, total: formData.capacity }],
-        seatMapConfig: formData.seatMapConfig  // ✅ Enviar seatMapConfig al actualizar/crear evento
+        sectors: [{ id: '1', name: 'General', price: formData.precio, available: formData.capacity, total: formData.capacity }]
       }
-
-      console.log('🔧 EventForm handleSubmit - Enviando:', {
-        isEditing,
-        id,
-        tieneSeatMapConfig: !!finalFormData.seatMapConfig,
-        seatMapConfigKeys: finalFormData.seatMapConfig ? Object.keys(finalFormData.seatMapConfig) : []
-      })
-
       if (isEditing && id) await adminService.updateEvent(id, finalFormData)
       else await adminService.createEvent(finalFormData)
       navigate('/admin/eventos')
@@ -275,13 +259,6 @@ export default function EventForm() {
                 <div>
                   {field('Capacidad Total', true)}
                   <Input type="number" value={formData.capacity} onChange={e => setFormData({ ...formData, capacity: parseInt(e.target.value) || 0 })} error={errors.capacity} placeholder="Ej: 1500" />
-                </div>
-                <div className="sm:col-span-2">
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                    <label className="block text-sm font-semibold text-amber-900 mb-1">💰 Precio base del evento (Bs) *</label>
-                    <p className="text-xs text-amber-700 mb-3">Precio base del listado. Los sectores del mapa pueden sobrescribirlo.</p>
-                    <Input type="number" value={formData.precio} onChange={e => setFormData({ ...formData, precio: parseFloat(e.target.value) || 0 })} error={errors.precio} placeholder="Ej: 150" min="0" step="0.01" />
-                  </div>
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">⚙️ Configuración de Compras por Usuario</label>

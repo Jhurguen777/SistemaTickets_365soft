@@ -249,10 +249,10 @@ export default function EventDetail({ onOpenModal }: EventDetailProps) {
             )}
 
             {/* Related Events */}
-            <div>
+            {/* <div>
               <h2 className="text-base sm:text-2xl font-bold mb-3 sm:mb-6">Otros eventos</h2>
               <EventGrid hasMore={false} />
-            </div>
+            </div> */}
           </div>
 
           {/* Sidebar — solo desktop */}
