@@ -1,5 +1,5 @@
-import { RegisteredUser } from '@/types/admin'
 import { generateTicketQRCode } from './qrService'
+import api from './api'
 
 export interface UserPurchase {
   id: string
@@ -13,6 +13,7 @@ export interface UserPurchase {
   asientos: Array<{
     fila: string
     numero: number
+    asiento: string
     nombre: string
     email: string
     ci: string
@@ -141,10 +142,64 @@ const savePurchases = (purchases: UserPurchase[]) => {
 }
 
 /**
- * Obtiene todas las compras del usuario
+ * Obtiene las compras del usuario autenticado desde el backend,
+ * agrupadas por evento.
  */
-export const getUserPurchases = (): UserPurchase[] => {
-  return getPurchases()
+export const getUserPurchases = async (
+  user: { nombre: string; email: string; ci?: string | null } | null
+): Promise<UserPurchase[]> => {
+  try {
+    const res = await api.get('/compras/mis-compras', { params: { limit: 100 } })
+    const compras: any[] = res.data.data ?? []
+
+    // Agrupar por eventoId
+    const grouped = new Map<string, any[]>()
+    for (const c of compras) {
+      const key = c.eventoId
+      if (!grouped.has(key)) grouped.set(key, [])
+      grouped.get(key)!.push(c)
+    }
+
+    const purchases: UserPurchase[] = []
+    for (const [eventoId, group] of grouped) {
+      const first = group[0]
+      const totalMonto = group.reduce((sum: number, c: any) => sum + c.monto, 0)
+
+      purchases.push({
+        id: first.id,
+        eventoId,
+        eventoTitulo: first.evento?.titulo ?? '',
+        eventoImagen: first.evento?.imagenUrl ?? '/media/banners/default.jpg',
+        eventoFecha: first.evento?.fecha ?? '',
+        eventoHora: first.evento?.hora ?? '',
+        eventoUbicacion: first.evento?.ubicacion ?? '',
+        eventoDireccion: first.evento?.direccion ?? '',
+        asientos: group.map((c: any) => ({
+          fila: c.asiento?.fila ?? '',
+          numero: c.asiento?.numero ?? 0,
+          asiento: `${c.asiento?.fila ?? ''}${c.asiento?.numero ?? ''}`,
+          nombre: user?.nombre ?? '',
+          email: user?.email ?? '',
+          ci: user?.ci ?? '',
+          sector: '-',
+          qrCode: c.qrCode,
+          attendeeId: c.id,
+        })),
+        cantidad: group.length,
+        monto: totalMonto,
+        estadoPago: first.estadoPago,
+        qrCode: first.qrCode,
+        createdAt: first.createdAt,
+      })
+    }
+
+    return purchases.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+  } catch (error) {
+    console.error('Error fetching purchases from API:', error)
+    return []
+  }
 }
 
 /**
@@ -231,5 +286,5 @@ export default {
   getUserPurchases,
   createPurchase,
   getPurchaseById,
-  updatePurchaseStatus
+  updatePurchaseStatus,
 }

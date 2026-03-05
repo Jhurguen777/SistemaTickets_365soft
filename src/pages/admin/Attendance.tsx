@@ -1,11 +1,24 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   ScanLine, Search, Download, CheckCircle, XCircle,
   Clock, QrCode, User as UserIcon
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
-import { Attendee, AsistenciaStatus } from '@/types/admin'
+import { AsistenciaStatus } from '@/types/admin'
+import { adminService } from '@/services/adminService'
+import api from '@/services/api'
+
+interface AttendeeRow {
+  id: string
+  nombre: string
+  email: string
+  ci: string
+  asiento: string
+  asistencia: 'ASISTIO' | 'PENDIENTE'
+  horaCheckIn: string | null
+  qrCode: string
+}
 
 type TabType = 'scanner' | 'lista'
 
@@ -15,17 +28,24 @@ export default function Attendance() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<AsistenciaStatus | 'TODOS'>('TODOS')
   const [selectedAttendees, setSelectedAttendees] = useState<Set<string>>(new Set())
+  const [attendees, setAttendees] = useState<AttendeeRow[]>([])
+  const [events, setEvents] = useState<{ id: string; title: string }[]>([])
+  const [loading, setLoading] = useState(false)
 
-  const [attendees, setAttendees] = useState<Attendee[]>([
-    { id: '1', purchaseId: 'pur-001', eventId: 'evt-001', nombre: 'Juan Pérez', email: 'juan@email.com', ci: '12345678', asiento: 'A1', sector: 'VIP', asistencia: 'ASISTIO', horaCheckIn: new Date('2024-02-27T19:30:00'), qrCode: 'QR001' },
-    { id: '2', purchaseId: 'pur-002', eventId: 'evt-001', nombre: 'María González', email: 'maria@email.com', ci: '87654321', asiento: 'B2', sector: 'General', asistencia: 'PENDIENTE', qrCode: 'QR002' },
-    { id: '3', purchaseId: 'pur-003', eventId: 'evt-001', nombre: 'Carlos López', email: 'carlos@email.com', ci: '11223344', asiento: 'C3', sector: 'General', asistencia: 'NO_SHOW', qrCode: 'QR003' },
-  ])
+  useEffect(() => {
+    adminService.getEvents().then(evts =>
+      setEvents(evts.map(e => ({ id: e.id, title: e.title })))
+    )
+  }, [])
 
-  const events = [
-    { id: 'evt-001', title: 'Concierto de Rock 2024' },
-    { id: 'evt-002', title: 'Conferencia Tech' },
-  ]
+  useEffect(() => {
+    if (!selectedEvent) { setAttendees([]); return }
+    setLoading(true)
+    api.get(`/asistencia/evento/${selectedEvent}`)
+      .then(res => setAttendees(res.data.data ?? []))
+      .catch(() => setAttendees([]))
+      .finally(() => setLoading(false))
+  }, [selectedEvent])
 
   const filteredAttendees = attendees.filter(a => {
     const matchesSearch = a.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || a.email.toLowerCase().includes(searchTerm.toLowerCase()) || a.ci.includes(searchTerm)
@@ -37,16 +57,22 @@ export default function Attendance() {
     total: attendees.length,
     asistieron: attendees.filter(a => a.asistencia === 'ASISTIO').length,
     pendientes: attendees.filter(a => a.asistencia === 'PENDIENTE').length,
-    noShows: attendees.filter(a => a.asistencia === 'NO_SHOW').length,
+    noShows: 0,
   }
 
-  const handleScanQR = (qrCode: string) => {
-    const attendee = attendees.find(a => a.qrCode === qrCode)
-    if (attendee) {
-      if (attendee.asistencia === 'ASISTIO') { alert(`Ya registró entrada: ${attendee.nombre}`); return }
-      setAttendees(prev => prev.map(a => a.id === attendee.id ? { ...a, asistencia: 'ASISTIO', horaCheckIn: new Date() } : a))
-      alert(`✅ Asistencia registrada: ${attendee.nombre}`)
-    } else { alert('Código QR no encontrado') }
+  const handleScanQR = async (qrCode: string) => {
+    try {
+      const res = await api.post('/asistencia/verificar-qr', { qrCode })
+      const { usuario } = res.data.data
+      alert(`✅ Asistencia registrada: ${usuario.nombre}`)
+      // Refrescar lista
+      if (selectedEvent) {
+        const updated = await api.get(`/asistencia/evento/${selectedEvent}`)
+        setAttendees(updated.data.data ?? [])
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.mensaje ?? 'Error al escanear QR')
+    }
   }
 
   const handleSelectAll = () => {
@@ -203,7 +229,7 @@ export default function Attendance() {
                     <th className="text-left py-3 px-3">
                       <input type="checkbox" checked={selectedAttendees.size === filteredAttendees.length && filteredAttendees.length > 0} onChange={handleSelectAll} className="w-4 h-4 rounded border-gray-300" />
                     </th>
-                    {['Asistente', 'CI', 'Asiento', 'Sector', 'Estado', 'Check-in'].map(h => (
+                    {['Asistente', 'CI', 'Asiento', 'Estado', 'Check-in'].map(h => (
                       <th key={h} className="text-left py-3 px-3 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -213,9 +239,8 @@ export default function Attendance() {
                     <tr key={a.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                       <td className="py-3 px-3"><input type="checkbox" checked={selectedAttendees.has(a.id)} onChange={() => handleSelectAttendee(a.id)} className="w-4 h-4 rounded border-gray-300" /></td>
                       <td className="py-3 px-3"><p className="font-medium text-gray-900 dark:text-white text-sm">{a.nombre}</p><p className="text-xs text-gray-500">{a.email}</p></td>
-                      <td className="py-3 px-3 text-sm text-gray-700 dark:text-gray-300">{a.ci}</td>
+                      <td className="py-3 px-3 text-sm text-gray-700 dark:text-gray-300">{a.ci || '-'}</td>
                       <td className="py-3 px-3 text-sm font-semibold text-gray-700 dark:text-gray-300">{a.asiento}</td>
-                      <td className="py-3 px-3 text-sm text-gray-700 dark:text-gray-300">{a.sector}</td>
                       <td className="py-3 px-3"><StatusBadge status={a.asistencia} /></td>
                       <td className="py-3 px-3 text-xs text-gray-500">{a.horaCheckIn ? new Date(a.horaCheckIn).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
                     </tr>
@@ -223,14 +248,14 @@ export default function Attendance() {
                 </tbody>
               </table>
               {filteredAttendees.length === 0 && (
-                <div className="text-center py-12"><UserIcon className="w-10 h-10 text-gray-400 mx-auto mb-3" /><p className="text-sm text-gray-500">No se encontraron asistentes</p></div>
+                <div className="text-center py-12"><UserIcon className="w-10 h-10 text-gray-400 mx-auto mb-3" /><p className="text-sm text-gray-500">{loading ? 'Cargando...' : !selectedEvent ? 'Selecciona un evento para ver la lista' : 'No se encontraron asistentes'}</p></div>
               )}
             </div>
 
             {/* ── MOBILE: Cards ── */}
             <div className="sm:hidden space-y-2">
               {filteredAttendees.length === 0 ? (
-                <div className="text-center py-10"><UserIcon className="w-10 h-10 text-gray-400 mx-auto mb-3" /><p className="text-sm text-gray-500">No se encontraron asistentes</p></div>
+                <div className="text-center py-10"><UserIcon className="w-10 h-10 text-gray-400 mx-auto mb-3" /><p className="text-sm text-gray-500">{loading ? 'Cargando...' : !selectedEvent ? 'Selecciona un evento para ver la lista' : 'No se encontraron asistentes'}</p></div>
               ) : filteredAttendees.map(a => (
                 <div key={a.id} className="flex items-start gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800">
                   <input type="checkbox" checked={selectedAttendees.has(a.id)} onChange={() => handleSelectAttendee(a.id)} className="mt-1 w-4 h-4 rounded border-gray-300 flex-shrink-0" />
@@ -243,9 +268,8 @@ export default function Attendance() {
                       <StatusBadge status={a.asistencia} />
                     </div>
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                      <span className="text-xs text-gray-500">CI: <strong className="text-gray-700 dark:text-gray-300">{a.ci}</strong></span>
+                      <span className="text-xs text-gray-500">CI: <strong className="text-gray-700 dark:text-gray-300">{a.ci || '-'}</strong></span>
                       <span className="text-xs text-gray-500">Asiento: <strong className="text-gray-700 dark:text-gray-300">{a.asiento}</strong></span>
-                      <span className="text-xs text-purple-700 font-semibold">{a.sector}</span>
                       {a.horaCheckIn && <span className="text-xs text-gray-400">{new Date(a.horaCheckIn).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>}
                     </div>
                   </div>

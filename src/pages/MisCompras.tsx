@@ -17,12 +17,12 @@ export default function MisCompras() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
 
-  useEffect(() => { loadPurchases() }, [])
+  useEffect(() => { if (user) loadPurchases() }, [user])
 
-  const loadPurchases = () => {
+  const loadPurchases = async () => {
     try {
       setLoading(true)
-      const userPurchases = purchasesService.getUserPurchases()
+      const userPurchases = await purchasesService.getUserPurchases(user)
       setPurchases(userPurchases)
     } catch (error) {
       console.error('Error loading purchases:', error)
@@ -123,7 +123,7 @@ export default function MisCompras() {
             <div className="p-5 sm:p-6">
               <div className="text-center mb-4">
                 <p className="font-semibold text-gray-900">{selectedAttendee.nombre}</p>
-                <p className="text-sm text-gray-600">Asiento: {selectedAttendee.asiento} | Sector: {selectedAttendee.sector}</p>
+                <p className="text-sm text-gray-600">Fila: {selectedAttendee.fila} | Nº {selectedAttendee.numero}{selectedAttendee.sector && selectedAttendee.sector !== '-' ? ` | Sector: ${selectedAttendee.sector}` : ''}</p>
                 <p className="text-xs text-gray-500 mt-1">CI: {selectedAttendee.ci}</p>
               </div>
               <div className="flex justify-center mb-4 bg-white p-4 sm:p-6 rounded-lg border-2 border-primary">
@@ -254,17 +254,25 @@ export default function MisCompras() {
                           </div>
                           <div className="space-y-1 text-xs sm:text-sm mb-3">
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Asiento:</span>
-                              <span className="font-semibold text-primary">{asiento.asiento}</span>
+                              <span className="text-gray-600">Fila:</span>
+                              <span className="font-semibold text-primary">{asiento.fila}</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Sector:</span>
-                              <span className="font-semibold">{asiento.sector}</span>
+                              <span className="text-gray-600">Número:</span>
+                              <span className="font-semibold text-primary">{asiento.numero}</span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">CI:</span>
-                              <span className="font-mono text-xs">{asiento.ci}</span>
-                            </div>
+                            {asiento.sector && asiento.sector !== '-' && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Sector:</span>
+                                <span className="font-semibold">{asiento.sector}</span>
+                              </div>
+                            )}
+                            {asiento.ci && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">CI:</span>
+                                <span className="font-mono text-xs">{asiento.ci}</span>
+                              </div>
+                            )}
                           </div>
                           <Button
                             size="sm"
