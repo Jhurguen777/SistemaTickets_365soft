@@ -1,6 +1,11 @@
 import { Attendee } from '@/types/admin'
 
-// Tipos para certificados
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+
+// ============================================
+// TIPOS
+// ============================================
+
 export interface CertificateTemplate {
   id: string
   name: string
@@ -27,8 +32,12 @@ export interface CertificateTemplate {
     texto: string
     fondo: string
   }
+  tipo?: string
+  descripcion?: string
+  contenido?: string
   createdAt: Date
   updatedAt: Date
+  cantidadCertificados?: number
 }
 
 export interface CertificateSendRequest {
@@ -46,195 +55,294 @@ export interface CertificateSendResult {
   errors: string[]
 }
 
-// Plantillas por defecto
-const DEFAULT_TEMPLATES: CertificateTemplate[] = [
-  {
-    id: 'tpl-1',
-    name: 'Certificado Estándar',
-    titulo: 'CERTIFICADO DE ASISTENCIA',
-    subtitulo: 'Se otorga el presente certificado a',
-    incluirFecha: true,
-    incluirEvento: true,
-    incluirDuracion: false,
-    incluirCodigo: true,
-    colores: {
-      primario: '#1E40AF',
-      secundario: '#3B82F6',
-      texto: '#1F2937',
-      fondo: '#FFFFFF'
-    },
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    id: 'tpl-2',
-    name: 'Certificado elegante',
-    titulo: 'CERTIFICADO DE PARTICIPACIÓN',
-    subtitulo: 'Por haber asistido exitosamente a',
-    incluirFecha: true,
-    incluirEvento: true,
-    incluirDuracion: true,
-    incluirCodigo: true,
-    colores: {
-      primario: '#7C3AED',
-      secundario: '#A78BFA',
-      texto: '#1F2937',
-      fondo: '#FEF3C7'
-    },
-    createdAt: new Date(),
-    updatedAt: new Date()
+// ============================================
+// SERVICIO
+// ============================================
+
+class CertificateService {
+  private getHeaders(): Record<string, string> {
+    const token = localStorage.getItem('token')
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` })
+    }
   }
-]
 
-// Funciones de almacenamiento
-const getStoredTemplates = (): CertificateTemplate[] => {
-  const stored = localStorage.getItem('certificate_templates')
-  if (stored) {
-    return JSON.parse(stored).map((t: any) => ({
-      ...t,
-      createdAt: new Date(t.createdAt),
-      updatedAt: new Date(t.updatedAt)
-    }))
-  }
-  return DEFAULT_TEMPLATES
-}
-
-const saveTemplates = (templates: CertificateTemplate[]) => {
-  localStorage.setItem('certificate_templates', JSON.stringify(templates))
-}
-
-// Servicio de certificados
-const certificateService = {
   // Obtener todas las plantillas
-  getTemplates: async (): Promise<CertificateTemplate[]> => {
-    await new Promise(resolve => setTimeout(resolve, 100))
-    return getStoredTemplates()
-  },
+  async getTemplates(): Promise<CertificateTemplate[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/certificados/plantillas`, {
+        headers: this.getHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`)
+      }
+
+      // Mapeo inverso del enum del backend al enum del frontend
+      const tipoReverseMap: Record<string, string> = {
+        'PERSONALIZADO': 'personalizado',
+        'ASISTENCIA_ESTANDAR': 'asistencia',
+        'FINALIZACION': 'finalizacion',
+        'EXCELENCIA': 'excelencia'
+      }
+
+      const result = await response.json()
+      return result.data.map((t: any) => ({
+        ...t,
+        name: t.nombre,  // ← Mapear nombre del backend a name del frontend
+        type: tipoReverseMap[t.tipo] || 'personalizado',  // ← Mapear tipo del backend a type del frontend
+        titulo: t.nombre,
+        subtitulo: t.descripcion || '',
+        content: t.contenido,
+        descripcion: t.descripcion,
+        incluirFecha: true,
+        incluirEvento: true,
+        incluirDuracion: false,
+        incluirCodigo: true,
+        colores: {
+          primario: '#1E40AF',
+          secundario: '#3B82F6',
+          texto: '#1F2937',
+          fondo: '#FFFFFF'
+        },
+        createdAt: new Date(t.createdAt),
+        updatedAt: new Date(t.updatedAt)
+      }))
+    } catch (error: any) {
+      console.error('Error fetching templates:', error)
+      // Fallback a localStorage si falla el backend
+      return this.getStoredTemplates()
+    }
+  }
 
   // Obtener una plantilla por ID
-  getTemplate: async (id: string): Promise<CertificateTemplate | null> => {
-    await new Promise(resolve => setTimeout(resolve, 100))
-    const templates = getStoredTemplates()
-    return templates.find(t => t.id === id) || null
-  },
+  async getTemplate(id: string): Promise<CertificateTemplate | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/certificados/plantillas/${id}`, {
+        headers: this.getHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`)
+      }
+
+      // Mapeo inverso del enum del backend al enum del frontend
+      const tipoReverseMap: Record<string, string> = {
+        'PERSONALIZADO': 'personalizado',
+        'ASISTENCIA_ESTANDAR': 'asistencia',
+        'FINALIZACION': 'finalizacion',
+        'EXCELENCIA': 'excelencia'
+      }
+
+      const result = await response.json()
+      return {
+        ...result.data,
+        name: result.data.nombre,  // ← Mapear nombre del backend a name del frontend
+        type: tipoReverseMap[result.data.tipo] || 'personalizado',  // ← Mapear tipo del backend a type del frontend
+        titulo: result.data.nombre,
+        subtitulo: result.data.descripcion || '',
+        content: result.data.contenido,
+        descripcion: result.data.descripcion,
+        incluirFecha: true,
+        incluirEvento: true,
+        incluirDuracion: false,
+        incluirCodigo: true,
+        colores: {
+          primario: '#1E40AF',
+          secundario: '#3B82F6',
+          texto: '#1F2937',
+          fondo: '#FFFFFF'
+        },
+        createdAt: new Date(result.data.createdAt),
+        updatedAt: new Date(result.data.updatedAt)
+      }
+    } catch (error: any) {
+      console.error('Error fetching template:', error)
+      return null
+    }
+  }
 
   // Crear una nueva plantilla
-  createTemplate: async (template: Omit<CertificateTemplate, 'id' | 'createdAt' | 'updatedAt'>): Promise<CertificateTemplate> => {
-    await new Promise(resolve => setTimeout(resolve, 200))
+  async createTemplate(template: Omit<CertificateTemplate, 'id' | 'createdAt' | 'updatedAt' | 'cantidadCertificados'>): Promise<CertificateTemplate> {
+    // El CertificateEditor envía 'content' pero el CertificateTemplate espera 'contenido'
+    const contenido = (template as any).content || template.contenido || ''
+    const descripcion = template.descripcion || (template as any).description || ''
 
-    const templates = getStoredTemplates()
-    const newTemplate: CertificateTemplate = {
-      ...template,
-      id: `tpl-${Date.now()}`,
-      createdAt: new Date(),
-      updatedAt: new Date()
+    // Mapear el tipo del frontend al enum del backend
+    // Los valores del enum del backend tienen guiones bajos (ASISTENCIA_ESTANDAR)
+    // Los valores del frontend están sin guiones (asistencia)
+    const tipoMap: Record<string, string> = {
+      'personalizado': 'PERSONALIZADO',
+      'asistencia': 'ASISTENCIA_ESTANDAR',
+      'finalizacion': 'FINALIZACION',
+      'excelencia': 'EXCELENCIA'
+    }
+    const tipoBackend = tipoMap[(template as any).type] || 'PERSONALIZADO'
+
+    console.log('🔧 Mapeando tipo:', (template as any).type, '->', tipoBackend)
+    console.log('🔧 Enviando al backend:', {
+      nombre: template.name,
+      tipo: tipoBackend,
+      descripcion,
+      contenido
+    })
+
+    const response = await fetch(`${API_BASE_URL}/certificados/plantillas`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        nombre: template.name,
+        tipo: tipoBackend,
+        descripcion,
+        contenido
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('❌ Error del backend:', error)
+      throw new Error(error.message || 'Error al crear plantilla')
     }
 
-    templates.push(newTemplate)
-    saveTemplates(templates)
-
-    return newTemplate
-  },
+    const result = await response.json()
+    console.log('✅ Respuesta del backend:', result)
+    return {
+      ...result.data,
+      titulo: result.data.nombre,
+      subtitulo: result.data.descripcion || '',
+      createdAt: new Date(result.data.createdAt),
+      updatedAt: new Date(result.data.updatedAt)
+    }
+  }
 
   // Actualizar una plantilla
-  updateTemplate: async (id: string, updates: Partial<CertificateTemplate>): Promise<CertificateTemplate> => {
-    await new Promise(resolve => setTimeout(resolve, 200))
+  async updateTemplate(id: string, updates: Partial<CertificateTemplate>): Promise<CertificateTemplate> {
+    // Mapear campos del frontend al backend
+    const contenido = (updates as any).content || updates.contenido || ''
+    const descripcion = updates.descripcion || (updates as any).subtitulo || (updates as any).description || ''
 
-    const templates = getStoredTemplates()
-    const index = templates.findIndex(t => t.id === id)
+    // Mapear el tipo del frontend al enum del backend
+    const tipoMap: Record<string, string> = {
+      'personalizado': 'PERSONALIZADO',
+      'asistencia': 'ASISTENCIA_ESTANDAR',
+      'finalizacion': 'FINALIZACION',
+      'excelencia': 'EXCELENCIA'
+    }
+    const tipoBackend = (updates as any).type ? tipoMap[(updates as any).type] : undefined
 
-    if (index === -1) {
-      throw new Error('Plantilla no encontrada')
+    console.log('🔧 Enviando actualización al backend:', {
+      id,
+      nombre: updates.name,
+      tipo: tipoBackend,
+      descripcion,
+      contenido
+    })
+
+    const response = await fetch(`${API_BASE_URL}/certificados/plantillas/${id}`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        nombre: updates.name,
+        descripcion,
+        contenido,
+        ...(tipoBackend && { tipo: tipoBackend }) // Enviar el tipo solo si se está actualizando
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Error al actualizar plantilla')
     }
 
-    templates[index] = {
-      ...templates[index],
-      ...updates,
-      updatedAt: new Date()
+    const result = await response.json()
+    return {
+      ...result.data,
+      titulo: result.data.nombre,
+      subtitulo: result.data.descripcion || '',
+      content: result.data.contenido, // ← Mapear contenido a content
+      descripcion: result.data.descripcion,
+      createdAt: new Date(result.data.createdAt),
+      updatedAt: new Date(result.data.updatedAt)
     }
-
-    saveTemplates(templates)
-    return templates[index]
-  },
+  }
 
   // Eliminar una plantilla
-  deleteTemplate: async (id: string): Promise<void> => {
-    await new Promise(resolve => setTimeout(resolve, 200))
+  async deleteTemplate(id: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/certificados/plantillas/${id}`, {
+      method: 'DELETE',
+      headers: this.getHeaders()
+    })
 
-    const templates = getStoredTemplates()
-    const filtered = templates.filter(t => t.id !== id)
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Error al eliminar plantilla')
+    }
+  }
 
-    if (filtered.length === templates.length) {
-      throw new Error('Plantilla no encontrada')
+  // Generar certificado PDF
+  async generateCertificate(attendee: Attendee, template: CertificateTemplate, eventName: string, eventDate: string): Promise<string> {
+    // Llamar al backend para generar el certificado
+    const response = await fetch(`${API_BASE_URL}/certificados/generar`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        plantillaId: template.id,
+        usuarioId: attendee.id
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error('Error al generar certificado')
     }
 
-    saveTemplates(filtered)
-  },
-
-  // Generar certificado PDF (simulado)
-  generateCertificate: async (attendee: Attendee, template: CertificateTemplate, eventName: string, eventDate: string): Promise<string> => {
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    // En producción, aquí se generaría el PDF real
-    // Por ahora, simulamos la generación devolviendo una URL
-    const certData = {
-      attendee: attendee.nombre,
-      event: eventName,
-      date: eventDate,
-      template: template.name,
-      timestamp: Date.now()
-    }
-
-    // Simular una URL del certificado
-    return `https://certificados.365soft.com/${btoa(JSON.stringify(certData))}.pdf`
-  },
+    const result = await response.json()
+    return result.data.urlArchivo
+  }
 
   // Enviar certificados por email
-  sendCertificates: async (request: CertificateSendRequest): Promise<CertificateSendResult> => {
-    await new Promise(resolve => setTimeout(resolve, 1000))
+  async sendCertificates(request: CertificateSendRequest): Promise<CertificateSendResult> {
+    const response = await fetch(`${API_BASE_URL}/certificados/enviar`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        plantillaId: request.templateId,
+        eventoId: request.eventId,
+        compraIds: request.attendeeIds
+      })
+    })
 
-    // En producción, esto llamaría a tu API backend
-    // Por ahora, simulamos el envío
-    const results: CertificateSendResult = {
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Error al enviar certificados')
+    }
+
+    const result = await response.json()
+
+    return {
       success: true,
-      sent: request.attendeeIds.length,
-      failed: 0,
-      errors: []
+      sent: result.data.estadisticas.enviados,
+      failed: result.data.estadisticas.errores,
+      errors: result.data.historial.error ? [result.data.historial.error] : []
     }
-
-    // Simular algunos errores aleatorios para realismo
-    if (Math.random() < 0.1) {
-      results.failed = 1
-      results.sent -= 1
-      results.errors.push('Error al enviar a un destinatario')
-    }
-
-    // Guardar registro de envíos en localStorage
-    const sendLog = {
-      id: `send-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      templateId: request.templateId,
-      eventId: request.eventId,
-      attendeeIds: request.attendeeIds,
-      sent: results.sent,
-      failed: results.failed
-    }
-
-    const logs = JSON.parse(localStorage.getItem('certificate_sends') || '[]')
-    logs.push(sendLog)
-    localStorage.setItem('certificate_sends', JSON.stringify(logs))
-
-    return results
-  },
+  }
 
   // Obtener historial de envíos
-  getSendHistory: async (): Promise<any[]> => {
-    await new Promise(resolve => setTimeout(resolve, 100))
-    return JSON.parse(localStorage.getItem('certificate_sends') || '[]')
-  },
+  async getSendHistory(): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/certificados/historial`, {
+      headers: this.getHeaders()
+    })
+
+    if (!response.ok) {
+      throw new Error('Error al obtener historial')
+    }
+
+    const result = await response.json()
+    return result.data
+  }
 
   // Previsualizar certificado (HTML para preview)
-  previewCertificate: (attendee: Attendee, template: CertificateTemplate, eventName: string, eventDate: string): string => {
+  previewCertificate(attendee: Attendee, template: CertificateTemplate, eventName: string, eventDate: string): string {
     const codigo = `CERT-${attendee.id.substring(0, 8).toUpperCase()}`
 
     return `
@@ -368,6 +476,24 @@ const certificateService = {
       </div>
     `
   }
+
+  // ============================================
+  // MÉTODOS DE FALLBACK (localStorage)
+  // ============================================
+
+  private getStoredTemplates(): CertificateTemplate[] {
+    const stored = localStorage.getItem('certificate_templates')
+    if (stored) {
+      return JSON.parse(stored).map((t: any) => ({
+        ...t,
+        createdAt: new Date(t.createdAt),
+        updatedAt: new Date(t.updatedAt)
+      }))
+    }
+    return []
+  }
 }
+
+const certificateService = new CertificateService()
 
 export default certificateService

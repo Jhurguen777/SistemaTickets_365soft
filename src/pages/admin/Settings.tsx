@@ -93,82 +93,82 @@ export default function Settings() {
         </div>
       </div>
 
-      <div className="flex gap-6">
-        {/* Sidebar */}
-        <div className="w-56 flex-shrink-0">
-          <nav className="space-y-1">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+        {/* Sidebar - Desktop vertical, Mobile horizontal scroll */}
+        <div className="lg:w-56 flex-shrink-0">
+          <nav className="flex lg:flex flex-row lg:flex-col gap-1 lg:space-y-1 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 -mx-4 px-4 lg:mx-0 lg:px-0 border-b lg:border-b-0 border-gray-200 dark:border-gray-700">
             <button
               onClick={() => setActiveTab('apariencia')}
-              className={`group relative w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-left ${
+              className={`group relative flex items-center gap-2 lg:gap-3 px-2 lg:px-4 py-2 lg:py-2.5 rounded-lg transition-all text-left flex-shrink-0 ${
                 activeTab === 'apariencia'
                   ? 'bg-gray-100 dark:bg-gray-700'
                   : 'hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
               {activeTab === 'apariencia' && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-primary rounded-r-full"></div>
+                <div className="hidden lg:block absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-primary rounded-r-full"></div>
               )}
-              <Palette size={16} className={`transition-colors ${
+              <Palette size={14} className={`transition-colors ${
                 activeTab === 'apariencia' ? 'text-gray-900 dark:text-white' : 'text-gray-400 group-hover:text-gray-500 dark:text-gray-500 dark:group-hover:text-gray-400'
               }`} />
-              <span className={`text-xs font-medium tracking-wide transition-colors ${
+              <span className={`hidden lg:block text-xs font-medium tracking-wide transition-colors ${
                 activeTab === 'apariencia' ? 'text-gray-900 dark:text-white' : 'text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300'
               }`}>APARIENCIA</span>
             </button>
 
             <button
               onClick={() => setActiveTab('sitio')}
-              className={`group relative w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-left ${
+              className={`group relative flex items-center gap-2 lg:gap-3 px-2 lg:px-4 py-2 lg:py-2.5 rounded-lg transition-all text-left flex-shrink-0 ${
                 activeTab === 'sitio'
                   ? 'bg-gray-100 dark:bg-gray-700'
                   : 'hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
               {activeTab === 'sitio' && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-primary rounded-r-full"></div>
+                <div className="hidden lg:block absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-primary rounded-r-full"></div>
               )}
-              <Globe size={16} className={`transition-colors ${
+              <Globe size={14} className={`transition-colors ${
                 activeTab === 'sitio' ? 'text-gray-900 dark:text-white' : 'text-gray-400 group-hover:text-gray-500 dark:text-gray-500 dark:group-hover:text-gray-400'
               }`} />
-              <span className={`text-xs font-medium tracking-wide transition-colors ${
+              <span className={`hidden lg:block text-xs font-medium tracking-wide transition-colors ${
                 activeTab === 'sitio' ? 'text-gray-900 dark:text-white' : 'text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300'
               }`}>SITIO</span>
             </button>
 
             <button
               onClick={() => setActiveTab('redes')}
-              className={`group relative w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-left ${
+              className={`group relative flex items-center gap-2 lg:gap-3 px-2 lg:px-4 py-2 lg:py-2.5 rounded-lg transition-all text-left flex-shrink-0 ${
                 activeTab === 'redes'
                   ? 'bg-gray-100 dark:bg-gray-700'
                   : 'hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
               {activeTab === 'redes' && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-primary rounded-r-full"></div>
+                <div className="hidden lg:block absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-primary rounded-r-full"></div>
               )}
-              <Share2 size={16} className={`transition-colors ${
+              <Share2 size={14} className={`transition-colors ${
                 activeTab === 'redes' ? 'text-gray-900 dark:text-white' : 'text-gray-400 group-hover:text-gray-500 dark:text-gray-500 dark:group-hover:text-gray-400'
               }`} />
-              <span className={`text-xs font-medium tracking-wide transition-colors ${
+              <span className={`hidden lg:block text-xs font-medium tracking-wide transition-colors ${
                 activeTab === 'redes' ? 'text-gray-900 dark:text-white' : 'text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300'
               }`}>REDES SOCIALES</span>
             </button>
 
             <button
               onClick={() => setActiveTab('pagos')}
-              className={`group relative w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-left ${
+              className={`group relative flex items-center gap-2 lg:gap-3 px-2 lg:px-4 py-2 lg:py-2.5 rounded-lg transition-all text-left flex-shrink-0 ${
                 activeTab === 'pagos'
                   ? 'bg-gray-100 dark:bg-gray-700'
                   : 'hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
               {activeTab === 'pagos' && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-primary rounded-r-full"></div>
+                <div className="hidden lg:block absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-primary rounded-r-full"></div>
               )}
-              <CreditCard size={16} className={`transition-colors ${
+              <CreditCard size={14} className={`transition-colors ${
                 activeTab === 'pagos' ? 'text-gray-900 dark:text-white' : 'text-gray-400 group-hover:text-gray-500 dark:text-gray-500 dark:group-hover:text-gray-400'
               }`} />
-              <span className={`text-xs font-medium tracking-wide transition-colors ${
+              <span className={`hidden lg:block text-xs font-medium tracking-wide transition-colors ${
                 activeTab === 'pagos' ? 'text-gray-900 dark:text-white' : 'text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300'
               }`}>PAGOS</span>
             </button>
