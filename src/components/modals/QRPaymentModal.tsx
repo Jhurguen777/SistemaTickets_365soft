@@ -7,41 +7,51 @@ interface QRPaymentModalProps {
   isOpen: boolean
   onClose: () => void
   qrData: {
-    id: string
-    alias: string
+    qrData?: string
+    qrUrl?: string
     monto: number
     moneda: string
     imagenQr?: string
-    fechaVencimiento: string
-    detalleGlosa: string
+    tiempoExpiracion: string
+    compraId: string
   } | null
-  purchaseId: string
-  onPaymentSuccess: () => void
-  onPaymentFailed: () => void
-}
-
-interface PaymentStatus {
-  estado: 'PENDIENTE' | 'PAGADO' | 'VENCIDO' | 'CANCELADO'
-  mensaje: string
+  _purchaseId: string
+  paymentStatus?: 'PENDIENTE' | 'PROCESANDO' | 'PAGADO' | 'FALLIDO' | 'EXPIRADO'
+  _onPaymentSuccess: () => void
+  _onPaymentFailed: () => void
 }
 
 const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
   isOpen,
   onClose,
   qrData,
-  purchaseId,
-  onPaymentSuccess,
-  onPaymentFailed
+  paymentStatus,
+  _purchaseId,
+  _onPaymentSuccess,
+  _onPaymentFailed
 }) => {
-  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null)
-  const [isChecking, setIsChecking] = useState(false)
   const [timeLeft, setTimeLeft] = useState<number>(0)
+
+  // Log para depurar los datos del QR
+  useEffect(() => {
+    if (qrData) {
+      console.log('📱 QRPaymentModal recibió datos:', {
+        isOpen,
+        hasQrData: !!qrData,
+        qrDataKeys: qrData ? Object.keys(qrData) : [],
+        qrUrl: qrData.qrUrl?.substring(0, 50) + '...',
+        imagenQrLength: qrData.imagenQr?.length,
+        imagenQrPreview: qrData.imagenQr?.substring(0, 100) + '...',
+        paymentStatus
+      })
+    }
+  }, [qrData, isOpen, paymentStatus])
 
   // Calcular tiempo restante
   useEffect(() => {
     if (!qrData || !isOpen) return
 
-    const expiryDate = new Date(qrData.fechaVencimiento)
+    const expiryDate = new Date(qrData.tiempoExpiracion)
     const updateTimer = () => {
       const now = new Date()
       const diff = expiryDate.getTime() - now.getTime()
@@ -53,62 +63,6 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
 
     return () => clearInterval(interval)
   }, [qrData, isOpen])
-
-  // Verificar estado del pago periódicamente
-  useEffect(() => {
-    if (!isOpen || !qrData || paymentStatus?.estado === 'PAGADO') return
-
-    const checkPaymentStatus = async () => {
-      setIsChecking(true)
-      try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/compras/qr/estado/${qrData.id}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-
-          // El backend devuelve: { success: true, message, qr, estadoTransaccion, pagoProcesado }
-          if (data && data.estado) {
-            setPaymentStatus({
-              estado: data.estado,
-              mensaje: data.message
-            })
-
-            if (data.estado === 'PAGADO') {
-              setTimeout(() => {
-                onPaymentSuccess()
-              }, 1500)
-            } else if (data.estado === 'VENCIDO' || data.estado === 'CANCELADO') {
-              setTimeout(() => {
-                onPaymentFailed()
-              }, 1500)
-            }
-          } else {
-            console.error('QR no encontrado en respuesta:', data)
-            setPaymentStatus({
-              estado: 'PENDIENTE',
-              mensaje: 'No se pudo verificar el estado del pago'
-            })
-          }
-        }
-      } catch (error) {
-        console.error('Error verificando pago:', error)
-      } finally {
-        setIsChecking(false)
-      }
-    }
-
-    // Verificar inmediatamente
-    checkPaymentStatus()
-
-    // Luego verificar cada 5 segundos
-    const interval = setInterval(checkPaymentStatus, 5000)
-
-    return () => clearInterval(interval)
-  }, [isOpen, qrData, paymentStatus?.estado])
 
   const formatTime = (seconds: number): string => {
     const hrs = Math.floor(seconds / 3600)
@@ -127,9 +81,10 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
     )
   }
 
-  const isPaid = paymentStatus?.estado === 'PAGADO'
-  const isExpired = paymentStatus?.estado === 'VENCIDO' || timeLeft === 0
-  const isCancelled = paymentStatus?.estado === 'CANCELADO'
+  const isPaid = paymentStatus === 'PAGADO'
+  const isProcessing = paymentStatus === 'PROCESANDO'
+  const isExpired = paymentStatus === 'EXPIRADO' || timeLeft === 0
+  const isFailed = paymentStatus === 'FALLIDO'
 
   return (
     <Modal
@@ -145,7 +100,11 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
               <CheckCircle2 className="text-green-600" size={48} />
             </div>
-          ) : isExpired || isCancelled ? (
+          ) : isProcessing ? (
+            <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center">
+              <Loader2 className="animate-spin text-yellow-600" size={48} />
+            </div>
+          ) : isExpired || isFailed ? (
             <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
               <XCircle className="text-red-600" size={48} />
             </div>
@@ -162,15 +121,20 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
             <h3 className="text-2xl font-bold text-green-600 mb-2">¡Pago exitoso!</h3>
             <p className="text-gray-600">Tu compra ha sido procesada correctamente.</p>
           </div>
+        ) : isProcessing ? (
+          <div>
+            <h3 className="text-2xl font-bold text-yellow-600 mb-2">Procesando pago...</h3>
+            <p className="text-gray-600">Tu pago está siendo verificado.</p>
+          </div>
         ) : isExpired ? (
           <div>
             <h3 className="text-2xl font-bold text-red-600 mb-2">QR vencido</h3>
             <p className="text-gray-600">El tiempo para pagar ha expirado. Por favor intenta nuevamente.</p>
           </div>
-        ) : isCancelled ? (
+        ) : isFailed ? (
           <div>
-            <h3 className="text-2xl font-bold text-red-600 mb-2">Pago cancelado</h3>
-            <p className="text-gray-600">El pago ha sido cancelado.</p>
+            <h3 className="text-2xl font-bold text-red-600 mb-2">Pago fallido</h3>
+            <p className="text-gray-600">Hubo un error procesando tu pago. Por favor intenta nuevamente.</p>
           </div>
         ) : (
           <div>
@@ -180,13 +144,21 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
         )}
 
         {/* QR Code */}
-        {!isPaid && !isCancelled && (
+        {!isPaid && !isProcessing && !isExpired && !isFailed && (
           <div className="bg-white p-4 rounded-lg inline-block border-2 border-gray-200">
-            {qrData.imagenQr ? (
+            {qrData?.imagenQr ? (
               <img
                 src={qrData.imagenQr.startsWith('http') ? qrData.imagenQr : `data:image/png;base64,${qrData.imagenQr}`}
                 alt="QR de pago"
-                className="w-140 h-1140"
+                className="w-64 h-64"
+                onError={(e) => console.error('❌ Error cargando imagen QR:', e)}
+              />
+            ) : qrData?.qrUrl ? (
+              <img
+                src={qrData.qrUrl.startsWith('http') ? qrData.qrUrl : `data:image/png;base64,${qrData.qrUrl}`}
+                alt="QR de pago"
+                className="w-64 h-64"
+                onError={(e) => console.error('❌ Error cargando imagen QR:', e)}
               />
             ) : (
               <div className="w-64 h-64 bg-gray-100 flex items-center justify-center">
@@ -204,15 +176,7 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
               {qrData.moneda} {qrData.monto.toFixed(2)}
             </span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Alias:</span>
-            <span className="font-mono text-sm">{qrData.alias}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Descripción:</span>
-            <span className="text-sm text-right max-w-xs truncate">{qrData.detalleGlosa}</span>
-          </div>
-          {!isPaid && !isExpired && (
+          {!isPaid && !isExpired && !isFailed && (
             <div className="flex justify-between items-center pt-2 border-t">
               <span className="text-gray-600">Tiempo restante:</span>
               <span className={`font-bold text-lg ${timeLeft < 300 ? 'text-red-600' : 'text-blue-600'}`}>
@@ -222,16 +186,8 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
           )}
         </div>
 
-        {/* Verificando... */}
-        {!isPaid && !isExpired && !isCancelled && (
-          <div className="flex items-center justify-center space-x-2 text-blue-600">
-            <Loader2 className={`animate-spin ${isChecking ? '' : 'opacity-0'}`} size={20} />
-            <span className="text-sm">Verificando pago...</span>
-          </div>
-        )}
-
         {/* Info adicional */}
-        {!isPaid && !isCancelled && (
+        {!isPaid && !isProcessing && !isExpired && !isFailed && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <div className="flex items-start space-x-2">
               <AlertCircle className="text-yellow-600 mt-0.5" size={20} />
@@ -254,7 +210,7 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
             <Button onClick={onClose} className="w-full">
               Continuar
             </Button>
-          ) : isExpired || isCancelled ? (
+          ) : isExpired || isFailed ? (
             <>
               <Button
                 variant="outline"

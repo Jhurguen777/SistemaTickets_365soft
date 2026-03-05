@@ -316,7 +316,7 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-grow pt-16 md:pt-20 min-h-screen bg-gray-50 dark:bg-gray-900">
+      <main className="flex-grow min-h-screen bg-gray-50 dark:bg-gray-900">
         {/* Botón menú móvil y minimizar */}
         <div className="flex gap-2 px-4 sm:px-6 pt-4 pb-0">
           <button

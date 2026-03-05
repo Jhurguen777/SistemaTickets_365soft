@@ -46,10 +46,14 @@ interface CertificateEditorProps {
     description: string
     content: string
   }) => void
+  initialName?: string
+  initialType?: CertificateTemplateType
+  initialDescription?: string
 }
 
-export default function CertificateEditor({ content, onChange, onPreview, onSave }: CertificateEditorProps) {
+export default function CertificateEditor({ content, onChange, onPreview, onSave, initialName, initialType, initialDescription }: CertificateEditorProps) {
   const [activeTab, setActiveTab] = useState<'templates' | 'variables'>('templates')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [previewHtml, setPreviewHtml] = useState<string>('')
   const [previewData, setPreviewData] = useState<CertificatePreviewData | null>(null)
   const [showPreview, setShowPreview] = useState(false)
@@ -76,6 +80,19 @@ export default function CertificateEditor({ content, onChange, onPreview, onSave
   const [templateName, setTemplateName] = useState('')
   const [templateType, setTemplateType] = useState<CertificateTemplateType>('personalizado')
   const [templateDescription, setTemplateDescription] = useState('')
+
+  // Inicializar campos cuando se edita una plantilla existente
+  useEffect(() => {
+    if (initialName) {
+      setTemplateName(initialName)
+    }
+    if (initialType) {
+      setTemplateType(initialType)
+    }
+    if (initialDescription) {
+      setTemplateDescription(initialDescription)
+    }
+  }, [initialName, initialType, initialDescription])
 
   // Sincronizar rawHtmlContent cuando cambia el prop content
   useEffect(() => {
@@ -240,17 +257,17 @@ export default function CertificateEditor({ content, onChange, onPreview, onSave
               Diseña tu certificado inteligente
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <button
               onClick={handlePreview}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
             >
               <Eye className="w-4 h-4" />
               Vista Previa
             </button>
             <button
               onClick={handleSave}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
             >
               <Save className="w-4 h-4" />
               Guardar
@@ -307,11 +324,36 @@ export default function CertificateEditor({ content, onChange, onPreview, onSave
       </div>
 
       {/* Editor con Sidebar */}
-      <div className="flex gap-4">
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* Overlay del sidebar en móvil */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
-        <div className="w-80 flex-shrink-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-          {/* Tabs */}
-          <div className="flex border-b border-gray-200 dark:border-gray-700">
+        <div className={`fixed lg:sticky top-0 left-0 z-50 lg:z-auto h-screen lg:h-auto w-80 flex-shrink-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-transform duration-300 ${
+              sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+            }`}>
+          {/* Header móvil del sidebar */}
+          <div className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <span className="font-semibold text-gray-900 dark:text-white text-sm">
+              {activeTab === 'templates' ? 'Plantillas' : 'Variables'}
+            </span>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600 dark:text-gray-400">
+                <path d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Tabs - Desktop */}
+          <div className="hidden lg:flex border-b border-gray-200 dark:border-gray-700">
             <button
               onClick={() => setActiveTab('templates')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
@@ -335,13 +377,48 @@ export default function CertificateEditor({ content, onChange, onPreview, onSave
           </div>
 
           {/* Contenido del sidebar */}
-          <div className="h-[calc(100%-52px)] overflow-y-auto">
+          <div className="h-[calc(100%-52px)] lg:h-[calc(100%-52px)] overflow-y-auto">
             {activeTab === 'templates' ? (
               <TemplateSelector onTemplateSelect={handleTemplateSelect} />
             ) : (
               <VariablesSidebar editor={editor} onInsertVariable={insertVariable} />
             )}
           </div>
+        </div>
+
+        {/* Botón para abrir sidebar en móvil */}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="lg:hidden absolute top-4 left-4 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium shadow-lg z-10 flex items-center gap-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12h18M3 6h18M3 18h18" />
+          </svg>
+          {activeTab === 'templates' ? 'Plantillas' : 'Variables'}
+        </button>
+
+        {/* Tabs móviles - visibles solo en móvil */}
+        <div className="lg:hidden absolute top-4 right-4 flex gap-2 z-10">
+          <button
+            onClick={() => { setSidebarOpen(true); setActiveTab('templates') }}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'templates'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 shadow'
+            }`}
+          >
+            Plantillas
+          </button>
+          <button
+            onClick={() => { setSidebarOpen(true); setActiveTab('variables') }}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'variables'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 shadow'
+            }`}
+          >
+            Variables
+          </button>
         </div>
 
         {/* Editor Principal */}
@@ -351,10 +428,10 @@ export default function CertificateEditor({ content, onChange, onPreview, onSave
             <CertificateToolbar editor={editor} />
 
             {/* Action Buttons */}
-            <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 flex gap-2">
+            <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-2">
               <button
                 onClick={() => editor.commands.clearContent()}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                className="w-full sm:w-auto px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
               >
                 Limpiar Editor
               </button>
@@ -362,11 +439,11 @@ export default function CertificateEditor({ content, onChange, onPreview, onSave
           </div>
 
           {/* Área de Edición - Vista previa del certificado con escala */}
-          <div className="certificate-editor-container flex-1">
+          <div className="certificate-editor-container flex-1 overflow-x-auto">
             {rawHtmlContent ? (
               <div
                 style={{
-                  transform: 'scale(0.5)',
+                  transform: 'scale(0.5) sm:scale(0.7)',
                   transformOrigin: 'top left',
                   width: '11in',
                   minHeight: '8.5in',
@@ -376,8 +453,8 @@ export default function CertificateEditor({ content, onChange, onPreview, onSave
               />
             ) : (
               <div style={{
-                transform: 'scale(0.6)',
-                transformOrigin: 'top center',
+                transform: 'scale(0.6) sm:scale(0.8)',
+                transformOrigin: 'top center sm:top left',
                 width: '11in',
                 minHeight: '8.5in',
                 margin: '0 auto'

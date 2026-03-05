@@ -15,6 +15,14 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    // Log solo para endpoints de compras para depuración
+    if (config.url?.includes('/compras/')) {
+      console.log('📤 API Request:', {
+        url: config.url,
+        method: config.method,
+        data: config.data
+      })
+    }
     return config
   },
   (error) => Promise.reject(error)

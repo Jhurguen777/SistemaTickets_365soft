@@ -72,15 +72,15 @@ class SocketService {
   }
 
   onSeatsUpdate(callback: (data: any) => void) {
-    this.getSocket().on('asientos_estado', callback)
+    this.getSocket().on('asientos:refrescar', callback)
   }
 
   onSeatReserved(callback: (data: any) => void) {
-    this.getSocket().on('asiento_reservado', callback)
+    this.getSocket().on('asiento:reservado', callback)
   }
 
   onSeatReleased(callback: (data: any) => void) {
-    this.getSocket().on('asiento_liberado', callback)
+    this.getSocket().on('asiento:liberado', callback)
   }
 
   onReservationSuccess(callback: (data: any) => void) {

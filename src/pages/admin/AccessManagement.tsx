@@ -157,39 +157,39 @@ export default function AccessManagement() {
 
       {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="flex gap-8">
+        <nav className="flex lg:justify-center gap-4 lg:gap-8 overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0">
           <button
             onClick={() => setActiveTab('admins')}
-            className={`py-3 px-1 border-b-2 font-medium text-xs tracking-wide transition-colors flex items-center gap-2 ${
+            className={`py-3 px-1 border-b-2 font-medium text-xs tracking-wide transition-colors flex items-center gap-2 flex-shrink-0 ${
               activeTab === 'admins'
                 ? 'border-gray-900 dark:border-gray-500 text-gray-900 dark:text-white'
                 : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
             }`}
           >
             <Shield size={16} />
-            ADMINISTRADORES
+            <span className="hidden lg:inline">ADMINISTRADORES</span>
           </button>
           <button
             onClick={() => setActiveTab('audit')}
-            className={`py-3 px-1 border-b-2 font-medium text-xs tracking-wide transition-colors flex items-center gap-2 ${
+            className={`py-3 px-1 border-b-2 font-medium text-xs tracking-wide transition-colors flex items-center gap-2 flex-shrink-0 ${
               activeTab === 'audit'
                 ? 'border-gray-900 dark:border-gray-500 text-gray-900 dark:text-white'
                 : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
             }`}
           >
             <History size={16} />
-            HISTORIAL DE ACTIVIDAD
+            <span className="hidden lg:inline">HISTORIAL DE ACTIVIDAD</span>
           </button>
           <button
             onClick={() => setActiveTab('sessions')}
-            className={`py-3 px-1 border-b-2 font-medium text-xs tracking-wide transition-colors flex items-center gap-2 ${
+            className={`py-3 px-1 border-b-2 font-medium text-xs tracking-wide transition-colors flex items-center gap-2 flex-shrink-0 ${
               activeTab === 'sessions'
                 ? 'border-gray-900 dark:border-gray-500 text-gray-900 dark:text-white'
                 : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
             }`}
           >
             <Activity size={16} />
-            SESIONES ACTIVAS ({sessions.length})
+            <span className="hidden lg:inline">SESIONES ACTIVAS ({sessions.length})</span>
           </button>
         </nav>
       </div>
@@ -251,8 +251,8 @@ export default function AccessManagement() {
             </button>
           </div>
 
-          {/* Admins Table */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          {/* Desktop: Admins Table */}
+          <div className="hidden md:block bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">Lista de Administradores</h3>
             </div>
@@ -340,6 +340,71 @@ export default function AccessManagement() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Mobile: Admins Cards */}
+          <div className="md:hidden space-y-3">
+            {admins.map((admin) => (
+              <div key={admin.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                {/* Card header */}
+                <div className="flex gap-3 p-4">
+                  <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-700 dark:text-gray-300 font-semibold text-sm flex-shrink-0">
+                    {admin.nombre.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold text-gray-900 dark:text-white text-sm">{admin.nombre}</p>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium flex-shrink-0 ${
+                        admin.estado === 'ACTIVO'
+                          ? 'bg-green-50 text-green-700'
+                          : 'bg-red-50 text-red-700'
+                      }`}>
+                        {admin.estado === 'ACTIVO' ? (
+                          <><CheckCircle size={10} /> Activo</>
+                        ) : (
+                          <><XCircle size={10} /> Inactivo</>
+                        )}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                      <Mail size={11} />
+                      {admin.email}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stats row */}
+                <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
+                  <div className="px-3 py-2">
+                    <p className="text-xs text-gray-500">Rol</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{ROLE_LABELS[admin.rol]}</p>
+                  </div>
+                  <div className="px-3 py-2">
+                    <p className="text-xs text-gray-500">Último Acceso</p>
+                    {admin.ultimoAcceso ? (
+                      <p className="text-xs text-gray-600 dark:text-gray-300">
+                        {new Date(admin.ultimoAcceso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-400 dark:text-gray-500">Nunca</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions row */}
+                <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
+                  <button className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <Edit size={14} /> Editar
+                  </button>
+                  <button
+                    onClick={() => handleDeleteAdmin(admin.id)}
+                    className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    <UserX size={14} /> Eliminar
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -589,16 +654,16 @@ export default function AccessManagement() {
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex flex-col sm:flex-row justify-end gap-3">
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="w-full sm:w-auto px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleCreateAdmin}
-                className="px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
+                className="w-full sm:w-auto px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
               >
                 Crear Administrador
               </button>
