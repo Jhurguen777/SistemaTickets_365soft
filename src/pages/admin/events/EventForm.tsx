@@ -22,7 +22,8 @@ export default function EventForm() {
     image: '/media/banners/vibra-carnavalera.jpg',
     gallery: [] as string[],
     permitirMultiplesAsientos: false,
-    limiteAsientosPorUsuario: 1
+    limiteAsientosPorUsuario: 1,
+    seatMapConfig: null as any
   })
 
   const [images, setImages] = useState<string[]>([])
@@ -47,6 +48,11 @@ export default function EventForm() {
           setImages(eventImages)
           setMainImageIndex(0)
           const e = event as any
+          console.log('🔧 EventForm loadEvent - Cargando seatMapConfig del evento:', {
+            seatMapConfig: e.seatMapConfig,
+            tipo: typeof e.seatMapConfig,
+            tienePropiedades: e.seatMapConfig ? Object.keys(e.seatMapConfig) : null
+          })
           setFormData({
             title: e.title || e.titulo || '',
             description: e.description || '',
@@ -65,7 +71,8 @@ export default function EventForm() {
             image: e.image || e.imagenUrl || '',
             gallery: e.gallery || [],
             permitirMultiplesAsientos: e.permitirMultiplesAsientos || false,
-            limiteAsientosPorUsuario: e.limiteAsientosPorUsuario || 1
+            limiteAsientosPorUsuario: e.limiteAsientosPorUsuario || 1,
+            seatMapConfig: e.seatMapConfig || null
           })
         }
       } catch { setErrors({ form: 'Error al cargar el evento' }) }
@@ -98,8 +105,17 @@ export default function EventForm() {
         price: formData.precio, category: formData.category,
         subcategory: formData.subcategory, organizer: formData.organizer,
         status: formData.status, image: mainImage, gallery: images,
-        sectors: [{ id: '1', name: 'General', price: formData.precio, available: formData.capacity, total: formData.capacity }]
+        sectors: [{ id: '1', name: 'General', price: formData.precio, available: formData.capacity, total: formData.capacity }],
+        seatMapConfig: formData.seatMapConfig  // ✅ Enviar seatMapConfig al actualizar/crear evento
       }
+
+      console.log('🔧 EventForm handleSubmit - Enviando:', {
+        isEditing,
+        id,
+        tieneSeatMapConfig: !!finalFormData.seatMapConfig,
+        seatMapConfigKeys: finalFormData.seatMapConfig ? Object.keys(finalFormData.seatMapConfig) : []
+      })
+
       if (isEditing && id) await adminService.updateEvent(id, finalFormData)
       else await adminService.createEvent(finalFormData)
       navigate('/admin/eventos')

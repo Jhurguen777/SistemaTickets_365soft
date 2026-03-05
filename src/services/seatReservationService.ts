@@ -27,9 +27,12 @@ export const seatReservationService = {
   // Reservar múltiples asientos con lock en Redis
   reservarAsientos: async (data: SeatReservationRequest): Promise<SeatReservationResponse> => {
     try {
+      console.log('🚀 Enviando solicitud de reserva:', data)
       const response = await api.post('/asientos/reservar-varios', data)
+      console.log('✅ Respuesta de reserva:', response.data)
       return response.data
     } catch (error: any) {
+      console.error('❌ Error en reserva:', error.response?.data)
       throw new Error(error.response?.data?.mensaje || 'Error al reservar asientos')
     }
   },

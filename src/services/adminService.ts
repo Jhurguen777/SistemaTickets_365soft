@@ -734,7 +734,8 @@ export const adminService = {
           totalSales: (evt._count?.compras || 0) * evt.precio,
           totalTicketsSold: evt._count?.compras || 0,
           createdAt: new Date(evt.createdAt),
-          updatedAt: new Date(evt.updatedAt)
+          updatedAt: new Date(evt.updatedAt),
+          seatMapConfig: (evt as any).seatMapConfig || null  // ✅ Agregar seatMapConfig
         }
       })
     } catch (error) {
@@ -788,7 +789,8 @@ export const adminService = {
         totalSales: (evt._count?.compras || 0) * evt.precio,
         totalTicketsSold: evt._count?.compras || 0,
         createdAt: new Date(evt.createdAt),
-        updatedAt: new Date(evt.updatedAt)
+        updatedAt: new Date(evt.updatedAt),
+        seatMapConfig: (evt as any).seatMapConfig || null  // ✅ Agregar seatMapConfig
       }
     } catch (error) {
       console.error('Error fetching event from backend:', error)
@@ -823,11 +825,23 @@ export const adminService = {
           precio:     s.price,
           total:      s.total || data.capacity,
           disponible: s.available || s.total || data.capacity
-        }))
+        })),
+        seatMapConfig: data.seatMapConfig  // ✅ Enviar seatMapConfig al crear evento
       }
 
       const response = await api.post('/eventos', backendData)
       const evt = response.data.data
+
+      // ✅ Limpiar localStorage de eventos si se creó un evento con seatMapConfig
+      // para evitar datos desactualizados sin seatMapConfig en caché
+      // Nota: Solo borra datos de eventos, NO borra el token de autenticación
+      if (data.seatMapConfig) {
+        const token = localStorage.getItem('token')
+        localStorage.clear()
+        if (token) {
+          localStorage.setItem('token', token)
+        }
+      }
 
       return {
         id:              evt.id,
@@ -857,7 +871,8 @@ export const adminService = {
         totalSales:       0,
         totalTicketsSold: 0,
         createdAt:        new Date(evt.createdAt),
-        updatedAt:        new Date(evt.updatedAt)
+        updatedAt:        new Date(evt.updatedAt),
+        seatMapConfig:    (evt as any).seatMapConfig || null  // ✅ Agregar seatMapConfig
       }
     } catch (error: any) {
       console.error('Error creating event:', error)
@@ -885,10 +900,25 @@ export const adminService = {
           disponible: s.available ?? s.total  // ← fix disponible
         }))
       }
+      // ✅ Enviar seatMapConfig si está presente
+      if (data.seatMapConfig !== undefined) {
+        backendData.seatMapConfig = data.seatMapConfig
+      }
       if (data.status) backendData.estado = data.status
 
       const response = await api.put(`/eventos/${id}`, backendData)
       const evt = response.data.data
+
+      // ✅ Limpiar localStorage de eventos si se actualizó seatMapConfig
+      // para evitar datos desactualizados en caché
+      // Nota: Solo borra datos de eventos, NO borra el token de autenticación
+      if (data.seatMapConfig !== undefined) {
+        const token = localStorage.getItem('token')
+        localStorage.clear()
+        if (token) {
+          localStorage.setItem('token', token)
+        }
+      }
 
       return {
         id:              evt.id,
@@ -912,7 +942,8 @@ export const adminService = {
         totalSales:      0,
         totalTicketsSold: 0,
         createdAt:       new Date(evt.createdAt),
-        updatedAt:       new Date(evt.updatedAt)
+        updatedAt:       new Date(evt.updatedAt),
+        seatMapConfig:   (evt as any).seatMapConfig || null  // ✅ Agregar seatMapConfig
       }
     } catch (error: any) {
       console.error('Error updating event:', error)
