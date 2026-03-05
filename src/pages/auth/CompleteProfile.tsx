@@ -99,10 +99,11 @@ export default function CompleteProfile() {
       localStorage.setItem('user', JSON.stringify(user))
       setAuth(user, token)
 
-      // Precargar nombre en el formulario
+      // 🔥 PRECARGAR NOMBRE Y APELLIDO DESDE GOOGLE
       setFormData(prev => ({
         ...prev,
-        nombre: user.nombre || ''
+        nombre: user.nombre || '',
+        apellido: user.apellido || ''
       }))
 
       setInitializing(false)

@@ -28,7 +28,7 @@ export default function Home({ onOpenModal }: HomeProps) {
       <section className="relative">
         <div
           className="relative h-[160px] sm:h-[260px] md:h-[400px] bg-cover bg-center bg-no-repeat"
-          style={{ backgroundImage: "url('/media/banners/SuperTicket_Portada_LINEA.jpg')" }}
+          style={{ backgroundImage: "url('/assets/gente-de-negocios-en-el-centro-de-convenciones-durante-la-pausa-para-el-cafe.webp')" }}
         >
           <div className="absolute inset-0 bg-black/40" />
         </div>

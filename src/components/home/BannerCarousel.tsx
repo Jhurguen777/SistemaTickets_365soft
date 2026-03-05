@@ -12,22 +12,14 @@ interface BannerCarouselProps {
   autoPlayInterval?: number
 }
 
-const defaultBanners: Banner[] = [
-  { image: '/media/banners/Shop5_Rotativo_3_Mm8h4tP.jpg', link: '/Vibra-Carnavalera', title: 'Vibra Carnavalera' },
-  { image: '/media/banners/Shop5_Rotativo_4_uZC9ckl.jpg', link: '/Descorazonados', title: 'Descorazonados' },
-  { image: '/media/banners/Shop5_Rotativo_CzAIvdo.jpg', link: '/Compadres-Con---Session--1', title: 'Compadres Session' },
-  { image: '/media/banners/2_WIrFQ30.jpg', link: '/Forever-Michael-un-Musical-Eterno', title: 'Forever Michael' },
-  { image: '/media/banners/Rotativo_mQOBIdP.jpeg', link: '/Carnaval-de-Oruro-2026-Avi-Tour', title: 'Carnaval de Oruro 2026' },
-  { image: '/media/banners/Shop5_Rotativo_i06SJ4B.jpg', link: '/Zona-Carnavalera', title: 'Zona Carnavalera' },
-  { image: '/media/banners/Shop5_Rotativo_veMqph2.jpg', link: '/Mundo-Encantado--Santa-Cruz-', title: 'Mundo Encantado' },
-  { image: '/media/banners/Shop5_Rotativo_puSIroa.jpg', link: '/Shingeki-Sinfonico', title: 'Shingeki Sinfónico' },
-  { image: '/media/banners/Shop5_Rotativo_V9EZ5Rv.jpg', link: '/Lesmills-Day-Tarija-2026', title: 'Lesmills Day Tarija' },
-  { image: '/media/banners/Shop5_Rotativo_1_JvbOWgx.jpg', link: '/Especial-de-Ha-Ash', title: 'Especial de Ha-Ash' },
-  { image: '/media/banners/Shop5_Rotativo_ArR9CcJ.jpg', link: '/Tributo-a-Floricienta', title: 'Tributo a Floricienta' },
-  { image: '/media/banners/ARTE_1400X400.jpeg', link: '/Abono-2026---Coro-y-Orquesta-Wagneriano-de-la-SOCLP', title: 'Abono 2026 Wagneriano' },
-  { image: '/media/banners/Shop5_Rotativo_1_9ZSnlGs.jpg', link: '/Viva-la-Vida--Experiencia-Coldplay', title: 'Viva la Vida Coldplay' },
-  { image: '/media/banners/3_Xl2hOo3.jpg', link: '/Quirquina-Omnia/', title: 'Quirquina Omnia' }
-]
+// Los banners de blog han sido eliminados - el carrusel ahora está deshabilitado
+const defaultBanners: Banner[] = []
+
+// Si quieres agregar banners en el futuro, puedes agregarlos aquí:
+// Ejemplo:
+// const defaultBanners: Banner[] = [
+//   { image: '/assets/tu-imagen.webp', link: '/ruta', title: 'Título' },
+// ]
 
 const BannerCarousel: React.FC<BannerCarouselProps> = ({
   banners = defaultBanners,
