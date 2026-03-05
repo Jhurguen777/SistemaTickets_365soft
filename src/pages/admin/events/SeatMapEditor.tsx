@@ -459,7 +459,7 @@ const PanelInner: React.FC<PanelInnerProps> = ({
         <div className="flex items-center gap-2 mb-5">
           <label className="text-xs text-gray-500 w-12 flex-shrink-0">Precio</label>
           <input type="number" value={activeSector.price || ''}
-            onChange={(e) => onSetActiveSector({ ...activeSector, price: parseInt(e.target.value) || 0 })}
+            onChange={(e) => onSetActiveSector({ ...activeSector, price: parseFloat(e.target.value) || 0 })}
             className="flex-1 text-sm border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none"
             placeholder="0" min="0" />
           <span className="text-xs text-gray-400 flex-shrink-0">Bs / asiento</span>
@@ -938,7 +938,7 @@ export default function SeatMapEditor() {
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-2">Precio individual (Bs)</label>
                   <input ref={priceRef} type="number" defaultValue={editingSpecialSeat?.price}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveSpecialSeat({ price: parseInt((e.target as HTMLInputElement).value) || 0 }) }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveSpecialSeat({ price: parseFloat((e.target as HTMLInputElement).value) || 0 }) }}
                     className="w-full text-sm border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 outline-none"
                     placeholder="Ej: 500" />
                   <p className="text-[10px] text-gray-400 mt-1">Presiona Enter para guardar</p>
@@ -972,7 +972,7 @@ export default function SeatMapEditor() {
                   onClick={() => {
                     const updates: Partial<SpecialSeat> = {}
                     if (sectorNameRef.current?.value.trim()) updates.sectorName = sectorNameRef.current.value.trim()
-                    if (priceRef.current?.value) updates.price = parseInt(priceRef.current.value) || 0
+                    if (priceRef.current?.value) updates.price = parseFloat(priceRef.current.value) || 0
                     if (Object.keys(updates).length > 0) {
                       handleSaveSpecialSeat(updates, true)
                     } else {

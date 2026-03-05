@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Users, ChevronDown, Check } from 'lucide-react'
+import { ArrowLeft, Users, ChevronDown, Check, X } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
 import { useAuthStore } from '@/store/authStore'
 import adminService from '@/services/adminService'
 import purchasesService from '@/services/purchasesService'
-import paymentService from '@/services/paymentService'
+import { paymentServiceV2 } from '@/services/paymentServiceV2'
+import api from '@/services/api'
 import QRPaymentModal from '@/components/modals/QRPaymentModal'
 
 interface CheckoutSeat { id: string; row: string; number: number; price: number }
@@ -15,12 +16,12 @@ interface CheckoutSeat { id: string; row: string; number: number; price: number 
 interface CheckoutState {
   state?: {
     eventId: string
-    sectorId: string
+    reservaId: string
     seats: CheckoutSeat[]
+    tiempoExpiracion?: string
   }
 }
 
-// ✅ MAIN: incluye otraOficina y otraOficinaNombre
 interface FormData {
   nombre: string
   apellido: string
@@ -43,17 +44,17 @@ interface FormErrors {
 export default function Checkout() {
   const navigate = useNavigate()
   const location = useLocation() as CheckoutState
-  const { user } = useAuthStore()
-
-  const { eventId, sectorId, seats } = location.state || {
+  const { eventId, reservaId, seats } = location.state || {
     eventId: '',
-    sectorId: '',
-    seats: []
+    reservaId: '',
+    seats: [],
+    tiempoExpiracion: ''
   }
+
+  console.log('📍 Datos recibidos en Checkout:', { eventId, reservaId, seats, locationState: location.state })
 
   const [event, setEvent] = useState<any>(null)
 
-  // ✅ MAIN: estado inicial con otraOficina
   const [attendees, setAttendees] = useState<FormData[]>(
     seats.map(() => ({
       nombre: '',
@@ -76,8 +77,10 @@ export default function Checkout() {
   const [showQRModal, setShowQRModal] = useState(false)
   const [currentQRData, setCurrentQRData] = useState<any>(null)
   const [currentPurchaseId, setCurrentPurchaseId] = useState<string>('')
+  const [paymentStatus, setPaymentStatus] = useState<'PENDIENTE' | 'PROCESANDO' | 'PAGADO' | 'FALLIDO' | 'EXPIRADO'>('PENDIENTE')
 
-  // ✅ RESPONSIVE: toggle resumen en móvil
+  const [isExpired, setIsExpired] = useState(false)
+  const [asientosLiberados, setAsientosLiberados] = useState(false)
   const [showMobileSummary, setShowMobileSummary] = useState(false)
 
   const oficinas = [
@@ -102,7 +105,41 @@ export default function Checkout() {
     { codigo: '2606', nombre: 'ALFA CITY' }
   ]
 
-  // ✅ MAIN: reset con otraOficina
+  // Función para liberar asientos al salir/cancelar
+  const liberarAsientos = async () => {
+    if (!reservaId || !eventId) return
+    if (asientosLiberados) {
+      console.log('⚠️ Asientos ya liberados, evitando duplicación')
+      return
+    }
+
+    try {
+      await api.post('/asientos/liberar-varios', {
+        asientosIds: seats.map(s => s.id),
+        eventoId: eventId
+      })
+      setAsientosLiberados(true)
+      console.log('✅ Asientos liberados al salir del checkout')
+    } catch (error) {
+      console.error('⚠️ Error liberando asientos:', error)
+      // Continuar aunque falle - el TTL de Redis eventualmente expirará
+    }
+  }
+
+  // Limpiar polling y asientos al desmontar o salir
+  useEffect(() => {
+    // Solo limpiar el polling al desmontar, NO liberar asientos automáticamente
+    const cleanup = () => {
+      // Detener polling
+      const polling = (window as any).paymentPolling
+      if (polling && polling.detener) {
+        polling.detener()
+      }
+    }
+
+    return cleanup
+  }, [])
+
   useEffect(() => {
     setAttendees(seats.map(() => ({
       nombre: '',
@@ -131,13 +168,13 @@ export default function Checkout() {
     }
   }
 
-  // ✅ MAIN: email y documento opcionales, otraOficina/otraOficinaNombre
   const validateAttendeeField = (attendeeIndex: number, name: string, value: string): string | null => {
+    const trimmedValue = value.trim()
     switch (name) {
       case 'nombre':
       case 'apellido':
-        if (!value || value.length < 3) return `El ${name} debe tener al menos 3 letras`
-        if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(value)) return `El ${name} solo puede contener letras`
+        if (!trimmedValue || trimmedValue.length < 2) return `El ${name} debe tener al menos 2 letras`
+        if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(trimmedValue)) return `El ${name} solo puede contener letras`
         return null
       case 'email':
         if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'El email no es válido'
@@ -179,7 +216,6 @@ export default function Checkout() {
     return Object.keys(newErrors).length === 0
   }
 
-  // ✅ MAIN: maneja checkbox otraOficina
   const handleAttendeeChange = (attendeeIndex: number, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const target = e.target
     const name = target.name
@@ -219,12 +255,52 @@ export default function Checkout() {
     return Object.keys(newErrors).length === 0
   }
 
+  const handleCancel = async () => {
+    if (confirm('¿Estás seguro de cancelar la compra? Los asientos seleccionados serán liberados.')) {
+      // Detener polling
+      const polling = (window as any).paymentPolling
+      if (polling && polling.detener) {
+        polling.detener()
+      }
+
+      // Liberar asientos
+      await liberarAsientos()
+
+      navigate(-1)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (completedAttendees.size !== seats.length) {
+
+    // Validar automáticamente todos los asistentes
+    let allAttendeesValid = true
+    const newErrors: FormErrors = {}
+
+    for (let i = 0; i < attendees.length; i++) {
+      const attendee = attendees[i]
+      Object.keys(attendee).forEach((key) => {
+        const val = attendee[key as keyof FormData]
+        const error = validateAttendeeField(i, key, String(val))
+        if (error) {
+          newErrors[`${i}_${key}`] = error
+          allAttendeesValid = false
+        }
+      })
+    }
+
+    setErrors(newErrors)
+
+    if (!allAttendeesValid) {
+      // Expandir el primer asistente con errores
+      const firstErrorIndex = Object.keys(newErrors)[0]?.split('_')[0]
+      if (firstErrorIndex !== undefined) {
+        setExpandedAttendee(parseInt(firstErrorIndex))
+      }
       alert('Por favor completa los datos de todos los asistentes antes de continuar')
       return
     }
+
     if (!validatePayment()) {
       alert('Por favor selecciona un método de pago antes de continuar')
       return
@@ -234,46 +310,93 @@ export default function Checkout() {
       return
     }
     if (!event) { alert('Error al cargar los datos del evento'); return }
+    if (!reservaId) { alert('No hay reserva activa. Por favor selecciona tus asientos nuevamente.'); return }
     if (paymentData.medioPago !== 'qr') { alert('Actualmente solo aceptamos pagos con QR'); return }
 
     setProcessing(true)
+    setPaymentStatus('PENDIENTE')
     try {
-      const firstSeat = seats[0]
-
-      console.log('Iniciando pago QR...', { asientoId: firstSeat.id, eventoId: eventId })
-      console.log('Total a pagar:', totalPrice)
-
-      const response = await paymentService.iniciarPagoQR({
-        asientoId: firstSeat.id,
+      // Paso 1: Iniciar el pago con QR (los asientos ya están reservados)
+      const requestData = {
         eventoId: eventId,
-        monto: totalPrice,
-        asientosIds: seats.map(s => s.id)
-      })
+        asientoId: seats[0]?.id, // Para compatibilidad, enviar el primer asiento
+        asientosIds: seats.map(s => s.id),
+        monto: totalPrice
+      }
+      console.log('📤 Enviando datos de pago:', requestData)
 
-      console.log('Respuesta del backend:', response)
+      const pagoResponse = await paymentServiceV2.iniciarPagoQR(requestData)
+      console.log('📥 Respuesta del pago:', pagoResponse)
 
-      if (!response.success) {
-        throw new Error(response.message || 'Error al iniciar el pago')
+      if (!pagoResponse.success || !pagoResponse.qrPago) {
+        throw new Error(pagoResponse.error || 'Error al iniciar el pago')
       }
 
-      setCurrentQRData({
-        id: response.qrPago.id,
-        alias: response.qrPago.alias,
-        monto: totalPrice,
-        moneda: response.compra.moneda,
-        imagenQr: response.qrPago.imagenQr,
-        fechaVencimiento: response.qrPago.fechaVencimiento,
-        detalleGlosa: `Ticket: ${event.title} - Asientos: ${seats.map(s => `${s.row}${s.number}`).join(', ')}`
+      const qrPagoId = pagoResponse.qrPago.id
+
+      // Configurar los datos del QR para mostrar en el modal
+      const qrImageData = pagoResponse.qrPago.imagenQr
+      console.log('📷 Preparando datos del QR:', {
+        qrImageDataLength: qrImageData?.length,
+        qrImageDataPreview: qrImageData?.substring(0, 50) + '...',
+        pagoResponseKeys: Object.keys(pagoResponse),
+        hasQrPago: !!pagoResponse.qrPago
       })
-      setCurrentPurchaseId(response.compra.id)
+
+      setCurrentQRData({
+        qrData: qrImageData,
+        qrUrl: qrImageData,
+        imagenQr: qrImageData,
+        moneda: pagoResponse.qrPago.moneda,
+        monto: pagoResponse.qrPago.monto,
+        tiempoExpiracion: pagoResponse.qrPago.fechaVencimiento,
+        compraId: qrPagoId
+      })
+      setCurrentPurchaseId(qrPagoId)
       setShowQRModal(true)
+
+      // Paso 2: Iniciar el polling para verificar el pago
+      console.log('🔄 Iniciando polling con ID:', qrPagoId)
+      const polling = paymentServiceV2.iniciarPollingPago(
+        qrPagoId,
+        (resultado) => {
+          setPaymentStatus(resultado.estado)
+
+          // Si el pago fue exitoso
+          if (resultado.estado === 'PAGADO') {
+            handlePaymentSuccess(reservaId!, resultado.datos?.transaccionId)
+          } else if (resultado.estado === 'FALLIDO') {
+            handlePaymentFailed(resultado.datos?.mensaje)
+          } else if (resultado.estado === 'EXPIRADO') {
+            handlePaymentExpired()
+          }
+        }
+      )
+
+      polling.iniciar()
+
+      // Guardar el polling en el componente para poder detenerlo
+      ;(window as any).paymentPolling = polling
     } catch (error: any) {
+      console.error('Error en el proceso de pago:', error)
       alert(`Error: ${error.message || 'Hubo un error al procesar tu compra.'}`)
-    } finally { setProcessing(false) }
+      setPaymentStatus('FALLIDO')
+    } finally {
+      setProcessing(false)
+    }
   }
 
-  const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = (_compraId: string, _transaccionId?: string) => {
     setShowQRModal(false)
+    // Detener polling
+    const polling = (window as any).paymentPolling
+    if (polling && polling.detener) {
+      polling.detener()
+    }
+
+    // NO liberar los asientos - el backend ya los marcó como VENDIDO
+    setAsientosLiberados(true)
+
     const purchase = purchasesService.createPurchase({
       eventoId: eventId,
       eventoTitulo: event.title,
@@ -285,7 +408,7 @@ export default function Checkout() {
       asientos: seats.map((seat, index) => ({
         fila: seat.row, numero: seat.number,
         nombre: `${attendees[index].nombre} ${attendees[index].apellido}`.trim(),
-        email: attendees[index].email, ci: attendees[index].documento, sector: sectorId || 'General'
+        email: attendees[index].email, ci: attendees[index].documento, sector: 'General'
       })),
       monto: totalPrice
     })
@@ -298,9 +421,41 @@ export default function Checkout() {
     })
   }
 
-  const handlePaymentFailed = () => {
+  const handlePaymentFailed = async (mensaje?: string) => {
     setShowQRModal(false)
-    alert('El pago falló o expiró. Por favor intenta nuevamente.')
+
+    // Detener polling
+    const polling = (window as any).paymentPolling
+    if (polling && polling.detener) {
+      polling.detener()
+    }
+
+    // Liberar asientos cuando el pago falla
+    await liberarAsientos()
+
+    alert(mensaje || 'El pago falló. Por favor intenta nuevamente.')
+  }
+
+  const handlePaymentExpired = async () => {
+    setShowQRModal(false)
+
+    // Detener polling
+    const polling = (window as any).paymentPolling
+    if (polling && polling.detener) {
+      polling.detener()
+    }
+
+    // Liberar asientos cuando el tiempo expira
+    await liberarAsientos()
+
+    alert('El tiempo para el pago ha expirado. Por favor selecciona tus asientos nuevamente.')
+    navigate(-1)
+  }
+
+  // Wrapper para QRPaymentModal que no acepta parámetros
+  const handleModalPaymentSuccess = () => {
+    // El polling maneja la actualización del estado
+    setShowQRModal(false)
   }
 
   if (!seats || seats.length === 0) {
@@ -318,19 +473,26 @@ export default function Checkout() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-primary text-white py-4 sm:py-6">
         <div className="container mx-auto px-3 sm:px-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center text-white/80 hover:text-white mb-2 sm:mb-4 font-semibold transition-colors text-sm sm:text-base"
-          >
-            <ArrowLeft size={18} className="mr-1 sm:mr-2" />
-            Volver
-          </button>
+          <div className="flex items-center gap-2 mb-2 sm:mb-4">
+            <button
+              onClick={handleCancel}
+              className="inline-flex items-center px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-200 hover:text-white rounded-lg font-semibold transition-colors text-sm sm:text-base"
+            >
+              <X size={14} className="mr-1.5" />
+              Cancelar
+            </button>
+            <button
+              onClick={() => navigate(-1)}
+              className="inline-flex items-center text-white/80 hover:text-white font-semibold transition-colors text-sm sm:text-base"
+            >
+              <ArrowLeft size={18} className="mr-1 sm:mr-2" />
+              Volver
+            </button>
+          </div>
           <div className="flex items-center justify-between">
             <h1 className="text-xl sm:text-3xl font-bold">Finalizar compra</h1>
-            {/* ✅ RESPONSIVE: toggle resumen en móvil */}
             <button
               onClick={() => setShowMobileSummary(!showMobileSummary)}
               className="sm:hidden flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-lg text-sm font-semibold"
@@ -342,7 +504,6 @@ export default function Checkout() {
         </div>
       </div>
 
-      {/* ✅ RESPONSIVE: resumen colapsable en móvil */}
       {showMobileSummary && (
         <div className="sm:hidden bg-white border-b px-4 py-4 shadow-sm">
           {event && <p className="font-semibold text-sm mb-2">{event.title}</p>}
@@ -364,11 +525,9 @@ export default function Checkout() {
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-8">
 
-          {/* Form */}
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit}>
 
-              {/* Asistentes */}
               <div className="mb-4 sm:mb-6">
                 <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-6 flex items-center">
                   <Users className="mr-2 text-primary" size={20} />
@@ -385,7 +544,6 @@ export default function Checkout() {
                         className={`transition-all duration-300 ${isCompleted ? 'border-green-500 bg-green-50' : ''}`}
                       >
                         <CardContent className="p-0">
-                          {/* Accordion Header */}
                           <button
                             type="button"
                             onClick={() => setExpandedAttendee(isExpanded ? -1 : index)}
@@ -411,7 +569,6 @@ export default function Checkout() {
                             />
                           </button>
 
-                          {/* Accordion Content */}
                           <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
                             <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2 border-t">
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3">
@@ -424,7 +581,6 @@ export default function Checkout() {
                                   onChange={(e) => handleAttendeeChange(index, e)}
                                   error={errors[`${index}_apellido`]} placeholder="Tu apellido" required />
 
-                                {/* ✅ MAIN: email opcional */}
                                 <Input label="Email (opcional)" name="email" type="email" value={attendee.email}
                                   onChange={(e) => handleAttendeeChange(index, e)}
                                   error={errors[`${index}_email`]} placeholder="tu@email.com" />
@@ -433,12 +589,10 @@ export default function Checkout() {
                                   onChange={(e) => handleAttendeeChange(index, e)}
                                   error={errors[`${index}_telefono`]} placeholder="Tu número de teléfono" required />
 
-                                {/* ✅ MAIN: documento opcional */}
                                 <Input label="Documento de identidad (opcional)" name="documento" value={attendee.documento}
                                   onChange={(e) => handleAttendeeChange(index, e)}
                                   error={errors[`${index}_documento`]} placeholder="Número de documento" />
 
-                                {/* ✅ MAIN: Oficina Alfa con dropdown deshabilitable */}
                                 <div>
                                   <label className="block text-sm font-semibold mb-1.5">
                                     Oficina Alfa <span className="text-red-500">*</span>
@@ -465,7 +619,6 @@ export default function Checkout() {
                                   )}
                                 </div>
 
-                                {/* ✅ MAIN: checkbox "otra oficina" */}
                                 <div className="flex items-center sm:mt-6">
                                   <label className="flex items-center gap-2 cursor-pointer">
                                     <input
@@ -481,7 +634,6 @@ export default function Checkout() {
                                   </label>
                                 </div>
 
-                                {/* ✅ MAIN: campo nombre oficina personalizada */}
                                 {attendee.otraOficina && (
                                   <div className="sm:col-span-2">
                                     <Input
@@ -511,7 +663,6 @@ export default function Checkout() {
                 </div>
               </div>
 
-              {/* Método de pago */}
               <Card className="mb-4 sm:mb-6">
                 <CardContent className="p-4 sm:p-6">
                   <h2 className="text-base sm:text-xl font-bold mb-4 sm:mb-6">Método de pago</h2>
@@ -535,7 +686,6 @@ export default function Checkout() {
                 </CardContent>
               </Card>
 
-              {/* Términos */}
               <Card className="mb-4 sm:mb-6">
                 <CardContent className="p-4 sm:p-6">
                   <label className="flex items-start gap-3 cursor-pointer">
@@ -562,18 +712,16 @@ export default function Checkout() {
             </form>
           </div>
 
-          {/* Sidebar resumen */}
           <div className="hidden sm:block lg:col-span-1">
             <Card className="sticky top-24">
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-6">Resumen del pedido</h3>
 
-                {/* Event Info */}
                 <div className="mb-6 pb-6 border-b">
                   {event ? (
                     <>
                       <p className="font-semibold text-lg">{event.title}</p>
-                      <p className="text-sm text-gray-600">{sectorId || 'General'}</p>
+                      <p className="text-sm text-gray-600">General</p>
                       <p className="text-sm text-gray-600">
                         {event.date && new Date(event.date).toLocaleDateString('es-ES', {
                           year: 'numeric', month: 'long', day: 'numeric'
@@ -588,7 +736,6 @@ export default function Checkout() {
                   )}
                 </div>
 
-                {/* Seats */}
                 <div className="mb-6 pb-6 border-b">
                   <h4 className="font-semibold mb-3">Asientos seleccionados:</h4>
                   <div className="space-y-2">
@@ -601,7 +748,6 @@ export default function Checkout() {
                   </div>
                 </div>
 
-                {/* Totals */}
                 <div className="space-y-3 mb-6">
                   <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>Bs {totalPrice.toFixed(2)}</span></div>
                   <div className="flex justify-between text-gray-600"><span>Tarifa de servicio</span><span>Bs 0.00</span></div>
@@ -625,9 +771,10 @@ export default function Checkout() {
         isOpen={showQRModal}
         onClose={() => setShowQRModal(false)}
         qrData={currentQRData}
-        purchaseId={currentPurchaseId}
-        onPaymentSuccess={handlePaymentSuccess}
-        onPaymentFailed={handlePaymentFailed}
+        _purchaseId={currentPurchaseId}
+        _onPaymentSuccess={handleModalPaymentSuccess}
+        _onPaymentFailed={handlePaymentFailed}
+        paymentStatus={paymentStatus}
       />
     </div>
   )

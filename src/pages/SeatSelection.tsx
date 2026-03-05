@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Check, Wifi, Clock } from 'lucide-react'
+import { ArrowLeft, Check, Wifi, Clock, AlertCircle, Loader2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import socketService from '@/services/socket'
 import api from '@/services/api'
+import { seatReservationService } from '@/services/seatReservationService'
 import { useAuthStore } from '@/store/authStore'
 
 interface Seat {
   id: string
   row: string
   number: number
-  status: 'AVAILABLE' | 'OCCUPIED'
+  status: 'DISPONIBLE' | 'RESERVANDO' | 'EN_PROCESO' | 'VENDIDO' | 'BLOQUEADO'
   price: number
   sectorId?: string
   sectorName?: string
@@ -110,14 +111,15 @@ const SeatGrid: React.FC<SeatGridProps> = ({ seatMapConfig, seats, selectedSeats
 
   const getColor = (seat: Seat) => {
     if (selectedSeats.some(s => s.id === seat.id)) return '#8B5CF6'
-    if (seat.status === 'OCCUPIED') return '#EF4444'
+    if (seat.status === 'VENDIDO' || seat.status === 'BLOQUEADO') return '#EF4444'
+    if (seat.status === 'RESERVANDO' || seat.status === 'EN_PROCESO') return '#F59E0B'
     return seat.color || '#10B981'
   }
 
   const renderSeat = (seat: Seat) => {
     const bg = getColor(seat)
     const isSelected = selectedSeats.some(s => s.id === seat.id)
-    const isOccupied = seat.status === 'OCCUPIED'
+    const isOccupied = seat.status === 'VENDIDO' || seat.status === 'BLOQUEADO' || seat.status === 'RESERVANDO' || seat.status === 'EN_PROCESO'
     return (
       <button
         key={seat.id}
@@ -245,6 +247,9 @@ export default function SeatSelection() {
   const [demoMode, setDemoMode] = useState(false)
   const [timeLeft, setTimeLeft] = useState(600)
   const [isTimerActive, setIsTimerActive] = useState(true)
+  const [reservaId, setReservaId] = useState<string | null>(null)
+  const [isReserving, setIsReserving] = useState(false)
+  const [timerPhase, setTimerPhase] = useState<'SELECCION' | 'RESERVACION'>('SELECCION')
 
   const eventId = id!
 
@@ -254,23 +259,28 @@ export default function SeatSelection() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  // ── Timer ──
+  // ── Timer (3 minutos para selección + 10 minutos para pago) ──
   useEffect(() => {
     if (!isTimerActive || timeLeft <= 0) return
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(timer)
+          // Si estamos en fase de reservación y hay una reserva activa, intentamos liberarla
+          if (timerPhase === 'RESERVACION' && reservaId) {
+            liberarAsientos()
+          }
           setSelectedSeats([])
+          setReservaId(null)
           setIsTimerActive(false)
           alert('Tiempo de selección agotado. Por favor selecciona tus asientos nuevamente.')
-          return 600
+          return timerPhase === 'SELECCION' ? 600 : 180 // Reset según fase
         }
         return prev - 1
       })
     }, 1000)
     return () => clearInterval(timer)
-  }, [isTimerActive, timeLeft])
+  }, [isTimerActive, timeLeft, timerPhase, reservaId])
 
   // ── Generar asientos desde config ──
   const generateSeatsFromConfig = (config: SeatMapConfig, asientosReales: any[], eventoPrecio: number) => {
@@ -288,10 +298,14 @@ export default function SeatSelection() {
         const sectorName = sp?.sectorName || sector?.name || 'General'
         const sectorId = sector?.id
         const asientoReal = asientosMap.get(`${row.name}-${i + 1}`)
-        let status: 'AVAILABLE' | 'OCCUPIED' = 'AVAILABLE'
+        let status: 'DISPONIBLE' | 'RESERVANDO' | 'EN_PROCESO' | 'VENDIDO' | 'BLOQUEADO' = 'DISPONIBLE'
         if (asientoReal) {
           const estado = asientoReal.estado
-          if (estado === 'VENDIDO' || estado === 'BLOQUEADO' || estado === 'RESERVANDO') status = 'OCCUPIED'
+          if (estado === 'VENDIDO') status = 'VENDIDO'
+          else if (estado === 'BLOQUEADO') status = 'BLOQUEADO'
+          else if (estado === 'RESERVANDO') status = 'RESERVANDO'
+          else if (estado === 'EN_PROCESO') status = 'EN_PROCESO'
+          else status = 'DISPONIBLE'
         }
         const seatId = asientoReal?.id || `temp-${row.name}-${i + 1}`
         generatedSeats.push({ id: seatId, row: row.name, number: i + 1, status, price, sectorId, sectorName, color })
@@ -339,43 +353,125 @@ export default function SeatSelection() {
     let timeoutId: ReturnType<typeof setTimeout>
     try {
       socketService.connect()
-      socketService.onConnected(() => { socketService.joinEvent(eventId) })
+      socketService.joinEvent(eventId)
+      socketService.onConnected(() => { })
       socketService.onConnectError(() => setDemoMode(true))
-      socketService.onSeatReserved((data) => {
-        setSeats(prev => prev.map(s => s.id === data.seatId ? { ...s, status: 'OCCUPIED' } : s))
+
+      // Actualizar asientos en tiempo real con los nuevos estados
+      socketService.onSeatReserved((data: any) => {
+        // El backend envía asientosIds: array de IDs
+        const ids = data.asientosIds || []
+        console.log('🔄 Socket: asientos reservados', ids, data.estado)
+        setSeats(prev => prev.map(s =>
+          ids.includes(s.id) ? { ...s, status: data.estado || 'RESERVANDO' } : s
+        ))
       })
+
+      // Actualizar asientos cuando se libera una reserva
+      socketService.onSeatReleased((data: any) => {
+        const ids = data.asientosIds || []
+        console.log('🔄 Socket: asientos liberados', ids)
+        setSeats(prev => prev.map(s =>
+          ids.includes(s.id) ? { ...s, status: 'DISPONIBLE' } : s
+        ))
+      })
+
       timeoutId = setTimeout(() => { if (!socketService.isConnected()) setDemoMode(true) }, 3000)
     } catch { setDemoMode(true) }
     return () => {
       if (timeoutId) clearTimeout(timeoutId)
+      // NO liberar asientos automáticamente al navegar al checkout
+      // Los asientos se liberan manualmente al cancelar o expirar el tiempo
+      // Solo liberar si el timer expiró (no hay reserva activa)
+      if (!reservaId && selectedSeats.length > 0) {
+        liberarAsientos()
+      }
       try { socketService.disconnect() } catch {}
     }
   }, [eventId])
 
   // ── Toggle asiento ──
   const toggleSeat = useCallback((seat: Seat) => {
-    if (seat.status !== 'AVAILABLE') return
+    if (seat.status !== 'DISPONIBLE' && seat.status !== 'RESERVANDO' && seat.status !== 'EN_PROCESO') return
     setSelectedSeats(prev => {
       const isSelected = prev.some(s => s.id === seat.id)
       if (isSelected) return prev.filter(s => s.id !== seat.id)
       if (prev.length >= 10) { alert('Máximo 10 asientos por persona'); return prev }
       return [...prev, seat]
     })
-    if (socketService.isConnected() && !selectedSeats.some(s => s.id === seat.id)) {
-      socketService.reserveSeat({ eventoId: eventId, asientoId: seat.id, userId: user?.id || 'guest' })
-    }
   }, [selectedSeats, eventId, user])
 
-  const proceedToCheckout = () => {
+  // ── Proceder a checkout con nueva API de reservación ──
+  const proceedToCheckout = async () => {
     if (selectedSeats.length === 0) { alert('Por favor selecciona al menos un asiento'); return }
     if (!user) {
       navigate('/login', { state: { redirectTo: `/eventos/${id}/asientos`, eventData: { eventId, selectedSeats: selectedSeats.map(s => s.id) } } })
       return
     }
-    navigate('/checkout', { state: { eventId, seats: selectedSeats } })
+
+    setIsReserving(true)
+    try {
+      // Usar la nueva API de reservación múltiple con Redis locks
+      const reservationData = {
+        eventoId: eventId,
+        asientosIds: selectedSeats.map(seat => seat.id)
+      }
+
+      const response = await seatReservationService.reservarAsientos(reservationData)
+
+      if (response.ok) {
+        // Generar un reservaId usando los IDs de asientos
+        const reservaId = response.data.map(s => s.id).join('-')
+
+        setReservaId(reservaId)
+        setTimerPhase('RESERVACION')
+        setTimeLeft(180) // 3 minutos para completar el pago (según backend)
+
+        // Actualizar los asientos seleccionados con los datos reales del backend
+        const updatedSeats = selectedSeats.map(originalSeat => {
+          const realSeat = response.data.find(s =>
+            s.fila === originalSeat.row && s.numero === originalSeat.number
+          )
+          return realSeat ? { ...originalSeat, id: realSeat.id } : originalSeat
+        })
+        setSelectedSeats(updatedSeats)
+
+        // Navegar al checkout con los nuevos datos
+        console.log('📋 Navegando al Checkout con:', { eventId, reservaId, seats: updatedSeats })
+        navigate('/checkout', {
+          state: {
+            eventId,
+            reservaId,
+            seats: updatedSeats
+          }
+        })
+      } else {
+        alert(response.error || 'Error al reservar los asientos. Por favor intenta nuevamente.')
+      }
+    } catch (error: any) {
+      console.error('Error al reservar asientos:', error)
+      alert(error.message || 'Error al reservar los asientos. Por favor intenta nuevamente.')
+    } finally {
+      setIsReserving(false)
+    }
   }
 
   const totalPrice = selectedSeats.reduce((sum, seat) => sum + seat.price, 0)
+
+  // Función para liberar asientos correctamente
+  const liberarAsientos = async () => {
+    if (!eventId || selectedSeats.length === 0) return
+
+    try {
+      await api.post('/asientos/liberar-varios', {
+        asientosIds: selectedSeats.map(s => s.id),
+        eventoId: eventId
+      })
+      console.log('✅ Asientos liberados')
+    } catch (error) {
+      console.error('⚠️ Error liberando asientos:', error)
+    }
+  }
 
   if (loading) {
     return (
@@ -448,24 +544,22 @@ export default function SeatSelection() {
                   </div>
                 </div>
                 <Button
-                  onClick={() => {
-                    if (selectedSeats.length === 0) { alert('Por favor selecciona al menos un asiento'); return }
-                    const seatList = selectedSeats.map(s => `${s.row}${s.number}`).join(', ')
-                    const total = selectedSeats.reduce((sum, s) => sum + s.price, 0)
-                    if (confirm(`Verificando disponibilidad...\n\nAsientos: ${seatList}\nTotal: Bs ${total.toFixed(2)}\n\n¿Confirmar disponibilidad?`)) {
-                      alert('✅ ¡Asientos verificados!\n\nTienes 10 minutos para completar tu compra.')
-                    }
-                  }}
-                  disabled={selectedSeats.length === 0}
-                  className="w-full mb-4 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold"
+                  size="lg"
+                  onClick={proceedToCheckout}
+                  disabled={selectedSeats.length === 0 || isReserving}
+                  className="w-full"
                 >
-                  Verificar Disponibilidad
-                </Button>
-                <Button size="lg" onClick={proceedToCheckout} disabled={selectedSeats.length === 0} className="w-full">
-                  Continuar al pago
+                  {isReserving ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="animate-spin mr-2" size={20} />
+                      Reservando asientos...
+                    </div>
+                  ) : (
+                    'Continuar al pago'
+                  )}
                 </Button>
                 <div className="text-center text-sm text-gray-500 mt-3">
-                  <p>Tienes 10 minutos para completar tu compra</p>
+                  <p>Tienes 10 minutos para completar tu compra después de reservar</p>
                 </div>
                 {selectedSeats.length > 0 && (
                   <div className="mt-6 pt-6 border-t">

@@ -208,7 +208,7 @@ export default function UsersList() {
                           {[
                             { label: 'Último Acceso', value: fmtDate(user.ultimoAcceso) },
                             { label: 'Miembro Desde', value: fmtDate(user.createdAt) },
-                            { label: 'Promedio Compra', value: `Bs ${user.totalCompras > 0 ? Math.round(user.totalGastado / user.totalCompras).toLocaleString() : '0'}` },
+                            { label: 'Promedio Compra', value: `Bs ${user.totalCompras > 0 ? (user.totalGastado / user.totalCompras).toFixed(2).toLocaleString() : '0'}` },
                           ].map(({ label, value }) => (
                             <div key={label}>
                               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
@@ -283,7 +283,7 @@ export default function UsersList() {
               <div className="px-2 py-2 text-center">
                 <p className="text-[10px] text-gray-400 leading-none">Promedio</p>
                 <p className="text-xs font-bold text-gray-900 dark:text-white mt-0.5">
-                  Bs {user.totalCompras > 0 ? Math.round(user.totalGastado / user.totalCompras).toLocaleString() : '0'}
+                  Bs {user.totalCompras > 0 ? (user.totalGastado / user.totalCompras).toFixed(2).toLocaleString() : '0'}
                 </p>
               </div>
             </div>

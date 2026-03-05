@@ -219,7 +219,7 @@ export default function Reports() {
                 <div>
                   <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Promedio Ticket</p>
                   <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
-                    Bs {Math.round(financialReport.promedioTicket).toLocaleString()}
+                    Bs {financialReport.promedioTicket.toFixed(2).toLocaleString()}
                   </p>
                 </div>
                 <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
