@@ -12,22 +12,22 @@ interface CategoryMenuProps {
 }
 
 const categories: Category[] = [
-  { name: 'Cine', subcategories: [], link: '?categoria=Cine' },
-  {
-    name: 'Conciertos',
-    subcategories: ['Cristiano', 'Cumbia', 'Filarmónica', 'Folklore', 'Jazz', 'Ópera', 'Reggae', 'Rock', 'Sinfónico'],
-    link: '?categoria=Conciertos'
-  },
-  { name: 'Danza', subcategories: ['Ballet'], link: '?categoria=Danza' },
-  { name: 'Deportes', subcategories: ['Basquetbol', 'Carrera Pedestre', 'Futbol', 'Voleibol'], link: '?categoria=Deportes' },
-  { name: 'Ferias', subcategories: [], link: '?categoria=Ferias' },
-  {
-    name: 'Fiestas',
-    subcategories: ['Año Nuevo', 'Carnaval', 'Clásicos', 'Electrónica', 'Entrada Folklorica', 'Halloween'],
-    link: '?categoria=Fiestas'
-  },
-  { name: 'Teatro', subcategories: ['Teatro Musical'], link: '?categoria=Teatro' },
-  { name: 'Viajes', subcategories: [], link: '?categoria=Viajes' }
+  // { name: 'Cine', subcategories: [], link: '?categoria=Cine' },
+  // {
+  //   name: 'Conciertos',
+  //   subcategories: ['Cristiano', 'Cumbia', 'Filarmónica', 'Folklore', 'Jazz', 'Ópera', 'Reggae', 'Rock', 'Sinfónico'],
+  //   link: '?categoria=Conciertos'
+  // },
+  // { name: 'Danza', subcategories: ['Ballet'], link: '?categoria=Danza' },
+  // { name: 'Deportes', subcategories: ['Basquetbol', 'Carrera Pedestre', 'Futbol', 'Voleibol'], link: '?categoria=Deportes' },
+  // { name: 'Ferias', subcategories: [], link: '?categoria=Ferias' },
+  // {
+  //   name: 'Fiestas',
+  //   subcategories: ['Año Nuevo', 'Carnaval', 'Clásicos', 'Electrónica', 'Entrada Folklorica', 'Halloween'],
+  //   link: '?categoria=Fiestas'
+  // },
+  // { name: 'Teatro', subcategories: ['Teatro Musical'], link: '?categoria=Teatro' },
+  // { name: 'Viajes', subcategories: [], link: '?categoria=Viajes' }
 ]
 
 const CategoryMenu: React.FC<CategoryMenuProps> = ({ onCategoryChange }) => {
