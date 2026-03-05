@@ -962,9 +962,19 @@ export const adminService = {
 
   // Usuarios
   getEventUsers: async (eventId: string): Promise<RegisteredUser[]> => {
-    await new Promise(resolve => setTimeout(resolve, 200))
-    const users = getStoredUsers()
-    return users.filter(u => u.eventId === eventId)
+    try {
+      const token = localStorage.getItem('auth_token')
+      const response = await api.get(`/admin/events/${eventId}/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      return response.data.data
+    } catch (error: any) {
+      console.error('Error fetching event users from backend:', error)
+      // Fallback a localStorage si el backend falla
+      await new Promise(resolve => setTimeout(resolve, 200))
+      const users = getStoredUsers()
+      return users.filter(u => u.eventId === eventId)
+    }
   },
 
   getAllUsers: async (): Promise<RegisteredUser[]> => {
