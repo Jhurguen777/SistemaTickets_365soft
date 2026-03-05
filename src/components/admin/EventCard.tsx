@@ -37,7 +37,7 @@ export default function EventCard({ event, onViewDetails }: EventCardProps) {
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-blue-400 via-indigo-500 to-purple-600 flex items-center justify-center">
+          <div className="w-full h-full bg-gradient-to-br from-primary via-primary/80 to-accent flex items-center justify-center">
             <CalendarDays size={80} className="text-white/80" />
           </div>
         )}

@@ -76,7 +76,7 @@ export default function EventList() {
           </p>
         </div>
         <Link to="/admin/eventos/crear" className="self-start sm:self-auto">
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto justify-center">
+          <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center">
             <Plus size={16} />
             Crear Evento
           </button>
@@ -269,7 +269,7 @@ export default function EventList() {
               <Link to={`/admin/eventos/${event.id}`} className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 <Eye size={14} /> Ver
               </Link>
-              <Link to={`/admin/eventos/${event.id}/editar`} className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors">
+              <Link to={`/admin/eventos/${event.id}/editar`} className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors">
                 <Edit size={14} /> Editar
               </Link>
               <button onClick={() => handleDelete(event.id)} className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors">

@@ -79,8 +79,8 @@ export default function Login() {
           <CardContent className="p-5 sm:p-8">
             {/* Logo */}
             <div className="text-center mb-6 sm:mb-8">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                <span className="text-2xl sm:text-3xl">🎟️</span>
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4 overflow-hidden">
+                <img src="/assets/alfa-positivo.png" alt="365soft" className="w-10 h-10 sm:w-14 sm:h-14 object-contain" />
               </div>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
                 {isLogin ? 'Inicia sesión' : 'Crea tu cuenta'}

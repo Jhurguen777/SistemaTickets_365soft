@@ -71,7 +71,9 @@ const EventGrid: React.FC<EventGridProps> = ({
         {/* Empty */}
         {!loading && !error && events.length === 0 && (
           <div className="text-center py-16">
-            <div className="text-5xl mb-3">🎟️</div>
+            <div className="text-5xl mb-3 flex items-center justify-center">
+              <img src="/assets/alfa-positivo.png" alt="365soft" className="w-20 h-20 object-contain opacity-50" />
+            </div>
             <h3 className="text-lg font-semibold text-gray-700 mb-1">No hay eventos disponibles</h3>
             <p className="text-gray-500 text-sm">Pronto habrá nuevos eventos para ti</p>
           </div>

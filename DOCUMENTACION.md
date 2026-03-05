@@ -18,7 +18,7 @@
 
 ### Características Principales
 
-- 🎟️ **Compra de entradas en línea** con selección de asientos en tiempo real
+- 💳 **Compra de entradas en línea** con selección de asientos en tiempo real
 - 👤 **Autenticación con Google** para acceso rápido y seguro
 - 📱 **Entradas digitales con código QR** para check-in en eventos
 - 📊 **Panel de administración** para gestión completa de eventos

@@ -121,8 +121,8 @@ export default function AdminLayout() {
           </button>
 
           <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'}`}>
-            <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
-              <span className="text-xl">🎟️</span>
+            <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+              <img src="/assets/alfa-positivo.png" alt="365soft" className="w-8 h-8 object-contain" />
             </div>
             {!sidebarCollapsed && (
               <div className="min-w-0 flex-1">
@@ -180,7 +180,7 @@ export default function AdminLayout() {
                                   to={child.path}
                                   className={`flex items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm font-medium transition-colors ml-4 ${
                                     isChildActive
-                                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                      ? 'bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary'
                                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                                   }`}
                                 >
@@ -203,12 +203,12 @@ export default function AdminLayout() {
                                   title={child.label}
                                   className={`flex justify-center items-center p-2 transition-all ${
                                     isChildActive
-                                      ? 'bg-blue-50 dark:bg-blue-900/30 border-r-4 border-blue-600'
+                                      ? 'bg-primary/10 dark:bg-primary/20 border-r-4 border-primary'
                                       : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                                   }`}
                                 >
                                   <ChildIcon className={`h-4 w-4 flex-shrink-0 ${
-                                    isChildActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
+                                    isChildActive ? 'text-primary dark:text-primary' : 'text-gray-700 dark:text-gray-300'
                                   }`} />
                                 </Link>
                               )
@@ -224,16 +224,16 @@ export default function AdminLayout() {
                     title={sidebarCollapsed ? item.label : undefined}
                     className={`flex items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm transition-all ${
                       isActive
-                        ? 'bg-blue-50 dark:bg-blue-900/30 border-r-4 border-blue-600'
+                        ? 'bg-primary/10 dark:bg-primary/20 border-r-4 border-primary'
                         : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                     } ${sidebarCollapsed ? 'justify-center' : ''}`}
                   >
                     <Icon className={`h-4 w-4 flex-shrink-0 ${
-                      isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
+                      isActive ? 'text-primary dark:text-primary' : 'text-gray-700 dark:text-gray-300'
                     }`} />
                     {!sidebarCollapsed && (
                       <span className={`truncate font-medium tracking-wide ${
-                        isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
+                        isActive ? 'text-primary dark:text-primary' : 'text-gray-700 dark:text-gray-300'
                       }`}>
                         {item.label}
                       </span>

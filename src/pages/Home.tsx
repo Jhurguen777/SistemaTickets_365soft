@@ -90,13 +90,19 @@ export default function Home({ onOpenModal }: HomeProps) {
           </h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             {[
-              { icon: '🎟️', title: 'Compra Fácil', desc: 'Compra tus entradas en pocos clics desde cualquier lugar' },
+              { icon: 'logo', title: 'Compra Fácil', desc: 'Compra tus entradas en pocos clics desde cualquier lugar' },
               { icon: '🔒', title: '100% Seguro', desc: 'Pagos seguros y protegidos con encriptación SSL' },
               { icon: '⚡', title: 'Tiempo Real', desc: 'Selección de asientos en vivo con WebSocket' },
               { icon: '📱', title: 'Entradas Digitales', desc: 'Recibe tus entradas al instante con código QR' },
             ].map((item) => (
               <div key={item.title} className="bg-white p-3 sm:p-6 rounded-lg shadow-md text-center">
-                <div className="text-3xl sm:text-5xl mb-2 sm:mb-4">{item.icon}</div>
+                <div className="text-3xl sm:text-5xl mb-2 sm:mb-4 flex items-center justify-center">
+                  {item.icon === 'logo' ? (
+                    <img src="/assets/alfa-positivo.png" alt="365soft" className="w-16 h-16 sm:w-20 sm:h-20 object-contain" />
+                  ) : (
+                    <span>{item.icon}</span>
+                  )}
+                </div>
                 <h3 className="font-bold text-sm sm:text-xl mb-1 sm:mb-2">{item.title}</h3>
                 <p className="text-gray-600 text-xs sm:text-sm hidden sm:block">{item.desc}</p>
               </div>

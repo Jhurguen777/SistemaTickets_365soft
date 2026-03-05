@@ -521,9 +521,9 @@ export default function Checkout() {
                     <span className="font-semibold text-sm sm:text-base">Pago QR - Banco MC4</span>
                   </label>
                   {paymentData.medioPago === 'qr' && (
-                    <div className="mt-3 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-xs sm:text-sm text-blue-800 font-semibold mb-2">ℹ️ ¿Cómo pagar?</p>
-                      <ol className="text-xs sm:text-sm text-blue-700 space-y-1 list-decimal list-inside">
+                    <div className="mt-3 p-3 sm:p-4 bg-primary/10 border border-primary/20 rounded-lg">
+                      <p className="text-xs sm:text-sm text-primary font-semibold mb-2">ℹ️ ¿Cómo pagar?</p>
+                      <ol className="text-xs sm:text-sm text-primary space-y-1 list-decimal list-inside">
                         <li>Confirma tu compra</li>
                         <li>Escanea el código QR que aparecerá</li>
                         <li>Paga desde tu app bancaria (Banco MC4)</li>

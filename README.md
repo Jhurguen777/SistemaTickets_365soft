@@ -1,6 +1,6 @@
 # 🎫 Sistema de Tickets - Frontend
 
-Frontend para sistema de venta de tickets con certificados personalizados, tiempo real con Socket.IO.
+Frontend para sistema de venta de tickets con certificados personalizados, tiempo real con Socket.IO y la identidad visual Alfa.
 
 ## 🚀 Stack Tecnológico
 
@@ -13,11 +13,72 @@ Frontend para sistema de venta de tickets con certificados personalizados, tiemp
 - **Styling**: TailwindCSS
 - **WebSocket**: Socket.IO Client
 - **HTTP Client**: Axios
+- **Editor**: TipTap (certificados)
 
 ## 📋 Requisitos Previos
 
 - Node.js 20+
 - Backend corriendo en `http://localhost:3000`
+
+## 🎨 Identidad Visual - Paleta Alfa
+
+El sistema utiliza la paleta de colores **Alfa** con soporte para modo claro y oscuro:
+
+### Colores Principales
+
+| Nombre | Color | Uso |
+|--------|--------|------|
+| **Azul Alfa** | #233C7A | Color principal, botones, enlaces, estados activos |
+| **Rojo Alfa** | #E0081D | Acciones destructivas, errores, eliminar |
+| **Amarillo Alfa** | #FAB90E | Color de acento, notificaciones, highlights |
+| **Gris Neutro** | #F5F5F5 | Fondos, bordes, muted |
+| **Negro Elegante** | #212121 | Textos, títulos, foreground |
+
+### Logos Dinámicos
+
+El sistema cambia automáticamente el logo según el tema:
+
+- **Modo Claro**: `/assets/alfa-positivo.png`
+- **Modo Oscuro**: `/assets/alfa-negativo.png`
+
+Los logos están ubicados en `public/assets/` y se gestionan automáticamente en el componente `Header.tsx`.
+
+### Uso de Colores
+
+Los componentes usan clases Tailwind que se mapean a variables CSS:
+
+```tsx
+// Color principal (Azul Alfa)
+className="bg-primary text-primary-foreground"
+
+// Color secundario/destructive (Rojo Alfa)
+className="bg-destructive text-destructive-foreground"
+
+// Color de acento (Amarillo Alfa)
+className="bg-accent text-accent-foreground"
+
+// Fondos y textos
+className="bg-background text-foreground"
+className="bg-card text-card-foreground"
+```
+
+## 🎭 Sistema de Temas
+
+La aplicación soporta cambio dinámico entre tema claro y oscuro:
+
+```tsx
+import { useTheme } from '@/contexts/ThemeContext'
+
+function MiComponente() {
+  const { theme, setTheme } = useTheme()
+
+  return (
+    <button onClick={() => setTheme(theme === 'claro' ? 'oscuro' : 'claro')}>
+      Cambiar a {theme === 'claro' ? 'Oscuro' : 'Claro'}
+    </button>
+  )
+}
+```
 
 ## 🔧 Instalación
 
@@ -53,24 +114,96 @@ npm run build
 npm run preview
 ```
 
+## 📁 Scripts Disponibles
+
+```bash
+# Desarrollo
+npm run dev              # Inicia servidor de desarrollo
+npm run build            # Compila para producción
+
+# Utilidades
+npm run lint            # Ejecuta ESLint
+npm run preview          # Preview del build de producción
+```
+
+## 🎭 Temas y Modos
+
+La aplicación tiene soporte completo para tema claro y oscuro:
+
+- **Tema Claro**: Fondo blanco/gris claro, texto oscuro, logo Alfa Positivo
+- **Tema Oscuro**: Fondo gris oscuro/negro, texto claro, logo Alfa Negativo
+
+El tema se guarda en `localStorage` y persiste entre sesiones.
+
 ## 📁 Estructura del Proyecto
 
 ```
 src/
-├── components/       # Componentes React
-│   ├── ui/          # Componentes base (shadcn/ui)
-│   └── layout/      # Componentes de layout
-├── pages/           # Páginas de la aplicación
-├── hooks/           # Custom React hooks
-├── services/        # Servicios externos
-│   ├── api.ts       # Cliente Axios
-│   └── socket.ts    # Socket.IO Client
-├── store/           # Zustand stores
-│   ├── authStore.ts # Autenticación
-│   └── cartStore.ts # Carrito de compras
-├── types/           # TypeScript types
-├── utils/           # Utilidades
-└── main.tsx         # Entry point
+├── components/
+│   ├── ui/                  # Componentes base reutilizables
+│   │   ├── Button.tsx
+│   │   ├── Card.tsx
+│   │   ├── Input.tsx
+│   │   └── Modal.tsx
+│   ├── layout/              # Layout de la aplicación
+│   │   ├── Header.tsx       # Header con logos dinámicos
+│   │   └── Footer.tsx
+│   ├── home/                # Componentes del home
+│   │   ├── BannerCarousel.tsx
+│   │   ├── CategoryMenu.tsx
+│   │   ├── EventCard.tsx
+│   │   └── EventGrid.tsx
+│   ├── admin/               # Componentes del panel admin
+│   │   ├── AdminLayout.tsx
+│   │   ├── EventCard.tsx
+│   │   └── QRScanner.tsx
+│   ├── certificate-editor/ # Editor de certificados TipTap
+│   │   ├── CertificateEditor.tsx
+│   │   ├── CertificatePreview.tsx
+│   │   ├── TemplateSelector.tsx
+│   │   └── VariablesSidebar.tsx
+│   ├── modals/              # Modales de la aplicación
+│   │   ├── LoginModal.tsx
+│   │   ├── PaymentMethodsModal.tsx
+│   │   ├── FAQModal.tsx
+│   │   └── ...
+│   └── auth/                # Autenticación
+│       └── ProtectedRoute.tsx
+├── contexts/              # Contexts globales
+│   └── ThemeContext.tsx       # Gestión de temas (claro/oscuro)
+├── pages/                 # Páginas de la aplicación
+│   ├── Home.tsx
+│   ├── EventDetail.tsx
+│   ├── SeatSelection.tsx
+│   ├── Checkout.tsx
+│   ├── PurchaseSuccess.tsx
+│   ├── MisCompras.tsx
+│   ├── auth/
+│   │   ├── Login.tsx
+│   │   └── CompleteProfile.tsx
+│   └── admin/
+│       ├── Dashboard.tsx
+│       ├── events/
+│       ├── users/
+│       └── Attendance.tsx
+├── store/                 # Zustand stores
+│   ├── authStore.ts        # Estado de autenticación
+│   └── adminStore.ts      # Estado del panel admin
+├── services/              # Servicios externos
+│   ├── api.ts             # Cliente Axios
+│   ├── socket.ts          # Socket.IO Client
+│   └── adminService.ts    # Servicios del admin
+├── types/                 # TypeScript types
+│   ├── index.ts
+│   └── admin.ts
+├── lib/                   # Librerías y configuraciones
+│   └── tiptap/           # Extensiones TipTap
+├── utils/                 # Utilidades
+│   └── cn.ts             # Classnames utility
+├── assets/               # Archivos estáticos
+│   ├── alfa-positivo.png
+│   └── alfa-negativo.png
+└── main.tsx               # Entry point
 ```
 
 ## 🎨 Páginas

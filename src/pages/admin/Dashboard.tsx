@@ -30,7 +30,8 @@ import {
   ResponsiveContainer
 } from 'recharts'
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8']
+// Paleta Alfa para gráficos
+const COLORS = ['#233C7A', '#E0081D', '#FAB90E', '#212121', '#8884D8']
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Search, Menu, X, LogOut } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { useAuthStore } from '@/store/authStore'
+import { useTheme } from '@/contexts/ThemeContext'
 
 interface HeaderProps {
   onOpenModal: (modalType: string) => void
@@ -11,6 +12,7 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { user, logout, isAdmin, isAuthenticated } = useAuthStore()
+  const { theme } = useTheme()
 
   const navItems = [
     { label: 'CÓMO COMPRAR', action: () => onOpenModal('howToBuy') },
@@ -34,7 +36,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
             className="flex items-center space-x-2"
           >
             <img
-              src="/logo.png"
+              src={theme === 'oscuro' ? '/assets/alfa-negativo.png' : '/assets/alfa-positivo.png'}
               alt="SistemaTickets 365soft"
               className="h-10 md:h-12"
             />

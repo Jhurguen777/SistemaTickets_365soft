@@ -69,7 +69,7 @@ export default function UsersList() {
   )
 
   const statCards = [
-    { label: 'Total Usuarios', value: users.length, border: 'border-blue-500', iconBg: 'bg-blue-50 dark:bg-blue-900/30', icon: User, color: 'text-blue-600 dark:text-blue-400' },
+    { label: 'Total Usuarios', value: users.length, border: 'border-primary', iconBg: 'bg-primary/10 dark:bg-primary/20', icon: User, color: 'text-primary dark:text-primary' },
     { label: 'Activos', value: users.filter(u => u.estado === 'ACTIVO').length, border: 'border-green-500', iconBg: 'bg-green-50 dark:bg-green-900/30', icon: Unlock, color: 'text-green-600 dark:text-green-400' },
     { label: 'Bloqueados', value: users.filter(u => u.estado === 'BLOQUEADO').length, border: 'border-red-500', iconBg: 'bg-red-50 dark:bg-red-900/30', icon: Lock, color: 'text-red-600 dark:text-red-400' },
   ]
