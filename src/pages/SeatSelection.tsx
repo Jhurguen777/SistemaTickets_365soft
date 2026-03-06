@@ -402,51 +402,83 @@ export default function SeatSelection() {
   }, [selectedSeats, eventId, user])
 
   // ── Proceder a checkout con nueva API de reservación ──
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 🔧 PARCHE TEMPORAL — reemplaza la función proceedToCheckout completa
+  //    en SeatSelection.tsx mientras el backend esté roto.
+  //    Cuando tu compañero arregle el backend, elimina el bloque marcado con
+  //    🧪 y descomenta el bloque marcado con ✅
+  // ─────────────────────────────────────────────────────────────────────────────
+
   const proceedToCheckout = async () => {
-    if (selectedSeats.length === 0) { alert('Por favor selecciona al menos un asiento'); return }
+    if (selectedSeats.length === 0) {
+      alert('Por favor selecciona al menos un asiento')
+      return
+    }
+
     if (!user) {
-      navigate('/login', { state: { redirectTo: `/eventos/${id}/asientos`, eventData: { eventId, selectedSeats: selectedSeats.map(s => s.id) } } })
+      navigate('/login', {
+        state: {
+          redirectTo: `/eventos/${id}/asientos`,
+          eventData: { eventId, selectedSeats: selectedSeats.map(s => s.id) },
+        },
+      })
       return
     }
 
     setIsReserving(true)
+
     try {
-      // Usar la nueva API de reservación múltiple con Redis locks
-      const reservationData = {
-        eventoId: eventId,
-        asientosIds: selectedSeats.map(seat => seat.id)
+      // ─────────────────────────────────────────────────────────────────
+      // 🧪 MOCK TEMPORAL — simula respuesta exitosa del backend
+      //    Eliminar este bloque cuando el backend esté arreglado
+      // ─────────────────────────────────────────────────────────────────
+      await new Promise(res => setTimeout(res, 600)) // simula latencia de red
+
+      const mockResponse = {
+        ok: true,
+        data: selectedSeats.map(seat => ({
+          id:     seat.id,
+          fila:   seat.row,
+          numero: seat.number,
+          estado: 'EN_PROCESO',
+        })),
       }
+      // ─────────────────────────────────────────────────────────────────
 
-      const response = await seatReservationService.reservarAsientos(reservationData)
+      // ─────────────────────────────────────────────────────────────────
+      // ✅ CÓDIGO REAL — descomentar cuando el backend esté arreglado
+      // const mockResponse = await seatReservationService.reservarAsientos({
+      //   eventoId:    eventId,
+      //   asientosIds: selectedSeats.map(seat => seat.id),
+      // })
+      // ─────────────────────────────────────────────────────────────────
 
-      if (response.ok) {
-        // Generar un reservaId usando los IDs de asientos
-        const reservaId = response.data.map(s => s.id).join('-')
+      if (mockResponse.ok) {
+        const reservaId = mockResponse.data.map(s => s.id).join('-')
 
         setReservaId(reservaId)
         setTimerPhase('RESERVACION')
-        setTimeLeft(180) // 3 minutos para completar el pago (según backend)
+        setTimeLeft(180)
 
-        // Actualizar los asientos seleccionados con los datos reales del backend
+        // Sincroniza los IDs reales que devuelve el backend
         const updatedSeats = selectedSeats.map(originalSeat => {
-          const realSeat = response.data.find(s =>
-            s.fila === originalSeat.row && s.numero === originalSeat.number
+          const realSeat = mockResponse.data.find(
+            s => s.fila === originalSeat.row && s.numero === originalSeat.number
           )
           return realSeat ? { ...originalSeat, id: realSeat.id } : originalSeat
         })
+
         setSelectedSeats(updatedSeats)
 
-        // Navegar al checkout con los nuevos datos
-        console.log('📋 Navegando al Checkout con:', { eventId, reservaId, seats: updatedSeats })
         navigate('/checkout', {
           state: {
             eventId,
             reservaId,
-            seats: updatedSeats
-          }
+            seats: updatedSeats,
+          },
         })
       } else {
-        alert(response.error || 'Error al reservar los asientos. Por favor intenta nuevamente.')
+        alert('Error al reservar los asientos. Por favor intenta nuevamente.')
       }
     } catch (error: any) {
       console.error('Error al reservar asientos:', error)
