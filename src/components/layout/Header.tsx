@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Search, Menu, X, LogOut } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Menu, X, LogOut } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { useAuthStore } from '@/store/authStore'
 
@@ -28,12 +28,17 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
     <header className="fixed top-0 left-0 right-0 z-40 bg-primary text-white shadow-md">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16 md:h-20">
-          {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
+
+          {/* Logo — color-scheme: light fuerza que el navegador NO invierta colores */}
+          <Link to="/" className="flex items-center space-x-2" style={{ colorScheme: 'light' }}>
             <img
               src="/assets/alfa-negativo.png"
               alt="SistemaTickets 365soft"
               className="h-10 md:h-12"
+              style={{
+                colorScheme: 'light',
+                filter: 'none',
+              }}
             />
           </Link>
 
@@ -107,7 +112,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 text-foreground hover:text-primary transition-colors"
+            className="md:hidden p-2 text-white hover:text-white/80 transition-colors"
             aria-label="Abrir menú"
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
