@@ -370,7 +370,17 @@ export default function Checkout() {
       setCurrentPurchaseId(qrPagoId)
       setShowQRModal(true)
 
-      // Paso 2: Iniciar el polling para verificar el pago
+      // Guardar pago pendiente en localStorage para recuperarlo si el usuario sale de la página
+      localStorage.setItem('pending_payment', JSON.stringify({
+        qrPagoId,
+        imagenQr: qrImageData,
+        monto: pagoResponse.qrPago.monto,
+        moneda: pagoResponse.qrPago.moneda,
+        fechaVencimiento: pagoResponse.qrPago.fechaVencimiento,
+        eventTitle: event?.title ?? event?.titulo ?? '',
+        eventId,
+        createdAt: new Date().toISOString()
+      }))
       console.log('🔄 Iniciando polling con ID:', qrPagoId)
       const polling = paymentServiceV2.iniciarPollingPago(
         qrPagoId,
@@ -410,6 +420,7 @@ export default function Checkout() {
     }
 
     sessionStorage.removeItem('checkout_state')
+    localStorage.removeItem('pending_payment')
     // NO liberar los asientos - el backend ya los marcó como VENDIDO
     setAsientosLiberados(true)
 
@@ -447,6 +458,7 @@ export default function Checkout() {
     }
 
     sessionStorage.removeItem('checkout_state')
+    localStorage.removeItem('pending_payment')
     // Liberar asientos cuando el pago falla
     await liberarAsientos()
 
@@ -463,6 +475,7 @@ export default function Checkout() {
     }
 
     sessionStorage.removeItem('checkout_state')
+    localStorage.removeItem('pending_payment')
     // Liberar asientos cuando el tiempo expira
     await liberarAsientos()
 

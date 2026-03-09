@@ -12,6 +12,7 @@ import PaymentMethodsModal from '@/components/modals/PaymentMethodsModal'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import AdminLayout from '@/components/admin/AdminLayout'
 import { ThemeProvider } from '@/contexts/ThemeContext'
+import PendingPaymentBanner from '@/components/PendingPaymentBanner'
 import Home from './pages/Home'
 import EventDetail from './pages/EventDetail'
 import SeatSelection from './pages/SeatSelection'
@@ -94,6 +95,9 @@ function App() {
       </main>
 
       {!isAdminRoute && <Footer onOpenModal={openModal} />}
+
+      {/* Banner de pago pendiente — visible en todas las rutas públicas */}
+      {!isAdminRoute && <PendingPaymentBanner />}
 
       {/* Modals */}
       <LoginModal isOpen={activeModal === 'login'} onClose={closeModal} />
