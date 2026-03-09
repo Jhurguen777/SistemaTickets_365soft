@@ -44,7 +44,15 @@ interface FormErrors {
 export default function Checkout() {
   const navigate = useNavigate()
   const location = useLocation() as CheckoutState
-  const { eventId, reservaId, seats } = location.state || {
+
+  const rawState = location.state || (() => {
+    try {
+      const saved = sessionStorage.getItem('checkout_state')
+      return saved ? JSON.parse(saved) : null
+    } catch { return null }
+  })()
+
+  const { eventId, reservaId, seats } = rawState || {
     eventId: '',
     reservaId: '',
     seats: [],
@@ -52,6 +60,12 @@ export default function Checkout() {
   }
 
   console.log('📍 Datos recibidos en Checkout:', { eventId, reservaId, seats, locationState: location.state })
+
+  useEffect(() => {
+  if (location.state) {
+    sessionStorage.setItem('checkout_state', JSON.stringify(location.state))
+  }
+  }, [])
 
   const [event, setEvent] = useState<any>(null)
 
@@ -263,6 +277,7 @@ export default function Checkout() {
         polling.detener()
       }
 
+      sessionStorage.removeItem('checkout_state')
       // Liberar asientos
       await liberarAsientos()
 
@@ -394,6 +409,7 @@ export default function Checkout() {
       polling.detener()
     }
 
+    sessionStorage.removeItem('checkout_state')
     // NO liberar los asientos - el backend ya los marcó como VENDIDO
     setAsientosLiberados(true)
 
@@ -430,6 +446,7 @@ export default function Checkout() {
       polling.detener()
     }
 
+    sessionStorage.removeItem('checkout_state')
     // Liberar asientos cuando el pago falla
     await liberarAsientos()
 
@@ -445,6 +462,7 @@ export default function Checkout() {
       polling.detener()
     }
 
+    sessionStorage.removeItem('checkout_state')
     // Liberar asientos cuando el tiempo expira
     await liberarAsientos()
 

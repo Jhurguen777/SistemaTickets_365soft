@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Upload, X, Image as ImageIcon } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
@@ -10,7 +10,10 @@ import { convertImageFileToWebP, isValidImageFile, isValidImageSize } from '@/ut
 export default function EventForm() {
   const navigate = useNavigate()
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const isEditing = !!id
+
+  const [conAsientos, setConAsientos] = useState(searchParams.get('tipo') === 'asientos')
 
   const [formData, setFormData] = useState({
     title: '', description: '', longDescription: '',
@@ -22,7 +25,8 @@ export default function EventForm() {
     image: '/media/banners/vibra-carnavalera.jpg',
     gallery: [] as string[],
     permitirMultiplesAsientos: false,
-    limiteAsientosPorUsuario: 1
+    limiteAsientosPorUsuario: 1,
+    modo: 'ASIENTOS' as 'ASIENTOS' | 'CANTIDAD',
   })
 
   const [images, setImages] = useState<string[]>([])
@@ -47,6 +51,8 @@ export default function EventForm() {
           setImages(eventImages)
           setMainImageIndex(0)
           const e = event as any
+          const modoGuardado = e.modo || 'ASIENTOS'
+          setConAsientos(modoGuardado === 'ASIENTOS')
           setFormData({
             title: e.title || e.titulo || '',
             description: e.description || '',
@@ -65,7 +71,8 @@ export default function EventForm() {
             image: e.image || e.imagenUrl || '',
             gallery: e.gallery || [],
             permitirMultiplesAsientos: e.permitirMultiplesAsientos || false,
-            limiteAsientosPorUsuario: e.limiteAsientosPorUsuario || 1
+            limiteAsientosPorUsuario: e.limiteAsientosPorUsuario || 1,
+            modo: modoGuardado,
           })
         }
       } catch { setErrors({ form: 'Error al cargar el evento' }) }
@@ -98,6 +105,7 @@ export default function EventForm() {
         price: formData.precio, category: formData.category,
         subcategory: formData.subcategory, organizer: formData.organizer,
         status: formData.status, image: mainImage, gallery: images,
+        modo: conAsientos ? 'ASIENTOS' : 'CANTIDAD',
         sectors: [{ id: '1', name: 'General', price: formData.precio, available: formData.capacity, total: formData.capacity }]
       }
       if (isEditing && id) await adminService.updateEvent(id, finalFormData)
@@ -155,8 +163,6 @@ export default function EventForm() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-
-      {/* ── Header ── */}
       <div className="flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
           <ArrowLeft size={20} />
@@ -178,7 +184,7 @@ export default function EventForm() {
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{errors.form}</div>
             )}
 
-            {/* ── Información Básica ── */}
+            {/* Información Básica */}
             <div>
               <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">Información Básica</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -203,7 +209,7 @@ export default function EventForm() {
               </div>
             </div>
 
-            {/* ── Imágenes ── */}
+            {/* Imágenes */}
             <div className="border-t pt-5">
               <div className="flex items-center justify-between mb-3">
                 <div>
@@ -240,7 +246,7 @@ export default function EventForm() {
               )}
             </div>
 
-            {/* ── Fecha, Ubicación y Precio ── */}
+            {/* Fecha, Ubicación y Precio */}
             <div className="border-t pt-5">
               <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">Fecha, Ubicación y Precio</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -260,6 +266,43 @@ export default function EventForm() {
                   {field('Capacidad Total', true)}
                   <Input type="number" value={formData.capacity} onChange={e => setFormData({ ...formData, capacity: parseInt(e.target.value) || 0 })} error={errors.capacity} placeholder="Ej: 1500" />
                 </div>
+
+                {/* ✅ Precio por ticket — solo modo CANTIDAD */}
+                {!conAsientos && (
+                  <div className="sm:col-span-2">
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-amber-800 mb-3">🎟️ Precio del Ticket General</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          {field('Precio por ticket (Bs)', true)}
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">Bs</span>
+                            <Input
+                              type="number"
+                              value={formData.precio}
+                              onChange={e => setFormData({ ...formData, precio: parseFloat(e.target.value) || 0 })}
+                              error={errors.precio}
+                              placeholder="Ej: 150"
+                              className="pl-9"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-end">
+                          <div className="w-full bg-white border border-amber-200 rounded-lg p-3">
+                            <p className="text-xs text-gray-500 mb-1">Recaudación máxima estimada</p>
+                            <p className="text-lg font-bold text-amber-700">
+                              Bs {(formData.precio * formData.capacity).toLocaleString()}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {formData.precio} × {formData.capacity} tickets
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">⚙️ Configuración de Compras por Usuario</label>
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
@@ -291,7 +334,7 @@ export default function EventForm() {
               </div>
             </div>
 
-            {/* ── Estado ── */}
+            {/* Estado */}
             <div className="border-t pt-5">
               <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">Estado del Evento</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -310,26 +353,28 @@ export default function EventForm() {
               </div>
             </div>
 
-            {/* ── Configuración de Asientos ── */}
-            <div className="border-t pt-5">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">Configuración de Asientos</h3>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Dibuja el mapa del escenario y configura sectores</p>
+            {/* Configuración de Asientos — solo si conAsientos */}
+            {conAsientos && (
+              <div className="border-t pt-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Configuración de Asientos</h3>
+                    <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Dibuja el mapa del escenario y configura sectores</p>
+                  </div>
+                  {(isEditing || formData.title) && (
+                    <button type="button"
+                      onClick={() => { if (isEditing && id) navigate(`/admin/eventos/${id}/dibujar-mapa`); else handleSubmit(new Event('submit') as any) }}
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium w-full sm:w-auto"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+                      {isEditing ? 'Editar Mapa de Asientos' : 'Dibujar Mapa de Asientos'}
+                    </button>
+                  )}
                 </div>
-                {(isEditing || formData.title) && (
-                  <button type="button"
-                    onClick={() => { if (isEditing && id) navigate(`/admin/eventos/${id}/dibujar-mapa`); else handleSubmit(new Event('submit') as any) }}
-                    className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium w-full sm:w-auto"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
-                    {isEditing ? 'Editar Mapa de Asientos' : 'Dibujar Mapa de Asientos'}
-                  </button>
-                )}
               </div>
-            </div>
+            )}
 
-            {/* ── Actions ── */}
+            {/* Actions */}
             <div className="border-t pt-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
               <Button type="button" variant="outline" onClick={() => navigate(-1)} disabled={loading} className="w-full sm:w-auto">Cancelar</Button>
               <Button type="submit" disabled={loading} className="w-full sm:w-auto">

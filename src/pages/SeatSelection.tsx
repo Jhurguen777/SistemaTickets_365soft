@@ -572,6 +572,11 @@ export default function SeatSelection() {
                         </div>
                       ))}
                     </div>
+                    <div className="mt-4 p-4 bg-red-50 border-l-4 border-red-500 rounded">
+                      <p className="font-semibold text-red-800">
+                        NO podrás solicitar cambios de fecha, ni de sectores. Si no puedes asistir al evento deberás transferir tus boletos a otra persona. En caso de problemas con el procesamiento del pago, es probable que las butacas se liberen y otro comprador tome los lugares. En tal caso, te enviaremos otros boletos lo más cercano posible a lo que escogiste, siempre que estén disponibles.
+                      </p>
+                    </div>
                   </div>
                 )}
               </CardContent>

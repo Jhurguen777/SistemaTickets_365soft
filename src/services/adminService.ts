@@ -729,6 +729,7 @@ export const adminService = {
           subcategory: evt.subcategoria || '',
           organizer: evt.organizer || '365soft Eventos',
           status: evt.estado,
+          modo: evt.modo || 'ASIENTOS',
           sectors,
           gallery: evt.imagenUrl ? [evt.imagenUrl] : [],
           totalSales: (evt._count?.compras || 0) * evt.precio,
@@ -784,6 +785,7 @@ export const adminService = {
         subcategory: evt.subcategoria || '',
         organizer: evt.organizer || '365soft Eventos',
         status: evt.estado,
+        modo: evt.modo || 'ASIENTOS',
         sectors,
         gallery: evt.imagenUrl ? [evt.imagenUrl] : [],
         totalSales: (evt._count?.compras || 0) * evt.precio,
@@ -820,6 +822,7 @@ export const adminService = {
         organizer:   data.organizer,
         doorsOpen:   data.doorsOpen,
         estado:      data.status || 'ACTIVO',
+        modo:        (data as any).modo || 'ASIENTOS',
         sectores:    sectors.map(s => ({
           nombre:     s.name,
           precio:     s.price,
@@ -905,6 +908,7 @@ export const adminService = {
         backendData.seatMapConfig = data.seatMapConfig
       }
       if (data.status) backendData.estado = data.status
+      if ((data as any).modo !== undefined) backendData.modo = (data as any).modo
 
       const response = await api.put(`/eventos/${id}`, backendData)
       const evt = response.data.data

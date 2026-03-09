@@ -5,7 +5,7 @@ export interface Sector {
   name: string
   price: number
   available: number
-  total: number  // ← era optional, lo hacemos requerido
+  total: number
 }
 
 export interface Event {
@@ -25,16 +25,17 @@ export interface Event {
   subcategory?: string
   organizer: string
   status: 'ACTIVO' | 'INACTIVO' | 'CANCELADO' | 'PAUSADO' | 'FINALIZADO'
+  modo: 'ASIENTOS' | 'CANTIDAD'   // ← campo que indica el tipo de evento
   sectors: Sector[]
   gallery: string[]
-  totalSales: number        // ← movido aquí desde AdminEvent
-  totalTicketsSold: number  // ← movido aquí desde AdminEvent
+  totalSales: number
+  totalTicketsSold: number
   createdAt: Date
   updatedAt: Date
 }
 
 export interface AdminEvent extends Event {
-  // Ya hereda todo de Event, no necesita redefinir nada
+  // Ya hereda todo de Event
 }
 
 export interface RegisteredUser {
@@ -63,7 +64,7 @@ export interface SectorReport {
 export interface EventReport {
   eventId: string
   eventTitle: string
-  sectors: SectorReport[]   // ← era "sectores", debe ser "sectors" para coincidir con el tipo
+  sectors: SectorReport[]
   totalRecaudado: number
   totalVendidos: number
 }
@@ -112,14 +113,15 @@ export interface CreateEventDTO {
   time: string
   doorsOpen: string
   capacity: number
-  price: number             // ← agregado, faltaba
+  price: number
   category: string
   subcategory?: string
   organizer: string
   status: 'ACTIVO' | 'INACTIVO' | 'CANCELADO' | 'PAUSADO' | 'FINALIZADO'
+  modo: 'ASIENTOS' | 'CANTIDAD'   // ← también en el DTO de creación
   image: string
   gallery: string[]
-  sectors: Sector[]         // ← era Omit<Sector, 'id'>[], ahora es Sector[] completo
+  sectors: Sector[]
 }
 
 export interface UpdateEventDTO extends Partial<CreateEventDTO> {

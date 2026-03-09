@@ -1,9 +1,106 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { Search, Plus, Eye, Edit, Trash2, Filter, Calendar, MapPin, Tag } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Search, Plus, Eye, Edit, Trash2, Filter, Calendar, MapPin, Tag, X, LayoutGrid, Hash } from 'lucide-react'
 import adminService from '@/services/adminService'
 import { AdminEvent } from '@/types/admin'
 
+// ── Modal de selección de tipo de evento ──────────────────────────────────────
+function EventTypeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const navigate = useNavigate()
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              ¿Cómo quieres vender los tickets?
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              Elige el tipo de evento antes de continuar
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-gray-100 dark:border-gray-800" />
+
+        {/* Options */}
+        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          {/* Opción 1: Con mapa de asientos */}
+          <button
+            onClick={() => navigate('/admin/eventos/crear?tipo=asientos')}
+            className="group flex flex-col items-start gap-3 p-5 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 transition-all text-left"
+          >
+            <div className="p-2.5 bg-primary/10 text-primary rounded-lg group-hover:bg-primary group-hover:text-white transition-colors">
+              <LayoutGrid size={22} />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 dark:text-white text-sm">
+                Con mapa de asientos
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+                Los compradores eligen su asiento en un plano interactivo.
+              </p>
+            </div>
+            <span className="text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+              Continuar →
+            </span>
+          </button>
+
+          {/* Opción 2: Por cantidad */}
+          <button
+            onClick={() => navigate('/admin/eventos/crear?tipo=cantidad')}
+            className="group flex flex-col items-start gap-3 p-5 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 transition-all text-left"
+          >
+            <div className="p-2.5 bg-primary/10 text-primary rounded-lg group-hover:bg-primary group-hover:text-white transition-colors">
+              <Hash size={22} />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 dark:text-white text-sm">
+                Entrada general
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+                Se vende una cantidad fija de asientos.
+              </p>
+            </div>
+            <span className="text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+              Continuar →
+            </span>
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-5">
+          <p className="text-xs text-center text-gray-400 dark:text-gray-500">
+            Podrás cambiar esta configuración más adelante desde el formulario
+          </p>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
+// ── EventList ─────────────────────────────────────────────────────────────────
 export default function EventList() {
   const [events, setEvents] = useState<AdminEvent[]>([])
   const [filteredEvents, setFilteredEvents] = useState<AdminEvent[]>([])
@@ -11,6 +108,7 @@ export default function EventList() {
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('todas')
   const [statusFilter, setStatusFilter] = useState('todos')
+  const [showTypeModal, setShowTypeModal] = useState(false)
 
   useEffect(() => { loadEvents() }, [])
   useEffect(() => { filterEvents() }, [events, searchTerm, categoryFilter, statusFilter])
@@ -65,6 +163,9 @@ export default function EventList() {
   return (
     <div className="space-y-4 sm:space-y-6">
 
+      {/* Modal de selección de tipo */}
+      <EventTypeModal open={showTypeModal} onClose={() => setShowTypeModal(false)} />
+
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -75,12 +176,15 @@ export default function EventList() {
             Administra todos los eventos del sistema
           </p>
         </div>
-        <Link to="/admin/eventos/crear" className="self-start sm:self-auto">
-          <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center">
-            <Plus size={16} />
-            Crear Evento
-          </button>
-        </Link>
+
+        {/* ← Ahora abre el modal en lugar de navegar directo */}
+        <button
+          onClick={() => setShowTypeModal(true)}
+          className="self-start sm:self-auto flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center"
+        >
+          <Plus size={16} />
+          Crear Evento
+        </button>
       </div>
 
       {/* ── Filters ── */}
@@ -221,7 +325,6 @@ export default function EventList() {
           </div>
         ) : filteredEvents.map(event => (
           <div key={event.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-            {/* Card header con imagen */}
             <div className="flex gap-3 p-3">
               <img src={event.image} alt={event.title} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
               <div className="flex-1 min-w-0">
@@ -248,7 +351,6 @@ export default function EventList() {
               </div>
             </div>
 
-            {/* Stats row */}
             <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
               <div className="px-3 py-2 text-center">
                 <p className="text-xs text-gray-500">Precio</p>
@@ -264,7 +366,6 @@ export default function EventList() {
               </div>
             </div>
 
-            {/* Actions row */}
             <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
               <Link to={`/admin/eventos/${event.id}`} className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 <Eye size={14} /> Ver
