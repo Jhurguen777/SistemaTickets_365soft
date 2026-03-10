@@ -33,7 +33,8 @@ export default function PendingPaymentBanner() {
   const [pollingActive, setPollingActive] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
   const pollingRef = useRef<{ detener: () => void } | null>(null)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
+  const ttlRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // No mostrar en ciertas rutas
   const isHiddenRoute = HIDDEN_ROUTES.some(r => location.pathname.startsWith(r))
@@ -61,8 +62,8 @@ export default function PendingPaymentBanner() {
 
     // Si ya expiró por tiempo sin consultar el banco
     const expiry = new Date(data.fechaVencimiento).getTime()
-    if (Date.now() > expiry + 5 * 60 * 1000) {
-      // 5 min extra de gracia por si el banco confirma tarde
+    if (Date.now() > expiry) {
+      // Expirado: limpiar inmediatamente sin gracia extra
       localStorage.removeItem('pending_payment')
       setBannerState('hidden')
       return
@@ -70,6 +71,25 @@ export default function PendingPaymentBanner() {
 
     setPendingData(data)
     setBannerState('checking')
+
+    // Auto-borrar del localStorage cuando venza el QR (aunque el usuario no haga nada)
+    if (ttlRef.current) clearTimeout(ttlRef.current)
+    const msRestantes = expiry - Date.now()
+    if (msRestantes > 0) {
+      ttlRef.current = setTimeout(() => {
+        const current = localStorage.getItem('pending_payment')
+        if (current) {
+          try {
+            const parsed = JSON.parse(current)
+            if (parsed.qrPagoId === data.qrPagoId) {
+              localStorage.removeItem('pending_payment')
+              console.log('⏰ pending_payment eliminado del localStorage por vencimiento (banner TTL)')
+            }
+          } catch { localStorage.removeItem('pending_payment') }
+        }
+        setBannerState('hidden')
+      }, msRestantes)
+    }
 
     // Verificar estado al montar
     paymentServiceV2.verificarPago(data.qrPagoId)
@@ -147,6 +167,8 @@ export default function PendingPaymentBanner() {
     return () => {
       polling.detener()
       setPollingActive(false)
+      // Limpiar TTL timer si el componente se desmonta
+      if (ttlRef.current) clearTimeout(ttlRef.current)
     }
   }, [showQRModal])
 

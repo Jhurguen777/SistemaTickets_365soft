@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Users, ChevronDown, Check, X } from 'lucide-react'
+import { ArrowLeft, Users, ChevronDown, Check, X, QrCode, CheckCircle2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -69,22 +69,65 @@ export default function Checkout() {
 
   const [event, setEvent] = useState<any>(null)
 
-  const [attendees, setAttendees] = useState<FormData[]>(
-    seats.map(() => ({
-      nombre: '',
-      apellido: '',
-      email: '',
-      telefono: '',
-      documento: '',
-      oficina: '',
-      otraOficina: false,
-      otraOficinaNombre: ''
-    }))
-  )
-  const [completedAttendees, setCompletedAttendees] = useState<Set<number>>(new Set())
-  const [expandedAttendee, setExpandedAttendee] = useState<number>(0)
+  // ── Claves de sessionStorage ────────────────────────────────────────────────
+  const FORM_KEY      = `checkout_form_${eventId}`
+  const COMPLETE_KEY  = `checkout_completed_${eventId}`
+  const PAYMENT_KEY   = `checkout_payment_${eventId}`
 
-  const [paymentData, setPaymentData] = useState<PaymentData>({ medioPago: '' })
+  // Restaurar asistentes guardados o iniciar vacíos
+  const [attendees, setAttendees] = useState<FormData[]>(() => {
+    try {
+      const saved = sessionStorage.getItem(FORM_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved) as FormData[]
+        if (Array.isArray(parsed) && parsed.length === seats.length) return parsed
+      }
+    } catch {}
+    return seats.map(() => ({
+      nombre: '', apellido: '', email: '', telefono: '',
+      documento: '', oficina: '', otraOficina: false, otraOficinaNombre: ''
+    }))
+  })
+
+  const [completedAttendees, setCompletedAttendees] = useState<Set<number>>(() => {
+    try {
+      const saved = sessionStorage.getItem(COMPLETE_KEY)
+      if (saved) return new Set<number>(JSON.parse(saved))
+    } catch {}
+    return new Set<number>()
+  })
+
+  const [expandedAttendee, setExpandedAttendee] = useState<number>(() => {
+    // Abrir el primer asistente incompleto
+    try {
+      const saved = sessionStorage.getItem(COMPLETE_KEY)
+      if (saved) {
+        const completed: number[] = JSON.parse(saved)
+        for (let i = 0; i < seats.length; i++) {
+          if (!completed.includes(i)) return i
+        }
+        return -1
+      }
+    } catch {}
+    return 0
+  })
+
+  const [paymentData, setPaymentData] = useState<PaymentData>(() => {
+    try {
+      const saved = sessionStorage.getItem(PAYMENT_KEY)
+      if (saved) return JSON.parse(saved) as PaymentData
+    } catch {}
+    return { medioPago: '' }
+  })
+
+  // Estado para reanudar un QR ya generado
+  const [resumeQRData, setResumeQRData] = useState<{
+    qrPagoId: string; imagenQr: string; monto: number; moneda: string
+    fechaVencimiento: string; eventTitle: string
+  } | null>(null)
+
+  // Modal de pago exitoso (detectado al volver al checkout después de pagar)
+  const [showPaidModal, setShowPaidModal] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
   const [processing, setProcessing] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
@@ -140,34 +183,111 @@ export default function Checkout() {
     }
   }
 
-  // Limpiar polling y asientos al desmontar o salir
+  // Guardar asistentes en sessionStorage cada vez que cambian
   useEffect(() => {
-    // Solo limpiar el polling al desmontar, NO liberar asientos automáticamente
-    const cleanup = () => {
-      // Detener polling
-      const polling = (window as any).paymentPolling
-      if (polling && polling.detener) {
-        polling.detener()
-      }
+    if (eventId && attendees.length > 0) {
+      sessionStorage.setItem(FORM_KEY, JSON.stringify(attendees))
+    }
+  }, [attendees])
+
+  // Guardar asistentes completados
+  useEffect(() => {
+    if (eventId) {
+      sessionStorage.setItem(COMPLETE_KEY, JSON.stringify([...completedAttendees]))
+    }
+  }, [completedAttendees])
+
+  // Guardar método de pago
+  useEffect(() => {
+    if (eventId) {
+      sessionStorage.setItem(PAYMENT_KEY, JSON.stringify(paymentData))
+    }
+  }, [paymentData])
+
+  // Verificar si hay un QR pendiente reutilizable al montar
+  // Si ya fue pagado → mostrar modal de éxito directo
+  // Si sigue pendiente → iniciar polling silencioso en background
+  useEffect(() => {
+    if (!eventId) return
+    let silentPolling: { iniciar: () => void; detener: () => void } | null = null
+
+    const checkPendingPayment = async () => {
+      try {
+        const raw = localStorage.getItem('pending_payment')
+        if (!raw) return
+        const data = JSON.parse(raw)
+        if (data.eventId !== eventId) return
+
+        // Si expiró, limpiar y salir
+        const expiry = new Date(data.fechaVencimiento).getTime()
+        if (Date.now() > expiry) {
+          localStorage.removeItem('pending_payment')
+          return
+        }
+
+        // Verificar estado real en el backend (Opción A)
+        try {
+          const resultado = await paymentServiceV2.verificarPago(data.qrPagoId)
+
+          if (resultado.estado === 'PAGADO') {
+            // Ya pagado: limpiar y mostrar modal de éxito
+            localStorage.removeItem('pending_payment')
+            sessionStorage.removeItem(FORM_KEY)
+            sessionStorage.removeItem(COMPLETE_KEY)
+            sessionStorage.removeItem(PAYMENT_KEY)
+            setShowPaidModal(true)
+            return
+          }
+
+          if (resultado.estado === 'FALLIDO' || resultado.estado === 'EXPIRADO') {
+            localStorage.removeItem('pending_payment')
+            return
+          }
+        } catch {
+          // Error de red: igual mostrar el QR guardado
+        }
+
+        // PENDIENTE: guardar para banner + iniciar polling silencioso (Opción C)
+        setResumeQRData(data)
+
+        // Polling silencioso sin abrir el modal
+        silentPolling = paymentServiceV2.iniciarPollingPago(
+          data.qrPagoId,
+          (resultado) => {
+            if (resultado.estado === 'PAGADO') {
+              localStorage.removeItem('pending_payment')
+              sessionStorage.removeItem(FORM_KEY)
+              sessionStorage.removeItem(COMPLETE_KEY)
+              sessionStorage.removeItem(PAYMENT_KEY)
+              silentPolling?.detener()
+              setShowPaidModal(true)
+            } else if (resultado.estado === 'FALLIDO' || resultado.estado === 'EXPIRADO') {
+              localStorage.removeItem('pending_payment')
+              setResumeQRData(null)
+              silentPolling?.detener()
+            }
+          },
+          15000
+        )
+        silentPolling.iniciar()
+        ;(window as any).silentPolling = silentPolling
+      } catch {}
     }
 
-    return cleanup
-  }, [])
+    checkPendingPayment()
 
+    return () => {
+      silentPolling?.detener()
+    }
+  }, [eventId])
+
+  // Limpiar polling al desmontar (NO liberar asientos)
   useEffect(() => {
-    setAttendees(seats.map(() => ({
-      nombre: '',
-      apellido: '',
-      email: '',
-      telefono: '',
-      documento: '',
-      oficina: '',
-      otraOficina: false,
-      otraOficinaNombre: ''
-    })))
-    setCompletedAttendees(new Set())
-    setExpandedAttendee(0)
-  }, [seats.length])
+    return () => {
+      const polling = (window as any).paymentPolling
+      if (polling?.detener) polling.detener()
+    }
+  }, [])
 
   const totalPrice = seats.reduce((sum, seat) => sum + seat.price, 0)
 
@@ -278,6 +398,10 @@ export default function Checkout() {
       }
 
       sessionStorage.removeItem('checkout_state')
+      sessionStorage.removeItem(FORM_KEY)
+      sessionStorage.removeItem(COMPLETE_KEY)
+      sessionStorage.removeItem(PAYMENT_KEY)
+      localStorage.removeItem('pending_payment')
       // Liberar asientos
       await liberarAsientos()
 
@@ -371,16 +495,35 @@ export default function Checkout() {
       setShowQRModal(true)
 
       // Guardar pago pendiente en localStorage para recuperarlo si el usuario sale de la página
-      localStorage.setItem('pending_payment', JSON.stringify({
+      const pendingPayloadToSave = {
         qrPagoId,
-        imagenQr: qrImageData,
-        monto: pagoResponse.qrPago.monto,
-        moneda: pagoResponse.qrPago.moneda,
+        imagenQr:        qrImageData,
+        monto:           pagoResponse.qrPago.monto,
+        moneda:          pagoResponse.qrPago.moneda,
         fechaVencimiento: pagoResponse.qrPago.fechaVencimiento,
-        eventTitle: event?.title ?? event?.titulo ?? '',
+        eventTitle:      event?.title ?? event?.titulo ?? '',
         eventId,
-        createdAt: new Date().toISOString()
-      }))
+        createdAt:       new Date().toISOString()
+      }
+      localStorage.setItem('pending_payment', JSON.stringify(pendingPayloadToSave))
+
+      // Auto-borrar del localStorage exactamente cuando vence el QR
+      const msHastaVencimiento = new Date(pagoResponse.qrPago.fechaVencimiento).getTime() - Date.now()
+      if (msHastaVencimiento > 0) {
+        setTimeout(() => {
+          const current = localStorage.getItem('pending_payment')
+          if (current) {
+            try {
+              const parsed = JSON.parse(current)
+              // Solo borrar si es el mismo QR (no uno más nuevo)
+              if (parsed.qrPagoId === qrPagoId) {
+                localStorage.removeItem('pending_payment')
+                console.log('⏰ pending_payment eliminado del localStorage por vencimiento del QR')
+              }
+            } catch { localStorage.removeItem('pending_payment') }
+          }
+        }, msHastaVencimiento)
+      }
       console.log('🔄 Iniciando polling con ID:', qrPagoId)
       const polling = paymentServiceV2.iniciarPollingPago(
         qrPagoId,
@@ -420,6 +563,9 @@ export default function Checkout() {
     }
 
     sessionStorage.removeItem('checkout_state')
+    sessionStorage.removeItem(FORM_KEY)
+    sessionStorage.removeItem(COMPLETE_KEY)
+    sessionStorage.removeItem(PAYMENT_KEY)
     localStorage.removeItem('pending_payment')
     // NO liberar los asientos - el backend ya los marcó como VENDIDO
     setAsientosLiberados(true)
@@ -458,6 +604,9 @@ export default function Checkout() {
     }
 
     sessionStorage.removeItem('checkout_state')
+    sessionStorage.removeItem(FORM_KEY)
+    sessionStorage.removeItem(COMPLETE_KEY)
+    sessionStorage.removeItem(PAYMENT_KEY)
     localStorage.removeItem('pending_payment')
     // Liberar asientos cuando el pago falla
     await liberarAsientos()
@@ -475,6 +624,9 @@ export default function Checkout() {
     }
 
     sessionStorage.removeItem('checkout_state')
+    sessionStorage.removeItem(FORM_KEY)
+    sessionStorage.removeItem(COMPLETE_KEY)
+    sessionStorage.removeItem(PAYMENT_KEY)
     localStorage.removeItem('pending_payment')
     // Liberar asientos cuando el tiempo expira
     await liberarAsientos()
@@ -487,6 +639,43 @@ export default function Checkout() {
   const handleModalPaymentSuccess = () => {
     // El polling maneja la actualización del estado
     setShowQRModal(false)
+  }
+
+  // Reanudar QR guardado sin generar uno nuevo
+  const handleResumeQR = () => {
+    if (!resumeQRData) return
+    setCurrentQRData({
+      qrData:          resumeQRData.imagenQr,
+      qrUrl:           resumeQRData.imagenQr,
+      imagenQr:        resumeQRData.imagenQr,
+      moneda:          resumeQRData.moneda,
+      monto:           resumeQRData.monto,
+      tiempoExpiracion: resumeQRData.fechaVencimiento,
+      compraId:        resumeQRData.qrPagoId
+    })
+    setCurrentPurchaseId(resumeQRData.qrPagoId)
+    setPaymentStatus('PENDIENTE')
+    setShowQRModal(true)
+
+    // Reanudar polling
+    const existingPolling = (window as any).paymentPolling
+    if (existingPolling?.detener) existingPolling.detener()
+
+    const polling = paymentServiceV2.iniciarPollingPago(
+      resumeQRData.qrPagoId,
+      (resultado) => {
+        setPaymentStatus(resultado.estado)
+        if (resultado.estado === 'PAGADO') {
+          handlePaymentSuccess(reservaId!, resultado.datos?.transaccionId)
+        } else if (resultado.estado === 'FALLIDO') {
+          handlePaymentFailed(resultado.datos?.mensaje)
+        } else if (resultado.estado === 'EXPIRADO') {
+          handlePaymentExpired()
+        }
+      }
+    )
+    polling.iniciar()
+    ;(window as any).paymentPolling = polling
   }
 
   if (!seats || seats.length === 0) {
@@ -554,6 +743,34 @@ export default function Checkout() {
       )}
 
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+
+        {/* Banner: reanudar QR pendiente */}
+        {resumeQRData && !showQRModal && (
+          <div className="mb-4 sm:mb-6 flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <QrCode size={18} className="text-amber-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-amber-900 text-sm leading-tight">
+                  Ya generaste un QR de pago para este evento
+                </p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Vence: {new Date(resumeQRData.fechaVencimiento).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                  {' · '}{resumeQRData.moneda} {resumeQRData.monto?.toFixed(2)}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleResumeQR}
+              className="flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+            >
+              Ver QR
+            </button>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-8">
 
           <div className="lg:col-span-2">
@@ -807,6 +1024,54 @@ export default function Checkout() {
         _onPaymentFailed={handlePaymentFailed}
         paymentStatus={paymentStatus}
       />
+
+      {/* Modal: Pago ya completado (detectado al volver al checkout) */}
+      {showPaidModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            {/* Barra verde superior */}
+            <div className="h-2 bg-gradient-to-r from-green-400 to-emerald-500" />
+
+            <div className="p-8 text-center">
+              {/* Ícono animado */}
+              <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
+                <CheckCircle2 size={44} className="text-green-500" />
+              </div>
+
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                ¡Pago confirmado!
+              </h2>
+              <p className="text-gray-500 text-sm mb-2">
+                Tu pago fue procesado exitosamente.
+              </p>
+              {event && (
+                <p className="text-primary font-semibold text-sm mb-6">
+                  {event.title || event.titulo}
+                </p>
+              )}
+
+              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-6">
+                <p className="text-green-800 text-sm font-medium">
+                  Tus entradas están disponibles en Mis Compras
+                </p>
+              </div>
+
+              <button
+                onClick={() => navigate('/mis-compras')}
+                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                Ver mis entradas
+              </button>
+              <button
+                onClick={() => navigate('/')}
+                className="w-full mt-3 text-sm text-gray-500 hover:text-gray-700 py-2 transition-colors"
+              >
+                Volver al inicio
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
