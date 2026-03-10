@@ -10,6 +10,7 @@ import purchasesService from '@/services/purchasesService'
 import { paymentServiceV2 } from '@/services/paymentServiceV2'
 import api from '@/services/api'
 import QRPaymentModal from '@/components/modals/QRPaymentModal'
+import QRSelectModal from '@/components/modals/QRSelectModal'
 
 interface CheckoutSeat { id: string; row: string; number: number; price: number }
 
@@ -112,13 +113,7 @@ export default function Checkout() {
     return 0
   })
 
-  const [paymentData, setPaymentData] = useState<PaymentData>(() => {
-    try {
-      const saved = sessionStorage.getItem(PAYMENT_KEY)
-      if (saved) return JSON.parse(saved) as PaymentData
-    } catch {}
-    return { medioPago: '' }
-  })
+  const [paymentData, setPaymentData] = useState<PaymentData>({ medioPago: '' })
 
   // Estado para reanudar un QR ya generado
   const [resumeQRData, setResumeQRData] = useState<{
@@ -132,6 +127,7 @@ export default function Checkout() {
   const [processing, setProcessing] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
+  const [showQRSelectModal, setShowQRSelectModal] = useState(false)
   const [currentQRData, setCurrentQRData] = useState<any>(null)
   const [currentPurchaseId, setCurrentPurchaseId] = useState<string>('')
   const [paymentStatus, setPaymentStatus] = useState<'PENDIENTE' | 'PROCESANDO' | 'PAGADO' | 'FALLIDO' | 'EXPIRADO'>('PENDIENTE')
@@ -911,26 +907,60 @@ export default function Checkout() {
                 </div>
               </div>
 
-              <Card className="mb-4 sm:mb-6">
+              <Card className="mb-4 sm:mb-6 overflow-hidden border-primary/20 shadow-lg ring-1 ring-primary/5">
+                <div className="bg-primary/5 px-4 sm:px-6 py-4 border-b border-primary/10">
+                  <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2">
+                    <QrCode className="w-5 h-5" />
+                    Método de pago
+                  </h2>
+                </div>
                 <CardContent className="p-4 sm:p-6">
-                  <h2 className="text-base sm:text-xl font-bold mb-4 sm:mb-6">Método de pago</h2>
-                  <label className={`flex items-center p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all ${paymentData.medioPago === 'qr' ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary/50'}`}>
-                    <input type="radio" name="medioPago" value="qr" checked={paymentData.medioPago === 'qr'} onChange={handlePaymentChange} className="mr-3" />
-                    <span className="text-xl mr-2">📱</span>
-                    <span className="font-semibold text-sm sm:text-base">Pago QR - Banco MC4</span>
-                  </label>
-                  {paymentData.medioPago === 'qr' && (
-                    <div className="mt-3 p-3 sm:p-4 bg-primary/10 border border-primary/20 rounded-lg">
-                      <p className="text-xs sm:text-sm text-primary font-semibold mb-2">ℹ️ ¿Cómo pagar?</p>
-                      <ol className="text-xs sm:text-sm text-primary space-y-1 list-decimal list-inside">
-                        <li>Confirma tu compra</li>
-                        <li>Escanea el código QR que aparecerá</li>
-                        <li>Paga desde tu app bancaria (Banco MC4)</li>
-                        <li>¡Listo! Recibirás confirmación</li>
-                      </ol>
+                  {paymentData.medioPago === 'qr' ? (
+                    /* --- Método ya seleccionado --- */
+                    <div className="flex items-center gap-4 p-4 rounded-xl border-2 border-green-400 bg-green-50">
+                      <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
+                        <QrCode className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <CheckCircle2 className="w-4 h-4 text-green-600" />
+                          <span className="text-xs font-bold text-green-700 uppercase tracking-wide">Seleccionado</span>
+                        </div>
+                        <p className="font-bold text-sm text-gray-900">Pago QR - Banco MC4</p>
+                        <p className="text-xs text-gray-500">Banca Móvil · Transacción segura</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowQRSelectModal(true)}
+                        className="text-xs text-primary font-bold border border-primary/30 px-3 py-1.5 rounded-lg hover:bg-primary/5 transition-colors flex-shrink-0"
+                      >
+                        Cambiar
+                      </button>
+                    </div>
+                  ) : (
+                    /* --- Sin selección --- */
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setShowQRSelectModal(true)}
+                        className="w-full flex items-center justify-between gap-4 p-4 sm:p-5 rounded-xl border-2 border-primary bg-primary/5 hover:bg-primary/10 transition-all active:scale-[.98]"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
+                            <QrCode className="w-6 h-6 text-white" />
+                          </div>
+                          <div className="text-left">
+                            <p className="text-base font-extrabold text-primary">Seleccionar método de pago</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Toca aquí para elegir cómo pagar</p>
+                          </div>
+                        </div>
+                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                          <ChevronDown className="w-4 h-4 text-white -rotate-90" />
+                        </div>
+                      </button>
                     </div>
                   )}
-                  {errors.medioPago && <p className="mt-2 text-sm text-destructive">{errors.medioPago}</p>}
+                  {errors.medioPago && <p className="mt-3 text-sm text-destructive font-semibold">{errors.medioPago}</p>}
                 </CardContent>
               </Card>
 
@@ -955,7 +985,7 @@ export default function Checkout() {
               </Card>
 
               <Button type="submit" size="lg" disabled={processing || !termsAccepted} className="w-full text-sm sm:text-base">
-                {processing ? 'Procesando...' : 'Confirmar compra'}
+                {processing ? 'Procesando...' : 'Generar QR'}
               </Button>
             </form>
           </div>
@@ -1023,6 +1053,15 @@ export default function Checkout() {
         _onPaymentSuccess={handleModalPaymentSuccess}
         _onPaymentFailed={handlePaymentFailed}
         paymentStatus={paymentStatus}
+      />
+
+      <QRSelectModal
+        isOpen={showQRSelectModal}
+        onClose={() => setShowQRSelectModal(false)}
+        onSelect={(method) => {
+          setPaymentData(prev => ({ ...prev, medioPago: method }))
+        }}
+        selected={paymentData.medioPago}
       />
 
       {/* Modal: Pago ya completado (detectado al volver al checkout) */}

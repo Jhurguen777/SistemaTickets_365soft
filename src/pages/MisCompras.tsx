@@ -240,49 +240,114 @@ export default function MisCompras() {
                       <TicketIcon size={14} />
                       {purchase.cantidad} {purchase.cantidad === 1 ? 'Entrada' : 'Entradas'}
                     </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mt-2">
                       {purchase.asientos.map((asiento, index) => (
-                        <div key={index} className="border border-gray-200 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow bg-gray-50">
-                          <div className="flex items-start gap-2 sm:gap-3 mb-3">
-                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                              <TicketIcon size={16} className="text-white" />
+                        <div key={index} className="relative flex flex-col sm:flex-row w-full bg-white rounded-xl border border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group">
+
+                          {/* Main Left Section - Attendee Details */}
+                          <div className="flex-1 p-4 sm:p-5 pb-5 sm:pb-5 bg-gradient-to-br from-white to-gray-50/80">
+                            <div className="flex justify-between items-start mb-4">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                                  <TicketIcon size={16} />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider truncate mb-0.5">{purchase.eventoTitulo}</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-primary">Entrada Generada</p>
+                                </div>
+                              </div>
+                              <div className="text-right flex-shrink-0 ml-2 mt-1">
+                                <span className="inline-flex items-center px-2 py-0.5 bg-green-50 text-green-600 border border-green-200 text-[10px] font-bold rounded uppercase tracking-wide">
+                                  Válido
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-gray-900 text-sm truncate">{asiento.nombre}</p>
-                              <p className="text-xs text-gray-500 truncate">{asiento.email}</p>
+
+                            {/* Attendee Info */}
+                            <div className="mb-5 pl-1">
+                              <h3 className="font-bold text-gray-900 text-lg sm:text-xl uppercase tracking-tight truncate">{asiento.nombre}</h3>
+                              {asiento.oficina && (
+                                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest mt-0.5 truncate flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-primary/40 inline-block"></span>
+                                  {asiento.oficina}
+                                </p>
+                              )}
+                            </div>
+
+
+                            {/* Seat Info Grid */}
+                            <div className="flex gap-2 sm:gap-4 justify-between bg-white border border-gray-100 rounded-lg p-2.5 sm:p-3 shadow-sm">
+                              <div className="flex-1 text-center border-r border-gray-100 last:border-0 px-1">
+                                <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5">Sector</p>
+                                <p className="font-bold text-gray-800 text-xs sm:text-sm truncate">{asiento.sector && asiento.sector !== '-' ? asiento.sector : 'General'}</p>
+                              </div>
+                              {!asiento.fila || asiento.fila.toLowerCase() === 'general' ? (
+                                <div className="flex-[2] text-center font-bold px-1">
+                                  <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5">Entrada N°</p>
+                                  <p className="font-bold text-primary text-xs sm:text-sm truncate">{asiento.numero}</p>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="flex-1 text-center border-r border-gray-100 last:border-0 px-1">
+                                    <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5">Fila</p>
+                                    <p className="font-bold text-gray-800 text-xs sm:text-sm truncate">{asiento.fila}</p>
+                                  </div>
+                                  <div className="flex-1 text-center font-bold px-1">
+                                    <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5">Asiento</p>
+                                    <p className="font-bold text-primary text-xs sm:text-sm truncate">{asiento.numero}</p>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </div>
-                          <div className="space-y-1 text-xs sm:text-sm mb-3">
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Fila:</span>
-                              <span className="font-semibold text-primary">{asiento.fila}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Número:</span>
-                              <span className="font-semibold text-primary">{asiento.numero}</span>
-                            </div>
-                            {asiento.sector && asiento.sector !== '-' && (
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Sector:</span>
-                                <span className="font-semibold">{asiento.sector}</span>
-                              </div>
-                            )}
-                            {asiento.ci && (
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">CI:</span>
-                                <span className="font-mono text-xs">{asiento.ci}</span>
-                              </div>
-                            )}
+
+                          {/* Perforated Separator */}
+                          <div className="relative flex flex-row sm:flex-col items-center justify-center bg-white z-10 w-full sm:w-auto">
+                            {/* Mask borders inside the card body to avoid showing circle borders outside */}
+                            <div className="absolute -left-4 sm:-top-4 w-8 h-8 bg-white z-0 hidden sm:block"></div>
+
+                            {/* Left/Top semi-circle */}
+                            <div className="absolute -left-3 sm:-top-3 w-6 h-6 bg-white rounded-full border border-gray-200 z-20 hidden sm:block"></div>
+
+                            {/* Dashed line */}
+                            <div className="w-full sm:w-px h-px sm:h-full border-t sm:border-l border-dashed border-gray-300 sm:my-3 mx-4 sm:mx-0 z-10"></div>
+
+                            {/* Right/Bottom semi-circle */}
+                            <div className="absolute -right-3 sm:-bottom-3 w-6 h-6 bg-white rounded-full border border-gray-200 z-20 hidden sm:block"></div>
+
+                            <div className="absolute -right-4 sm:-bottom-4 w-8 h-8 bg-white z-0 hidden sm:block"></div>
                           </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => { setSelectedQR(asiento.qrCode); setSelectedAttendee(asiento); setShowQRModal(true) }}
-                            className="w-full text-xs sm:text-sm"
-                          >
-                            <QrCode size={12} className="mr-1.5" />
-                            Ver QR
-                          </Button>
+
+                          {/* Right Stub Section - Actions & QR Code */}
+                          <div className="sm:w-40 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:8px_8px] bg-gray-50 p-4 sm:p-5 flex flex-col items-center justify-center relative border-t-0 sm:border-t-0 sm:border-l-0">
+                            {/* Overlay to fade pattern */}
+                            <div className="absolute inset-0 bg-white/60"></div>
+
+                            <div className="w-full h-full flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-4 sm:gap-3 z-10 relative">
+                              <div className="flex flex-col items-center gap-3 w-full max-w-[120px]">
+                                <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 group-hover:border-primary/40 transition-colors">
+                                  <div className="w-11 h-11 sm:w-16 sm:h-16 flex items-center justify-center">
+                                    <QrCode size={typeof window !== 'undefined' && window.innerWidth < 640 ? 44 : 64} className="text-gray-900 w-full h-full p-0.5" strokeWidth={1.5} />
+                                  </div>
+                                </div>
+
+                                <Button
+                                  size="sm"
+                                  className="w-full text-xs shadow-sm bg-gray-900 hover:bg-gray-800 text-white"
+                                  onClick={() => { setSelectedQR(asiento.qrCode); setSelectedAttendee(asiento); setShowQRModal(true) }}
+                                >
+                                  Ver QR
+                                </Button>
+                              </div>
+
+                              <div className="hidden sm:block absolute right-0 top-1/2 -translate-y-1/2 -mr-[18px]">
+                                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-[0.2em] font-mono whitespace-nowrap -rotate-90">
+                                  TCKT-{purchase.id.slice(-6).toUpperCase()}-{index + 1}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
                         </div>
                       ))}
                     </div>

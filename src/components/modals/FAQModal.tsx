@@ -42,7 +42,7 @@ const FAQModal: React.FC<FAQModalProps> = ({ isOpen, onClose }) => {
               <span className="transition group-open:rotate-180">▼</span>
             </summary>
             <p className="mt-2 text-sm text-gray-600">
-              Aceptamos tarjetas de crédito y débito Visa, Mastercard, American Express y Diners Club, además de pagos en línea a través de QR Simple y el QR de BaniPay.
+              Actualmente aceptamos pagos únicamente a través de transferencias por QR.
             </p>
           </details>
 

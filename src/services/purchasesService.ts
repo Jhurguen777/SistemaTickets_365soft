@@ -1,6 +1,23 @@
 import { generateTicketQRCode } from './qrService'
 import api from './api'
 
+// Clave localStorage para el mapa asientoId → datos asistente
+const ATTENDEE_MAP_KEY = 'ticket_attendee_map'
+
+
+
+/** Lee datos del asistente asociado a su asientoId */
+const getAttendeeData = (asientoId: string): { nombre: string; email: string; ci: string; telefono?: string; oficina?: string } | null => {
+  try {
+    const raw = localStorage.getItem(ATTENDEE_MAP_KEY)
+    if (!raw) return null
+    const map = JSON.parse(raw)
+    return map[asientoId] ?? null
+  } catch {
+    return null
+  }
+}
+
 export interface UserPurchase {
   id: string
   eventoId: string
@@ -18,6 +35,7 @@ export interface UserPurchase {
     email: string
     ci: string
     sector: string
+    oficina?: string
     qrCode: string
     attendeeId: string
   }>
@@ -44,6 +62,7 @@ const INITIAL_PURCHASES: UserPurchase[] = [
       {
         fila: 'A',
         numero: 5,
+        asiento: 'A5',
         nombre: 'Juan Pérez',
         email: 'juan@gmail.com',
         ci: '1234567',
@@ -54,6 +73,7 @@ const INITIAL_PURCHASES: UserPurchase[] = [
       {
         fila: 'A',
         numero: 6,
+        asiento: 'A6',
         nombre: 'Ana Pérez',
         email: 'ana@gmail.com',
         ci: '7654321',
@@ -81,6 +101,7 @@ const INITIAL_PURCHASES: UserPurchase[] = [
       {
         fila: 'C',
         numero: 1,
+        asiento: 'C1',
         nombre: 'Carlos Mendoza',
         email: 'carlos@gmail.com',
         ci: '7890123',
@@ -108,6 +129,7 @@ const INITIAL_PURCHASES: UserPurchase[] = [
       {
         fila: 'B',
         numero: 1,
+        asiento: 'B1',
         nombre: 'María González',
         email: 'maria@gmail.com',
         ci: '3456789',
@@ -174,17 +196,22 @@ export const getUserPurchases = async (
         eventoHora: first.evento?.hora ?? '',
         eventoUbicacion: first.evento?.ubicacion ?? '',
         eventoDireccion: first.evento?.direccion ?? '',
-        asientos: group.map((c: any) => ({
-          fila: c.asiento?.fila ?? '',
-          numero: c.asiento?.numero ?? 0,
-          asiento: `${c.asiento?.fila ?? ''}${c.asiento?.numero ?? ''}`,
-          nombre: user?.nombre ?? '',
-          email: user?.email ?? '',
-          ci: user?.ci ?? '',
-          sector: '-',
-          qrCode: c.qrCode,
-          attendeeId: c.id,
-        })),
+        asientos: group.map((c: any) => {
+          // Intentar leer los datos del asistente guardados en localStorage al momento de la compra
+          const savedAttendee = getAttendeeData(c.asientoId ?? c.asiento?.id ?? '')
+          return {
+            fila: c.asiento?.fila ?? '',
+            numero: c.asiento?.numero ?? 0,
+            asiento: `${c.asiento?.fila ?? ''}${c.asiento?.numero ?? ''}`,
+            nombre: savedAttendee?.nombre ?? user?.nombre ?? '',
+            email: savedAttendee?.email ?? user?.email ?? '',
+            ci: savedAttendee?.ci ?? user?.ci ?? '',
+            sector: c.asiento?.sector ?? '-',
+            oficina: savedAttendee?.oficina,
+            qrCode: c.qrCode,
+            attendeeId: c.id,
+          }
+        }),
         cantidad: group.length,
         monto: totalMonto,
         estadoPago: first.estadoPago,
@@ -228,9 +255,17 @@ export const createPurchase = (purchaseData: {
 
   const newPurchase: UserPurchase = {
     id: purchaseId,
-    ...purchaseData,
+    eventoId: purchaseData.eventoId,
+    eventoTitulo: purchaseData.eventoTitulo,
+    eventoImagen: purchaseData.eventoImagen,
+    eventoFecha: purchaseData.eventoFecha,
+    eventoHora: purchaseData.eventoHora,
+    eventoUbicacion: purchaseData.eventoUbicacion,
+    eventoDireccion: purchaseData.eventoDireccion,
+    asientos: [],
     cantidad: purchaseData.asientos.length,
     estadoPago: 'PAGADO',
+    monto: purchaseData.monto,
     qrCode: generateTicketQRCode(
       purchaseId,
       `att-${Date.now()}`,
@@ -241,16 +276,20 @@ export const createPurchase = (purchaseData: {
   }
 
   // Agregar QR y attendeeId a cada asiento
-  newPurchase.asientos = purchaseData.asientos.map((asiento, index) => ({
-    ...asiento,
-    qrCode: generateTicketQRCode(
-      purchaseId,
-      `att-${Date.now()}-${index}`,
-      asiento.fila + asiento.numero,
-      asiento.ci
-    ),
-    attendeeId: `att-${Date.now()}-${index}`
-  }))
+  newPurchase.asientos = purchaseData.asientos.map((asiento, index) => {
+    const attendeeId = `att-${Date.now()}-${index}`
+    return {
+      ...asiento,
+      asiento: `${asiento.fila}${asiento.numero}`,
+      qrCode: generateTicketQRCode(
+        purchaseId,
+        attendeeId,
+        asiento.fila + asiento.numero,
+        asiento.ci
+      ),
+      attendeeId
+    }
+  })
 
   purchases.unshift(newPurchase)
   savePurchases(purchases)
