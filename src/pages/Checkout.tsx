@@ -566,6 +566,23 @@ export default function Checkout() {
     // NO liberar los asientos - el backend ya los marcó como VENDIDO
     setAsientosLiberados(true)
 
+    try {
+      const raw = localStorage.getItem('ticket_attendee_map')
+      const map = raw ? JSON.parse(raw) : {}
+      seats.forEach((seat, index) => {
+        map[seat.id] = {
+          nombre: `${attendees[index].nombre} ${attendees[index].apellido}`.trim(),
+          email: attendees[index].email,
+          ci: attendees[index].documento,
+          telefono: attendees[index].telefono,
+          oficina: attendees[index].otraOficina
+            ? attendees[index].otraOficinaNombre
+            : oficinas.find(o => o.codigo === attendees[index].oficina)?.nombre ?? attendees[index].oficina
+        }
+      })
+      localStorage.setItem('ticket_attendee_map', JSON.stringify(map))
+    } catch {}
+
     const purchase = purchasesService.createPurchase({
       eventoId: eventId,
       eventoTitulo: event.title,
