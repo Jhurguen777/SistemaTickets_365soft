@@ -1,13 +1,31 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { CheckCircle, Download, Home, QrCode, Ticket, X } from 'lucide-react'
+import { CheckCircle, Download, Home, QrCode, Ticket, X, Calendar, MapPin, CreditCard } from 'lucide-react'
 import QRCode from 'qrcode.react'
-import Button from '@/components/ui/Button'
-import { Card, CardContent } from '@/components/ui/Card'
 import { generateTicketPDF } from '@/services/pdfService'
+
+// ── Paleta Alfa ──────────────────────────────────────────────
+const C = {
+  azul:    '#233C7A',
+  azulClaro: '#2d4e9e',
+  rojo:    '#E0081D',
+  amarillo: '#FAB90E',
+  gris:    '#F5F5F5',
+  negro:   '#212121',
+  blanco:  '#FFFFFF',
+}
 
 interface SuccessState {
   state?: { purchaseId?: string; eventData?: any; attendeeData?: any }
+}
+
+interface Attendee {
+  nombre: string
+  asiento: string
+  sector: string
+  ci: string
+  email: string
+  qrCode: string
 }
 
 interface PurchaseData {
@@ -18,7 +36,7 @@ interface PurchaseData {
   eventLocation: string
   eventAddress: string
   eventImage: string
-  attendees: Array<{ nombre: string; asiento: string; sector: string; ci: string; email: string; qrCode: string }>
+  attendees: Attendee[]
   totalPaid: number
 }
 
@@ -32,6 +50,12 @@ export default function PurchaseSuccess() {
   const [selectedQR, setSelectedQR] = useState<string | null>(null)
   const [selectedAttendee, setSelectedAttendee] = useState<any>(null)
   const [downloading, setDownloading] = useState(false)
+  const [confetti, setConfetti] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setConfetti(false), 3000)
+    return () => clearTimeout(timer)
+  }, [])
 
   useEffect(() => {
     if (!eventData && purchaseId) {
@@ -51,16 +75,17 @@ export default function PurchaseSuccess() {
         })
       }
     } else if (eventData) {
+      const rawAttendees: Attendee[] = attendeeData?.asientos ?? [{ nombre: 'Asistente', asiento: 'General', sector: 'General', ci: '', email: '', qrCode: 'DEMO-QR' }]
       setPurchaseData({
         id: purchaseId || `PUR-${Date.now()}`,
-        eventName: eventData.title || eventData.eventoTitulo,
-        eventDate: eventData.date || eventData.eventoFecha,
-        eventTime: eventData.time || '20:00',
-        eventLocation: eventData.location || eventData.eventoUbicacion,
-        eventAddress: eventData.address || eventData.eventoDireccion,
-        eventImage: eventData.image || eventData.eventoImagen,
-        attendees: attendeeData?.asientos || [{ nombre: 'Usuario', asiento: 'A1', sector: 'General', ci: '1234567', email: 'user@email.com', qrCode: 'DEMO-QR' }],
-        totalPaid: attendeeData?.total || eventData.price || 0
+        eventName: eventData.titulo || eventData.title || eventData.eventoTitulo || 'Evento',
+        eventDate: eventData.fecha || eventData.date || eventData.eventoFecha || '',
+        eventTime: eventData.hora || eventData.time || '20:00',
+        eventLocation: eventData.ubicacion || eventData.location || eventData.eventoUbicacion || '',
+        eventAddress: eventData.direccion || eventData.address || eventData.eventoDireccion || '',
+        eventImage: eventData.imagenUrl || eventData.image || eventData.eventoImagen || '',
+        attendees: rawAttendees,
+        totalPaid: attendeeData?.total ?? eventData.precio ?? eventData.price ?? 0
       })
     }
   }, [eventData, attendeeData, purchaseId])
@@ -72,7 +97,9 @@ export default function PurchaseSuccess() {
       generateTicketPDF({
         purchaseId: purchaseData.id,
         eventName: purchaseData.eventName,
-        eventDate: new Date(purchaseData.eventDate).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        eventDate: purchaseData.eventDate
+          ? new Date(purchaseData.eventDate).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+          : '',
         eventTime: purchaseData.eventTime,
         eventLocation: purchaseData.eventLocation,
         eventAddress: purchaseData.eventAddress,
@@ -80,15 +107,14 @@ export default function PurchaseSuccess() {
         totalPaid: purchaseData.totalPaid,
         purchaseDate: new Date().toLocaleDateString('es-ES')
       })
-    } catch (error) {
-      console.error('Error generating PDF:', error)
+    } catch {
       alert('Error al generar el PDF')
     } finally {
       setDownloading(false)
     }
   }
 
-  const handleViewQR = (attendee: any, index: number) => {
+  const handleViewQR = (attendee: Attendee, index: number) => {
     setSelectedQR(attendee.qrCode)
     setSelectedAttendee({ ...attendee, index })
     setShowQRModal(true)
@@ -96,156 +122,311 @@ export default function PurchaseSuccess() {
 
   const downloadQR = () => {
     if (!selectedQR) return
-    const canvas = document.querySelector('canvas') as HTMLCanvasElement
+    const canvas = document.querySelector('#qr-canvas canvas') as HTMLCanvasElement
     if (canvas) {
       const url = canvas.toDataURL('image/png')
       const link = document.createElement('a')
-      link.download = `QR-${selectedAttendee.nombre.replace(/\s+/g, '-')}.png`
+      link.download = `QR-${selectedAttendee?.nombre?.replace(/\s+/g, '-') ?? 'entrada'}.png`
       link.href = url
       link.click()
     }
   }
 
+  const formatDate = (d: string) => {
+    if (!d) return ''
+    try {
+      return new Date(d).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    } catch { return d }
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center px-3 sm:px-4 py-8 sm:py-12">
-      <div className="w-full max-w-3xl">
-        <Card>
-          <CardContent className="p-6 sm:p-12 text-center">
+    <div className="min-h-screen" style={{ background: `linear-gradient(135deg, ${C.azul} 0%, ${C.azulClaro} 50%, #1a2f5e 100%)` }}>
+      {/* Confetti dots animation */}
+      {confetti && (
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+          {Array.from({ length: 20 }).map((_, i) => (
+            <div
+              key={i}
+              className="absolute rounded-full animate-bounce"
+              style={{
+                width: `${8 + (i % 5) * 4}px`,
+                height: `${8 + (i % 5) * 4}px`,
+                left: `${(i * 5.3) % 100}%`,
+                top: `${(i * 7.1) % 60}%`,
+                background: [C.amarillo, C.rojo, C.blanco, '#FAB90E', '#E0081D'][i % 5],
+                opacity: 0.6,
+                animationDelay: `${i * 0.15}s`,
+                animationDuration: `${1.2 + (i % 3) * 0.4}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
 
-            {/* Success Icon */}
-            <div className="mb-5 sm:mb-8">
-              <div className="w-16 h-16 sm:w-24 sm:h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle size={40} className="text-green-600 sm:hidden" />
-                <CheckCircle size={64} className="text-green-600 hidden sm:block" />
-              </div>
-            </div>
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-start px-4 py-8 sm:py-12">
 
-            <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-3 sm:mb-4">¡Compra exitosa!</h1>
-            <p className="text-base sm:text-xl text-gray-600 mb-6 sm:mb-8">Tus entradas han sido confirmadas</p>
+        {/* Header badge */}
+        <div className="mb-6 flex flex-col items-center">
+          <div
+            className="w-20 h-20 rounded-full flex items-center justify-center shadow-2xl mb-4 ring-4 ring-white/30"
+            style={{ background: `linear-gradient(135deg, ${C.amarillo}, ${C.rojo})` }}
+          >
+            <CheckCircle size={44} color={C.blanco} strokeWidth={2.5} />
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-white text-center drop-shadow-lg">
+            ¡Compra exitosa!
+          </h1>
+          <p className="text-white/80 mt-1 text-sm sm:text-base text-center">
+            Tus entradas han sido confirmadas y enviadas a tu correo
+          </p>
+        </div>
 
-            {/* Purchase Info */}
-            <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
-              <p className="text-sm text-gray-600 mb-2">Número de compra</p>
-              <p className="text-xl sm:text-2xl font-bold text-primary mb-3 sm:mb-4">
-                #{purchaseData?.id || purchaseId || 'PENDING-12345'}
+        <div className="w-full max-w-2xl space-y-4">
+
+          {/* Purchase number card */}
+          <div
+            className="rounded-2xl p-4 flex items-center justify-between shadow-xl"
+            style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)' }}
+          >
+            <div>
+              <p className="text-white/60 text-xs uppercase tracking-wider font-semibold">Número de compra</p>
+              <p className="text-white font-bold text-lg" style={{ fontFamily: 'monospace' }}>
+                #{(purchaseData?.id ?? purchaseId ?? 'PENDING').slice(-8).toUpperCase()}
               </p>
-              <p className="text-xs sm:text-sm text-gray-600">
-                Hemos enviado una copia de tus entradas a tu correo electrónico.
-              </p>
             </div>
+            <div
+              className="px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide"
+              style={{ background: C.amarillo, color: C.negro }}
+            >
+              ✓ Confirmado
+            </div>
+          </div>
 
-            {/* Event Info */}
-            {purchaseData && (
-              <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8 text-left">
-                <div className="flex flex-col sm:flex-row gap-3 sm:gap-6">
+          {/* Event info card */}
+          {purchaseData && (
+            <div className="rounded-2xl overflow-hidden shadow-xl" style={{ background: C.blanco }}>
+              {purchaseData.eventImage && (
+                <div className="relative h-36 sm:h-44 overflow-hidden">
                   <img
                     src={purchaseData.eventImage}
                     alt={purchaseData.eventName}
-                    className="w-full h-40 sm:w-32 sm:h-32 object-cover rounded-lg flex-shrink-0"
+                    className="w-full h-full object-cover"
                   />
-                  <div className="flex-1">
-                    <h3 className="text-base sm:text-xl font-bold text-gray-900 mb-2">{purchaseData.eventName}</h3>
-                    <div className="space-y-1 text-xs sm:text-sm text-gray-600">
-                      <p>📅 {new Date(purchaseData.eventDate).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} - {purchaseData.eventTime}</p>
-                      <p>📍 {purchaseData.eventLocation}</p>
-                      <p>💰 Total: <span className="font-bold text-green-600">Bs {purchaseData.totalPaid.toLocaleString()}</span></p>
-                    </div>
+                  <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(35,60,122,0.85) 0%, transparent 60%)' }} />
+                  <div className="absolute bottom-3 left-4 right-4">
+                    <p className="text-white font-bold text-lg sm:text-xl leading-tight drop-shadow">{purchaseData.eventName}</p>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Tickets */}
-            {purchaseData && purchaseData.attendees.length > 0 && (
-              <div className="mb-6 sm:mb-8">
-                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-4 flex items-center justify-center gap-2">
-                  <Ticket size={18} />
-                  Tus Entradas ({purchaseData.attendees.length})
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  {purchaseData.attendees.map((attendee, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow text-left">
-                      <div className="flex items-start gap-3 mb-3">
-                        <div className="w-10 h-10 sm:w-16 sm:h-16 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                          <Ticket size={20} className="text-white sm:hidden" />
-                          <Ticket size={32} className="text-white hidden sm:block" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm sm:text-base text-gray-900 truncate">{attendee.nombre}</p>
-                          <p className="text-xs text-gray-600">
-                            Asiento: <span className="font-medium">{attendee.asiento}</span>
-                            {' '}| Sector: <span className="font-medium">{attendee.sector}</span>
-                          </p>
-                          <p className="text-xs text-gray-500 mt-0.5">CI: {attendee.ci}</p>
-                        </div>
-                      </div>
-                      <Button size="sm" variant="outline" onClick={() => handleViewQR(attendee, index)} className="w-full">
-                        <QrCode size={14} className="mr-2" />
-                        Ver Código QR
-                      </Button>
-                    </div>
-                  ))}
+              )}
+              {!purchaseData.eventImage && (
+                <div className="px-5 pt-5 pb-2">
+                  <p className="font-bold text-xl" style={{ color: C.azul }}>{purchaseData.eventName}</p>
+                </div>
+              )}
+              <div className="p-4 space-y-2">
+                {purchaseData.eventDate && (
+                  <div className="flex items-center gap-2">
+                    <Calendar size={15} style={{ color: C.azul }} className="flex-shrink-0" />
+                    <span className="text-sm" style={{ color: C.negro }}>
+                      {formatDate(purchaseData.eventDate)}{purchaseData.eventTime ? ` · ${purchaseData.eventTime}` : ''}
+                    </span>
+                  </div>
+                )}
+                {purchaseData.eventLocation && (
+                  <div className="flex items-center gap-2">
+                    <MapPin size={15} style={{ color: C.rojo }} className="flex-shrink-0" />
+                    <span className="text-sm" style={{ color: C.negro }}>{purchaseData.eventLocation}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 pt-1">
+                  <CreditCard size={15} style={{ color: C.amarillo }} className="flex-shrink-0" />
+                  <span className="text-sm font-bold" style={{ color: C.azul }}>
+                    Total pagado: Bs {purchaseData.totalPaid.toLocaleString('es-BO', { minimumFractionDigits: 2 })}
+                  </span>
                 </div>
               </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mb-6 sm:mb-8">
-              <Button size="lg" onClick={handleDownloadPDF} disabled={downloading} className="w-full sm:w-auto">
-                <Download size={18} className="mr-2" />
-                {downloading ? 'Generando PDF...' : 'Descargar Entradas'}
-              </Button>
-              <Button size="lg" variant="outline" onClick={() => navigate('/mis-compras')} className="w-full sm:w-auto">
-                <Ticket size={18} className="mr-2" />
-                Ver Mis Compras
-              </Button>
             </div>
+          )}
 
-            {/* Info */}
-            <div className="bg-blue-50 rounded-lg p-4 text-left mb-6 sm:mb-8">
-              <p className="font-semibold text-blue-900 mb-2 text-sm sm:text-base">📱 Importante:</p>
-              <ul className="text-xs sm:text-sm text-blue-800 space-y-1">
-                <li>• Presenta tu código QR en la entrada del evento</li>
-                <li>• Llega 30 minutos antes del inicio</li>
-                <li>• Las entradas son intransferibles</li>
-                <li>• Guarda este correo para recuperar tus entradas</li>
-              </ul>
+          {/* Tickets */}
+          {purchaseData && purchaseData.attendees.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <Ticket size={16} color={C.amarillo} />
+                <h2 className="text-white font-bold text-sm uppercase tracking-wider">
+                  Tus Entradas ({purchaseData.attendees.length})
+                </h2>
+              </div>
+              <div className="space-y-3">
+                {purchaseData.attendees.map((attendee, index) => (
+                  <div
+                    key={index}
+                    className="rounded-2xl overflow-hidden shadow-xl"
+                    style={{ background: C.blanco }}
+                  >
+                    {/* Ticket top strip */}
+                    <div
+                      className="h-1.5"
+                      style={{ background: `linear-gradient(90deg, ${C.azul}, ${C.amarillo}, ${C.rojo})` }}
+                    />
+                    <div className="p-4 flex items-start gap-4">
+                      {/* Ticket number badge */}
+                      <div
+                        className="w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0 shadow-md"
+                        style={{ background: C.azul }}
+                      >
+                        <Ticket size={18} color={C.amarillo} />
+                        <span className="text-white text-xs font-bold mt-0.5">#{index + 1}</span>
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm sm:text-base leading-tight" style={{ color: C.negro }}>
+                          {attendee.nombre || 'Asistente'}
+                        </p>
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                          <span className="text-xs font-medium" style={{ color: C.azul }}>
+                            🎫 {attendee.asiento}
+                          </span>
+                          <span className="text-xs" style={{ color: '#666' }}>
+                            {attendee.sector}
+                          </span>
+                        </div>
+                        {attendee.ci && (
+                          <p className="text-xs mt-0.5" style={{ color: '#999' }}>CI: {attendee.ci}</p>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => handleViewQR(attendee, index)}
+                        className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all active:scale-95 flex-shrink-0"
+                        style={{ background: C.gris, border: `2px solid ${C.azul}20` }}
+                      >
+                        <QrCode size={20} style={{ color: C.azul }} />
+                        <span className="text-xs font-semibold" style={{ color: C.azul }}>QR</span>
+                      </button>
+                    </div>
+
+                    {/* Dashed separator */}
+                    <div className="mx-4 border-t border-dashed" style={{ borderColor: '#ddd' }} />
+                    <div className="px-4 py-2">
+                      <p className="text-xs text-center" style={{ color: '#aaa' }}>
+                        Presenta este código QR en la entrada del evento
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
+          )}
 
+          {/* Info banner */}
+          <div
+            className="rounded-2xl p-4 shadow-xl"
+            style={{ background: 'rgba(250,185,14,0.15)', border: `1px solid ${C.amarillo}40` }}
+          >
+            <p className="font-bold text-sm mb-2" style={{ color: C.amarillo }}>📱 Información importante</p>
+            <ul className="space-y-1 text-xs text-white/80">
+              <li>• Presenta tu código QR en la entrada del evento</li>
+              <li>• Llega 30 minutos antes del inicio</li>
+              <li>• Las entradas son intransferibles</li>
+              <li>• Revisa tu correo para una copia de tus entradas</li>
+            </ul>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 pb-8">
             <button
-              onClick={() => navigate('/')}
-              className="inline-flex items-center text-primary hover:text-primary/80 font-semibold transition-colors text-sm sm:text-base"
+              onClick={handleDownloadPDF}
+              disabled={downloading || !purchaseData}
+              className="flex-1 flex items-center justify-center gap-2 font-bold text-sm py-3.5 rounded-xl transition-all active:scale-95 disabled:opacity-50"
+              style={{ background: C.amarillo, color: C.negro }}
             >
-              <Home size={18} className="mr-2" />
-              Volver al inicio
+              <Download size={18} />
+              {downloading ? 'Generando PDF…' : 'Descargar Entradas'}
             </button>
-          </CardContent>
-        </Card>
+            <button
+              onClick={() => navigate('/mis-compras')}
+              className="flex-1 flex items-center justify-center gap-2 font-bold text-sm py-3.5 rounded-xl transition-all active:scale-95"
+              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: C.blanco }}
+            >
+              <Ticket size={18} />
+              Ver Mis Compras
+            </button>
+          </div>
+
+          <button
+            onClick={() => navigate('/')}
+            className="w-full flex items-center justify-center gap-2 text-white/60 hover:text-white text-sm font-medium transition-colors pb-6"
+          >
+            <Home size={16} />
+            Volver al inicio
+          </button>
+        </div>
       </div>
 
       {/* QR Modal */}
       {showQRModal && selectedQR && selectedAttendee && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-md">
-            <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Código QR</h2>
-              <button onClick={() => setShowQRModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <X size={20} />
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          style={{ background: 'rgba(0,0,0,0.8)' }}
+          onClick={() => setShowQRModal(false)}
+        >
+          <div
+            className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header strip */}
+            <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${C.azul}, ${C.amarillo}, ${C.rojo})` }} />
+            <div className="px-5 py-4 flex items-center justify-between border-b" style={{ borderColor: C.gris }}>
+              <div>
+                <h2 className="font-bold text-base" style={{ color: C.negro }}>Código QR de Entrada</h2>
+                <p className="text-xs" style={{ color: '#888' }}>Entrada #{selectedAttendee.index + 1}</p>
+              </div>
+              <button
+                onClick={() => setShowQRModal(false)}
+                className="p-2 rounded-xl transition-colors hover:bg-gray-100"
+              >
+                <X size={20} style={{ color: '#666' }} />
               </button>
             </div>
-            <div className="p-5 sm:p-6">
+
+            <div className="p-5">
               <div className="text-center mb-4">
-                <p className="font-semibold text-gray-900">{selectedAttendee.nombre}</p>
-                <p className="text-sm text-gray-600">Asiento: {selectedAttendee.asiento} | Sector: {selectedAttendee.sector}</p>
+                <p className="font-bold text-sm" style={{ color: C.negro }}>{selectedAttendee.nombre}</p>
+                <p className="text-xs mt-0.5" style={{ color: '#666' }}>
+                  {selectedAttendee.asiento} · {selectedAttendee.sector}
+                </p>
               </div>
-              <div className="flex justify-center mb-4 bg-white p-3 sm:p-4 rounded-lg">
-                <QRCode value={selectedQR} size={180} level="H" includeMargin={true} />
+
+              {/* QR Code */}
+              <div id="qr-canvas" className="flex justify-center mb-4">
+                <div
+                  className="p-4 rounded-2xl shadow-inner"
+                  style={{ background: C.gris, border: `2px solid ${C.azul}20` }}
+                >
+                  <QRCode
+                    value={selectedQR || 'DEMO-QR'}
+                    size={200}
+                    level="H"
+                    includeMargin={false}
+                    fgColor={C.azul}
+                    bgColor={C.gris}
+                  />
+                </div>
               </div>
-              <p className="text-xs text-gray-500 text-center mb-4">Escanea este código en la entrada del evento</p>
-              <Button onClick={downloadQR} className="w-full">
-                <Download size={16} className="mr-2" />
+
+              <p className="text-xs text-center mb-4" style={{ color: '#aaa' }}>
+                Escanea este código en la entrada del evento
+              </p>
+
+              <button
+                onClick={downloadQR}
+                className="w-full flex items-center justify-center gap-2 font-bold text-sm py-3 rounded-xl transition-all active:scale-95"
+                style={{ background: C.azul, color: C.blanco }}
+              >
+                <Download size={16} />
                 Descargar QR
-              </Button>
+              </button>
             </div>
           </div>
         </div>

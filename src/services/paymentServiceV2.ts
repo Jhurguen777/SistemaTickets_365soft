@@ -123,7 +123,17 @@ export const paymentServiceV2 = {
   verificarPago: async (qrPagoId: string): Promise<PaymentVerificationResponse> => {
     try {
       const response = await api.get(`/compras/verificar-pago/${qrPagoId}`)
-      return response.data
+      const data = response.data
+      // El backend puede devolver el estado dentro de `qr.estado`;
+      // normalizamos para que siempre esté en el nivel raíz.
+      if (!data.estado && data.qr?.estado) {
+        data.estado = data.qr.estado
+      }
+      if (!data.estado && data.qr?.estado === undefined) {
+        // fallback: PENDIENTE si no se puede leer
+        data.estado = data.estado ?? 'PENDIENTE'
+      }
+      return data as PaymentVerificationResponse
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Error al verificar pago')
     }
@@ -200,6 +210,8 @@ export const paymentServiceV2 = {
 
     const iniciar = () => {
       if (intervalId) return
+      // Verificar inmediatamente al arrancar (no esperar el primer intervalo)
+      verificar()
       intervalId = setInterval(verificar, intervaloActual)
     }
 

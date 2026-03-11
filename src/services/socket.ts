@@ -99,6 +99,11 @@ class SocketService {
       this.getSocket().off(event)
     }
   }
+
+  // Pago confirmado por el banco (notificación en tiempo real)
+  onPagoConfirmado(callback: (data: { qrPagoId: string; usuarioId: string; eventoId: string }) => void) {
+    this.getSocket().on('pago:confirmado', callback)
+  }
 }
 
 export const socketService = new SocketService()

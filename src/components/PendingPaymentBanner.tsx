@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, X, QrCode, ExternalLink } from 'lucide-react'
 import { paymentServiceV2 } from '@/services/paymentServiceV2'
 import { useAuthStore } from '@/store/authStore'
+import socketService from '@/services/socket'
+import api from '@/services/api'
 
 interface PendingPaymentData {
   qrPagoId: string
@@ -28,10 +30,12 @@ export default function PendingPaymentBanner() {
   const [pendingData, setPendingData] = useState<PendingPaymentData | null>(null)
   const pollingRef = useRef<{ detener: () => void } | null>(null)
   const ttlRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Flag para saber si el banner fue descartado visualmente (solo UI, polling sigue)
+  const dismissedRef = useRef(false)
 
   const isHiddenRoute = HIDDEN_ROUTES.some(r => location.pathname.startsWith(r))
 
-  const handlePaid = (data: PendingPaymentData) => {
+  const handlePaid = async (data: PendingPaymentData) => {
     localStorage.removeItem('pending_payment')
     pollingRef.current?.detener()
     if (ttlRef.current) clearTimeout(ttlRef.current)
@@ -45,11 +49,59 @@ export default function PendingPaymentBanner() {
     sessionStorage.removeItem(`checkout_terms_${eid}`)
 
     setPendingData(data)
+    dismissedRef.current = false
     setBannerState('paid')
-    setTimeout(() => {
-      setBannerState('hidden')
-      navigate('/mis-compras')
-    }, 4000)
+
+    // Intentar obtener las compras pagadas para navegar a /compra-exitosa con datos completos
+    let navigateToPurchaseSuccess = false
+    try {
+      const res = await api.get('/compras/mis-compras', { params: { limit: 100 } })
+      const compras: any[] = res.data.data ?? []
+      const ahora = Date.now()
+      const diezMin = 10 * 60 * 1000
+      const eventCompras = compras.filter(
+        (c: any) =>
+          c.eventoId === data.eventId &&
+          c.estadoPago === 'PAGADO' &&
+          ahora - new Date(c.updatedAt ?? c.createdAt).getTime() < diezMin
+      )
+      if (eventCompras.length > 0) {
+        const first = eventCompras[0]
+        const eventData = first.evento ?? null
+        const attendeeData = {
+          asientos: eventCompras.map((c: any) => ({
+            nombre: `${c.nombreAsistente ?? ''} ${c.apellidoAsistente ?? ''}`.trim(),
+            asiento: c.asiento
+              ? `${c.asiento.fila ?? ''}${c.asiento.numero ?? ''}`
+              : c.numeroBoleto ? `N°${c.numeroBoleto}` : 'General',
+            sector: c.asiento
+              ? (c.asiento.fila?.toLowerCase() === 'general' ? 'General' : `Fila ${c.asiento.fila}`)
+              : 'General',
+            ci: c.documentoAsistente ?? '',
+            email: c.emailAsistente ?? '',
+            qrCode: c.qrCode ?? '',
+          })),
+          total: eventCompras.reduce((sum: number, c: any) => sum + c.monto, 0),
+        }
+        setTimeout(() => {
+          setBannerState('hidden')
+          navigate('/compra-exitosa', {
+            state: { purchaseId: first.id, eventData, attendeeData }
+          })
+        }, 2000)
+        navigateToPurchaseSuccess = true
+      }
+    } catch (err) {
+      console.error('[Banner] Error obteniendo compras para /compra-exitosa:', err)
+    }
+
+    // Fallback: si no se pudo obtener datos de compra, ir a /mis-compras
+    if (!navigateToPurchaseSuccess) {
+      setTimeout(() => {
+        setBannerState('hidden')
+        navigate('/mis-compras')
+      }, 4000)
+    }
   }
 
   useEffect(() => {
@@ -76,10 +128,8 @@ export default function PendingPaymentBanner() {
       return
     }
 
-    // Ignorar si fue descartado en esta sesión
-    if (sessionStorage.getItem('banner_dismissed') === data.qrPagoId) return
-
     setPendingData(data)
+    dismissedRef.current = false
     setBannerState('checking')
 
     // Auto-limpiar cuando vence el QR
@@ -103,7 +153,7 @@ export default function PendingPaymentBanner() {
           return
         }
         // PENDIENTE → mostrar banner + iniciar polling continuo
-        setBannerState('pending')
+        if (!dismissedRef.current) setBannerState('pending')
         const polling = paymentServiceV2.iniciarPollingPago(
           data.qrPagoId,
           (res) => {
@@ -119,7 +169,9 @@ export default function PendingPaymentBanner() {
         polling.iniciar()
         pollingRef.current = polling
       })
-      .catch(() => setBannerState('pending'))
+      .catch(() => {
+        if (!dismissedRef.current) setBannerState('pending')
+      })
 
     return () => {
       pollingRef.current?.detener()
@@ -127,9 +179,36 @@ export default function PendingPaymentBanner() {
     }
   }, [isAuthenticated, location.pathname])
 
+  // ── Escuchar evento Socket.IO pago:confirmado para detección instantánea ──
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const socket = socketService.getSocket()
+
+    const onPagoConfirmado = (payload: { qrPagoId?: string }) => {
+      const raw = localStorage.getItem('pending_payment')
+      if (!raw) return
+      try {
+        const data: PendingPaymentData = JSON.parse(raw)
+        // Confirmar que el evento es para nuestro QR pendiente
+        if (payload.qrPagoId && payload.qrPagoId !== data.qrPagoId) return
+        handlePaid(data)
+      } catch {}
+    }
+
+    socket.on('pago:confirmado', onPagoConfirmado)
+
+    return () => {
+      socket.off('pago:confirmado', onPagoConfirmado)
+    }
+  }, [isAuthenticated])
+
+  // ── Descartado visualmente — el polling SIGUE corriendo en background ──
   const handleDismiss = () => {
-    sessionStorage.setItem('banner_dismissed', pendingData?.qrPagoId ?? '1')
+    dismissedRef.current = true
     setBannerState('hidden')
+    // NO detener pollingRef ni ttlRef — siguen activos en background
+    // El modal de "¡Pago confirmado!" aparecerá igualmente cuando el banco confirme
   }
 
   const handleVerQR = () => {

@@ -362,13 +362,14 @@ export default function Checkout() {
   }, [eventId])
 
   // Si viene del banner (flag en sessionStorage), abrir el modal del QR automáticamente
+  // Depende de resumeQRData para esperar a que el efecto async lo cargue
   useEffect(() => {
     const autoOpen = sessionStorage.getItem('checkout_auto_open_qr') === '1'
-    if (autoOpen) {
+    if (autoOpen && resumeQRData) {
       sessionStorage.removeItem('checkout_auto_open_qr')
-      if (resumeQRData) handleResumeQR()
+      handleResumeQR()
     }
-  }, [])
+  }, [resumeQRData])
 
   // Limpiar polling al desmontar (NO liberar asientos)
   useEffect(() => {
@@ -691,7 +692,13 @@ export default function Checkout() {
     try {
       const res = await api.get('/compras/mis-compras', { params: { limit: 100 } })
       const compras: any[] = res.data.data ?? []
-      const eventCompras = compras.filter((c: any) => c.eventoId === eventId && c.estadoPago === 'PAGADO')
+      const ahora = Date.now()
+      const diezMin = 10 * 60 * 1000
+      const eventCompras = compras.filter((c: any) =>
+        c.eventoId === eventId &&
+        c.estadoPago === 'PAGADO' &&
+        ahora - new Date(c.updatedAt ?? c.createdAt).getTime() < diezMin
+      )
 
       if (eventCompras.length > 0) {
         const first = eventCompras[0]
@@ -702,8 +709,10 @@ export default function Checkout() {
             attendeeData: {
               asientos: eventCompras.map((c: any) => ({
                 nombre: `${c.nombreAsistente ?? ''} ${c.apellidoAsistente ?? ''}`.trim() || attendees[0]?.nombre || '',
-                asiento: `${c.asiento?.fila ?? ''}${c.asiento?.numero ?? ''}`,
-                sector: 'General',
+                asiento: c.asiento
+                  ? `${c.asiento.fila ?? ''}${c.asiento.numero ?? ''}`
+                  : c.numeroBoleto ? `N°${c.numeroBoleto}` : 'General',
+                sector: c.asiento ? (c.asiento.fila?.toLowerCase() === 'general' ? 'General' : `Fila ${c.asiento.fila}`) : 'General',
                 ci: c.documentoAsistente ?? '',
                 email: c.emailAsistente ?? '',
                 qrCode: c.qrCode,
@@ -729,6 +738,7 @@ export default function Checkout() {
     if (polling && polling.detener) {
       polling.detener()
     }
+    silentPollingRef.current?.detener()
 
     sessionStorage.removeItem('checkout_state')
     sessionStorage.removeItem(FORM_KEY)
@@ -750,6 +760,7 @@ export default function Checkout() {
     if (polling && polling.detener) {
       polling.detener()
     }
+    silentPollingRef.current?.detener()
 
     sessionStorage.removeItem('checkout_state')
     sessionStorage.removeItem(FORM_KEY)
