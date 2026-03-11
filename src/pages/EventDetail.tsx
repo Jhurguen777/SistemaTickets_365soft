@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Calendar, MapPin, Clock, Users, ArrowLeft, Ticket, Plus, Minus, X, Loader2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
@@ -44,7 +44,7 @@ export default function EventDetail({ onOpenModal }: EventDetailProps) {
   // Modal de cantidad
   const [showModal, setShowModal] = useState(false)
   const [cantidad, setCantidad] = useState(1)
-  const [reservando, setReservando] = useState(false)
+  const [reservando] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -99,48 +99,31 @@ export default function EventDetail({ onOpenModal }: EventDetailProps) {
     }
   }
 
-  // Confirmar compra desde el modal
-  const handleConfirmarCompra = async () => {
+  // Confirmar compra desde el modal (modo CANTIDAD — sin reserva de asientos)
+  const handleConfirmarCompra = () => {
     if (!user) {
       navigate('/login', { state: { redirectTo: `/eventos/${id}` } })
       return
     }
 
-    setReservando(true)
-    setModalError(null)
+    // Crear seats virtuales solo para mostrar en el checkout (sin llamada al backend aquí)
+    const seats = Array.from({ length: cantidad }, (_, i) => ({
+      id: `general-${i + 1}`,
+      row: 'General',
+      number: i + 1,
+      price: event!.price,
+    }))
 
-    try {
-      const response = await api.post('/asientos/reservar-cantidad', {
-        eventoId: event!.id,
+    setShowModal(false)
+    navigate('/checkout', {
+      state: {
+        eventId: event!.id,
+        reservaId: '',
+        seats,
+        modo: 'CANTIDAD' as const,
         cantidad,
-      })
-
-      const asientosReservados = response.data.data
-
-      // Formatear seats para el checkout
-      const seats = asientosReservados.map((a: any) => ({
-        id: a.id,
-        row: a.fila,
-        number: a.numero,
-        price: a.precio ?? event!.price,
-      }))
-
-      const reservaId = asientosReservados.map((a: any) => a.id).join('-')
-
-      setShowModal(false)
-      navigate('/checkout', {
-        state: {
-          eventId: event!.id,
-          reservaId,
-          seats,
-        }
-      })
-    } catch (error: any) {
-      const msg = error.response?.data?.error || 'Error al reservar los tickets. Intenta nuevamente.'
-      setModalError(msg)
-    } finally {
-      setReservando(false)
-    }
+      }
+    })
   }
 
   const formatDate = (dateStr: string) => {

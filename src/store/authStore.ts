@@ -32,6 +32,7 @@ interface AuthState {
   register: (data: RegisterData) => Promise<void>
   logout: () => void
   checkIsAdmin: () => boolean
+  initializeAuth: () => Promise<void>
 }
 
 //Validacion del usuario
@@ -135,6 +136,28 @@ export const useAuthStore = create<AuthState>()(
 
       checkIsAdmin: () => {
         return get().user?.isAdmin === true
+      },
+
+      initializeAuth: async () => {
+        const token = localStorage.getItem('token')
+        if (!token) return
+        try {
+          const response = await api.get('/auth/me')
+          const { usuario } = response.data
+          const user: User = {
+            id: usuario.id,
+            email: usuario.email,
+            nombre: usuario.nombre,
+            apellido: usuario.apellido,
+            agencia: usuario.agencia,
+            isAdmin: usuario.isAdmin || false,
+            rol: usuario.rol
+          }
+          get().setAuth(user, token)
+        } catch {
+          // Token inválido o expirado — limpiar sesión
+          get().logout()
+        }
       }
     }),
     {

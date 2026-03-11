@@ -17,8 +17,10 @@ export default function CertificateTemplates() {
   const [templates, setTemplates] = useState<CertificateTemplate[]>([])
   const [editorMode, setEditorMode] = useState<EditorMode>('list')
   const [editorContent, setEditorContent] = useState('')
-  const [previewHtml, setPreviewHtml] = useState('')
-  const [previewData, setPreviewData] = useState<CertificatePreviewData | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [previewHtml, _setPreviewHtml] = useState('')
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [previewData, _setPreviewData] = useState<CertificatePreviewData | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<CertificateTemplate | null>(null)
 
@@ -39,12 +41,12 @@ export default function CertificateTemplates() {
     console.log('📝 Botón Editar presionado. Template completo:', template)
     console.log('📝 Template ID:', template.id)
     console.log('📝 Template name:', template.name)
-    console.log('📝 Template type:', template.type, 'VERIFICAR')
-    console.log('📝 Template description:', template.description)
+    console.log('📝 Template type:', (template as any).type, 'VERIFICAR')
+    console.log('📝 Template description:', (template as any).description || template.descripcion)
     console.log('📝 Template content length:', ((template as any).content || '').length)
     console.log('📝 Todas las propiedades del template:', Object.keys(template))
 
-    if (!template.type) {
+    if (!(template as any).type) {
       console.warn('⚠️ Template.type es undefined! Usando tipo por defecto')
     setEditingTemplate(template)
       setEditorContent((template as any).content || '')
@@ -131,7 +133,7 @@ export default function CertificateTemplates() {
           onChange={setEditorContent}
           onSave={handleSaveVisual}
           initialName={editingTemplate?.name}
-          initialType={editingTemplate?.type as CertificateTemplateType}
+          initialType={editingTemplate ? (editingTemplate as any).type as CertificateTemplateType : undefined}
           initialDescription={editingTemplate?.descripcion}
         />
 

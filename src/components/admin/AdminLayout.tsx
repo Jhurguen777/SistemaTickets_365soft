@@ -194,7 +194,7 @@ export default function AdminLayout() {
                           <div className="absolute left-12 top-0 w-12 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col py-2">
                             {item.children.map((child) => {
                               const isChildActive = location.pathname.startsWith(child.path)
-                              const ChildIcon = child.icon
+                              const ChildIcon = child.icon as React.ElementType
                               return (
                                 <Link
                                   key={child.path}
@@ -207,9 +207,9 @@ export default function AdminLayout() {
                                       : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                                   }`}
                                 >
-                                  <ChildIcon className={`h-4 w-4 flex-shrink-0 ${
+                                  {child.icon && <ChildIcon className={`h-4 w-4 flex-shrink-0 ${
                                     isChildActive ? 'text-primary dark:text-primary' : 'text-gray-700 dark:text-gray-300'
-                                  }`} />
+                                  }`} />}
                                 </Link>
                               )
                             })}

@@ -5,7 +5,6 @@ import {
   Users,
   Ticket,
   Download,
-  Calendar,
   BarChart3,
   PieChart,
   FileText,
@@ -13,29 +12,12 @@ import {
   XCircle
 } from 'lucide-react'
 import adminService from '@/services/adminService'
-import { FinancialReport, AttendanceReport, SalesByPeriod, SectorStats } from '@/types/admin'
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Cell,
-  PieChart as RechartsPieChart,
-  Pie
-} from 'recharts'
-
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6']
+import { AttendanceReport, SectorStats } from '@/types/admin'
 
 export default function Reports() {
   const [activeTab, setActiveTab] = useState<'ventas' | 'financiero' | 'asistencia'>('ventas')
-  const [financialReport, setFinancialReport] = useState<FinancialReport | null>(null)
-  const [salesByPeriod, setSalesByPeriod] = useState<SalesByPeriod[]>([])
+  const [financialReport, setFinancialReport] = useState<any>(null)
+  const [_salesByPeriod, setSalesByPeriod] = useState<any[]>([])
   const [sectorStats, setSectorStats] = useState<SectorStats[]>([])
   const [attendanceReport, setAttendanceReport] = useState<AttendanceReport | null>(null)
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month'>('week')
@@ -273,7 +255,7 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody>
-                  {financialReport.porEvento.map((evento) => (
+                  {financialReport.porEvento.map((evento: any) => (
                     <tr key={evento.eventId} className="border-b border-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                       <td className="py-3 px-4 font-medium text-gray-900 dark:text-white text-sm">{evento.eventTitle}</td>
                       <td className="py-3 px-4 text-right">

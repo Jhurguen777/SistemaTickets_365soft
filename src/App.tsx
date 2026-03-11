@@ -1,5 +1,6 @@
 import { Routes, Route, useLocation } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useAuthStore } from '@/store/authStore'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import LoginModal from '@/components/modals/LoginModal'
@@ -42,6 +43,11 @@ function App() {
   const [activeModal, setActiveModal] = useState<ModalType>(null)
   const location = useLocation()
   const isAdminRoute = location.pathname.startsWith('/admin')
+  const initializeAuth = useAuthStore(s => s.initializeAuth)
+
+  useEffect(() => {
+    initializeAuth()
+  }, [])
 
   const openModal = (modalType: ModalType) => {
     setActiveModal(modalType)
@@ -55,17 +61,17 @@ function App() {
     <ThemeProvider>
       <div className="min-h-screen flex flex-col bg-background">
         {/* Solo mostrar Header en rutas públicas, no en admin */}
-        {!isAdminRoute && <Header onOpenModal={openModal} />}
+        {!isAdminRoute && <Header onOpenModal={openModal as (modalType: string) => void} />}
 
       <main className={`flex-grow ${!isAdminRoute ? 'pt-16 md:pt-20' : ''}`}>
         <Routes>
           {/* Rutas Públicas */}
-          <Route path="/" element={<Home onOpenModal={openModal} />} />
+          <Route path="/" element={<Home onOpenModal={openModal as (modalType: string) => void} />} />
           <Route path="/login" element={<Login />} />
           <Route path="/auth/complete-profile" element={<CompleteProfile />} />
           <Route path="/auth/success" element={<AuthSuccess />} />
           <Route path="/auth/error" element={<AuthError />} />
-          <Route path="/eventos/:id" element={<EventDetail onOpenModal={openModal} />} />
+          <Route path="/eventos/:id" element={<EventDetail onOpenModal={openModal as (modalType: string) => void} />} />
           <Route path="/eventos/:id/asientos" element={<SeatSelection />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/compra-exitosa" element={<PurchaseSuccess />} />
@@ -94,7 +100,7 @@ function App() {
         </Routes>
       </main>
 
-      {!isAdminRoute && <Footer onOpenModal={openModal} />}
+      {!isAdminRoute && <Footer onOpenModal={openModal as (modalType: string) => void} />}
 
       {/* Banner de pago pendiente — visible en todas las rutas públicas */}
       {!isAdminRoute && <PendingPaymentBanner />}

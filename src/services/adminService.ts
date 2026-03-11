@@ -6,7 +6,6 @@ import {
   FinancialReport,
   DashboardStats,
   CreateEventDTO,
-  Sector,
   User,
   UserPurchase,
   AttendanceReport,
@@ -17,10 +16,8 @@ import {
   CreateAdminDTO,
   AuditLog,
   ActiveSession,
-  AdminRole,
   Attendee,
   PurchaseWithAttendees,
-  AsistenciaStatus,
   CheckInResult
 } from '@/types/admin'
 
@@ -44,6 +41,7 @@ const INITIAL_EVENTS: AdminEvent[] = [
     subcategory: 'Carnaval',
     organizer: '365soft Eventos',
     status: 'ACTIVO',
+    modo: 'ASIENTOS' as const,
     sectors: [
       { id: '1', name: 'General', price: 150, available: 3500, total: 5000 },
       { id: '2', name: 'VIP', price: 350, available: 250, total: 500 },
@@ -76,6 +74,7 @@ const INITIAL_EVENTS: AdminEvent[] = [
     subcategory: 'Carnaval',
     organizer: 'Gobierno Autónomo de Oruro',
     status: 'ACTIVO',
+    modo: 'ASIENTOS' as const,
     sectors: [
       { id: '1', name: 'General', price: 250, available: 8000, total: 10000 },
       { id: '2', name: 'VIP', price: 500, available: 1500, total: 2000 }
@@ -103,6 +102,7 @@ const INITIAL_EVENTS: AdminEvent[] = [
     subcategory: 'Tradición',
     organizer: '365soft Eventos',
     status: 'ACTIVO',
+    modo: 'ASIENTOS' as const,
     sectors: [
       { id: '1', name: 'General', price: 180, available: 3000, total: 5000 }
     ],
@@ -129,6 +129,7 @@ const INITIAL_EVENTS: AdminEvent[] = [
     subcategory: 'Folklore',
     organizer: 'Casa de la Cultura',
     status: 'ACTIVO',
+    modo: 'ASIENTOS' as const,
     sectors: [
       { id: '1', name: 'General', price: 120, available: 800, total: 1000 }
     ],
@@ -311,11 +312,11 @@ const getStoredUsers = (): RegisteredUser[] => {
 }
 
 // Guardar en localStorage
-const saveEvents = (events: AdminEvent[]) => {
+const _saveEvents = (events: AdminEvent[]) => {
   localStorage.setItem('admin_events', JSON.stringify(events))
 }
 
-const saveUsers = (users: RegisteredUser[]) => {
+const _saveUsers = (users: RegisteredUser[]) => {
   localStorage.setItem('admin_users', JSON.stringify(users))
 }
 
@@ -863,6 +864,7 @@ export const adminService = {
         subcategory:     evt.subcategoria || '',
         organizer:       evt.organizer || '365soft Eventos',
         status:          evt.estado,
+        modo:            (evt.modo || (data as any).modo || 'ASIENTOS') as 'ASIENTOS' | 'CANTIDAD',
         sectors: evt.sectores ? evt.sectores.map((s: any) => ({
           id:        s.id,
           name:      s.nombre,
@@ -941,6 +943,7 @@ export const adminService = {
         subcategory:     '',
         organizer:       '365soft Eventos',
         status:          evt.estado,
+        modo:            (evt.modo || (data as any).modo || 'ASIENTOS') as 'ASIENTOS' | 'CANTIDAD',
         sectors:         data.sectors || [],
         gallery:         data.gallery || [],
         totalSales:      0,

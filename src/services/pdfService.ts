@@ -1,5 +1,4 @@
 import jsPDF from 'jspdf'
-import { TicketData } from './qrService'
 
 /**
  * Genera un certificado PDF para una entrada
@@ -172,7 +171,7 @@ export const generateTicketPDF = (ticketData: {
 export const generateMultipleTicketsPDF = (tickets: any[]) => {
   const doc = new jsPDF()
 
-  tickets.forEach((ticket, index) => {
+  tickets.forEach((_ticket, index) => {
     if (index > 0) {
       doc.addPage()
     }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Check, Wifi, Clock, AlertCircle, Loader2 } from 'lucide-react'
+import { ArrowLeft, Check, Wifi, Clock, Loader2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import socketService from '@/services/socket'
@@ -251,6 +251,12 @@ export default function SeatSelection() {
   const [isReserving, setIsReserving] = useState(false)
   const [timerPhase, setTimerPhase] = useState<'SELECCION' | 'RESERVACION'>('SELECCION')
 
+  // Refs para evitar closures obsoletos en callbacks de useEffect
+  const reservaIdRef = useRef<string | null>(null)
+  const selectedSeatsRef = useRef<Seat[]>([])
+  useEffect(() => { reservaIdRef.current = reservaId }, [reservaId])
+  useEffect(() => { selectedSeatsRef.current = selectedSeats }, [selectedSeats])
+
   const eventId = id!
 
   const formatTime = (seconds: number) => {
@@ -359,18 +365,14 @@ export default function SeatSelection() {
 
       // Actualizar asientos en tiempo real con los nuevos estados
       socketService.onSeatReserved((data: any) => {
-        // El backend envía asientosIds: array de IDs
         const ids = data.asientosIds || []
-        console.log('🔄 Socket: asientos reservados', ids, data.estado)
         setSeats(prev => prev.map(s =>
           ids.includes(s.id) ? { ...s, status: data.estado || 'RESERVANDO' } : s
         ))
       })
 
-      // Actualizar asientos cuando se libera una reserva
       socketService.onSeatReleased((data: any) => {
         const ids = data.asientosIds || []
-        console.log('🔄 Socket: asientos liberados', ids)
         setSeats(prev => prev.map(s =>
           ids.includes(s.id) ? { ...s, status: 'DISPONIBLE' } : s
         ))
@@ -380,10 +382,8 @@ export default function SeatSelection() {
     } catch { setDemoMode(true) }
     return () => {
       if (timeoutId) clearTimeout(timeoutId)
-      // NO liberar asientos automáticamente al navegar al checkout
-      // Los asientos se liberan manualmente al cancelar o expirar el tiempo
-      // Solo liberar si el timer expiró (no hay reserva activa)
-      if (!reservaId && selectedSeats.length > 0) {
+      // Liberar asientos solo si no se inició el proceso de pago
+      if (!reservaIdRef.current && selectedSeatsRef.current.length > 0) {
         liberarAsientos()
       }
       try { socketService.disconnect() } catch {}
@@ -436,8 +436,6 @@ export default function SeatSelection() {
         })
         setSelectedSeats(updatedSeats)
 
-        // Navegar al checkout con los nuevos datos
-        console.log('📋 Navegando al Checkout con:', { eventId, reservaId, seats: updatedSeats })
         navigate('/checkout', {
           state: {
             eventId,
@@ -460,16 +458,16 @@ export default function SeatSelection() {
 
   // Función para liberar asientos correctamente
   const liberarAsientos = async () => {
-    if (!eventId || selectedSeats.length === 0) return
+    const currentSeats = selectedSeatsRef.current
+    if (!eventId || currentSeats.length === 0) return
 
     try {
       await api.post('/asientos/liberar-varios', {
-        asientosIds: selectedSeats.map(s => s.id),
+        asientosIds: currentSeats.map(s => s.id),
         eventoId: eventId
       })
-      console.log('✅ Asientos liberados')
-    } catch (error) {
-      console.error('⚠️ Error liberando asientos:', error)
+    } catch {
+      // silenciar — no interrumpir la navegación por errores de limpieza
     }
   }
 

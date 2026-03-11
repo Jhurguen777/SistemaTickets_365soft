@@ -23,8 +23,8 @@ export default function EventClientsPage() {
       const data = await adminService.getEventUsers(id!)
       setClients(data)
       // Obtener el título del evento si está disponible en los datos
-      if (data.length > 0 && data[0].eventoTitulo) {
-        setEventTitle(data[0].eventoTitulo)
+      if (data.length > 0 && data[0].eventTitle) {
+        setEventTitle(data[0].eventTitle)
       }
     } catch (error) {
       console.error('Error loading clients:', error)

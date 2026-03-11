@@ -12,8 +12,6 @@ import {
   Sun,
   Moon,
   Check,
-  Loader2,
-  CheckCircle2,
   Wallet,
   Smartphone,
   Building2,
@@ -29,7 +27,7 @@ export default function Settings() {
   const [config, setConfig] = useState<Config | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'apariencia' | 'sitio' | 'redes' | 'pagos'>('apariencia')
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [_saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const { theme, setTheme } = useTheme()
 
   useEffect(() => {

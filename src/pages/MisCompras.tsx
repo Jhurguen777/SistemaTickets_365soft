@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Download, Calendar, MapPin, QrCode, Ticket as TicketIcon, Home, X } from 'lucide-react'
 import QRCode from 'qrcode.react'
@@ -257,9 +257,15 @@ export default function MisCompras() {
                                 </div>
                               </div>
                               <div className="text-right flex-shrink-0 ml-2 mt-1">
-                                <span className="inline-flex items-center px-2 py-0.5 bg-green-50 text-green-600 border border-green-200 text-[10px] font-bold rounded uppercase tracking-wide">
-                                  Válido
-                                </span>
+                                {purchase.estadoPago === 'PAGADO' ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 bg-green-50 text-green-600 border border-green-200 text-[10px] font-bold rounded uppercase tracking-wide">
+                                    Válido
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2 py-0.5 bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] font-bold rounded uppercase tracking-wide">
+                                    {purchase.estadoPago}
+                                  </span>
+                                )}
                               </div>
                             </div>
 

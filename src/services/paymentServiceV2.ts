@@ -54,49 +54,56 @@ export interface PaymentVerificationResponse {
   }
 }
 
-export interface PurchaseAttendee {
-  nombre: string
-  apellido: string
-  email: string
-  telefono: string
-  documento: string
-  oficina: string
-  otraOficina: boolean
-  otraOficinaNombre: string
-  asientoId: string
-}
-
-export interface CreatePurchaseRequest {
+export interface CrearConReservaRequest {
   eventoId: string
-  reservaId: string
-  asistentes: PurchaseAttendee[]
+  asistentes: Array<{
+    asientoId: string
+    nombre: string
+    apellido: string
+    email: string
+    telefono: string
+    documento: string
+    oficina?: string
+  }>
   medioPago: string
 }
 
-export interface CreatePurchaseResponse {
-  exito: boolean
-  datos: {
-    compraId: string
-    numeroCompra: string
-    asientos: Array<{
-      id: string
-      fila: string
-      numero: number
-      precio: number
-    }>
-    total: number
-  }
-  error?: string
+export interface CrearCompraGeneralRequest {
+  eventoId: string
+  cantidad: number
+  asistentes: Array<{
+    nombre: string
+    apellido: string
+    email: string
+    telefono: string
+    documento: string
+    oficina?: string
+  }>
+  medioPago: string
 }
 
 export const paymentServiceV2 = {
-  // Crear compra con reserva existente
-  crearCompra: async (data: CreatePurchaseRequest): Promise<CreatePurchaseResponse> => {
+  // Crear boletos generales (modo CANTIDAD) — sin asientos asignados
+  crearCompraGeneral: async (data: CrearCompraGeneralRequest): Promise<PaymentInitResponse> => {
+    try {
+      const response = await api.post('/compras/crear-general', data)
+      return response.data
+    } catch (error: any) {
+      const err: any = new Error(error.response?.data?.message || 'Error al crear boletos')
+      err.status = error.response?.status
+      throw err
+    }
+  },
+
+  // Crear compra con datos de asistentes en un solo paso
+  crearCompra: async (data: CrearConReservaRequest): Promise<PaymentInitResponse> => {
     try {
       const response = await api.post('/compras/crear-con-reserva', data)
       return response.data
     } catch (error: any) {
-      throw new Error(error.response?.data?.mensaje || 'Error al crear compra')
+      const err: any = new Error(error.response?.data?.message || 'Error al crear compra')
+      err.status = error.response?.status
+      throw err
     }
   },
 
@@ -106,27 +113,19 @@ export const paymentServiceV2 = {
       const response = await api.post('/compras/iniciar-pago', data)
       return response.data
     } catch (error: any) {
-      throw new Error(error.response?.data?.mensaje || 'Error al iniciar pago')
+      const err: any = new Error(error.response?.data?.mensaje || 'Error al iniciar pago')
+      err.status = error.response?.status
+      throw err
     }
   },
 
   // Verificar estado del pago (polling)
   verificarPago: async (qrPagoId: string): Promise<PaymentVerificationResponse> => {
     try {
-      console.log('📡 Verificando pago desde frontend:', {
-        qrPagoId,
-        url: `/compras/qr/verificar?id=${qrPagoId}`
-      })
-      const response = await api.get(`/compras/qr/verificar?id=${qrPagoId}`)
-      console.log('📡 Respuesta de verificación:', response.data)
+      const response = await api.get(`/compras/verificar-pago/${qrPagoId}`)
       return response.data
     } catch (error: any) {
-      console.error('❌ Error verificando pago:', {
-        error: error,
-        response: error.response?.data,
-        status: error.response?.status
-      })
-      throw new Error(error.response?.data?.mensaje || 'Error al verificar pago')
+      throw new Error(error.response?.data?.message || 'Error al verificar pago')
     }
   },
 

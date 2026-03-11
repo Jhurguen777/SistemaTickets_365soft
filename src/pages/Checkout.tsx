@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Users, ChevronDown, Check, X, QrCode, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Users, ChevronDown, Check, X, QrCode, CheckCircle2, Clock } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
-import { useAuthStore } from '@/store/authStore'
 import adminService from '@/services/adminService'
-import purchasesService from '@/services/purchasesService'
 import { paymentServiceV2 } from '@/services/paymentServiceV2'
 import api from '@/services/api'
 import QRPaymentModal from '@/components/modals/QRPaymentModal'
@@ -20,6 +18,8 @@ interface CheckoutState {
     reservaId: string
     seats: CheckoutSeat[]
     tiempoExpiracion?: string
+    modo?: 'CANTIDAD' | 'ASIENTOS'
+    cantidad?: number
   }
 }
 
@@ -46,27 +46,55 @@ export default function Checkout() {
   const navigate = useNavigate()
   const location = useLocation() as CheckoutState
 
-  const rawState = location.state || (() => {
+  const rawState = (() => {
+    // Si viene con nueva navegación (location.state), detectar si es una reserva diferente
+    if (location.state) {
+      try {
+        const saved = sessionStorage.getItem('checkout_state')
+        const savedState = saved ? JSON.parse(saved) : null
+        // Si el reservaId cambió, limpiar datos del formulario anterior
+        if (savedState && savedState.reservaId !== (location.state as any).reservaId) {
+          const oldEventId = savedState.eventId
+          sessionStorage.removeItem(`checkout_form_${oldEventId}`)
+          sessionStorage.removeItem(`checkout_completed_${oldEventId}`)
+          sessionStorage.removeItem(`checkout_payment_${oldEventId}`)
+          sessionStorage.removeItem(`checkout_terms_${oldEventId}`)
+        }
+      } catch {}
+      return location.state
+    }
     try {
       const saved = sessionStorage.getItem('checkout_state')
       return saved ? JSON.parse(saved) : null
     } catch { return null }
   })()
 
-  const { eventId, reservaId, seats } = rawState || {
+  const { eventId, reservaId, seats, modo } = rawState || {
     eventId: '',
     reservaId: '',
     seats: [],
-    tiempoExpiracion: ''
+    tiempoExpiracion: '',
+    modo: 'ASIENTOS' as const,
   }
-
-  console.log('📍 Datos recibidos en Checkout:', { eventId, reservaId, seats, locationState: location.state })
+  const isGeneralMode = modo === 'CANTIDAD'
 
   useEffect(() => {
-  if (location.state) {
-    sessionStorage.setItem('checkout_state', JSON.stringify(location.state))
-  }
+    if (location.state) {
+      sessionStorage.setItem('checkout_state', JSON.stringify(location.state))
+    }
   }, [])
+
+  // Si esta reserva ya fue pagada (usuario volvió atrás), redirigir a Mis Compras
+  useEffect(() => {
+    if (reservaId && localStorage.getItem(`compra_completada_${reservaId}`)) {
+      navigate('/mis-compras', { replace: true })
+      return
+    }
+    // Si no hay datos del checkout (sessionStorage limpiado por pago completado), redirigir
+    if (!reservaId && !eventId && !seats?.length) {
+      navigate('/', { replace: true })
+    }
+  }, [reservaId])
 
   const [event, setEvent] = useState<any>(null)
 
@@ -113,28 +141,58 @@ export default function Checkout() {
     return 0
   })
 
-  const [paymentData, setPaymentData] = useState<PaymentData>({ medioPago: '' })
+  const [paymentData, setPaymentData] = useState<PaymentData>(() => {
+    try {
+      const saved = sessionStorage.getItem(`checkout_payment_${eventId}`)
+      if (saved) {
+        const parsed = JSON.parse(saved) as PaymentData
+        if (parsed?.medioPago) return parsed
+      }
+    } catch {}
+    return { medioPago: '' }
+  })
 
   // Estado para reanudar un QR ya generado
   const [resumeQRData, setResumeQRData] = useState<{
     qrPagoId: string; imagenQr: string; monto: number; moneda: string
     fechaVencimiento: string; eventTitle: string
-  } | null>(null)
+  } | null>(() => {
+    // Leer síncronamente para evitar flash del botón incorrecto al refrescar
+    try {
+      const raw = localStorage.getItem('pending_payment')
+      if (!raw) return null
+      const data = JSON.parse(raw)
+      if (data.eventId !== eventId) return null
+      if (Date.now() > new Date(data.fechaVencimiento).getTime()) {
+        localStorage.removeItem('pending_payment')
+        return null
+      }
+      return data
+    } catch { return null }
+  })
 
   // Modal de pago exitoso (detectado al volver al checkout después de pagar)
   const [showPaidModal, setShowPaidModal] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
   const [processing, setProcessing] = useState(false)
-  const [termsAccepted, setTermsAccepted] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem(`checkout_terms_${eventId}`) === 'true'
+    } catch { return false }
+  })
   const [showQRModal, setShowQRModal] = useState(false)
   const [showQRSelectModal, setShowQRSelectModal] = useState(false)
   const [currentQRData, setCurrentQRData] = useState<any>(null)
   const [currentPurchaseId, setCurrentPurchaseId] = useState<string>('')
   const [paymentStatus, setPaymentStatus] = useState<'PENDIENTE' | 'PROCESANDO' | 'PAGADO' | 'FALLIDO' | 'EXPIRADO'>('PENDIENTE')
 
-  const [isExpired, setIsExpired] = useState(false)
+  const [_isExpired, _setIsExpired] = useState(false)
   const [asientosLiberados, setAsientosLiberados] = useState(false)
+  const paymentProcessedRef = useRef(false)
+  const silentPollingRef = useRef<{ iniciar: () => void; detener: () => void } | null>(null)
   const [showMobileSummary, setShowMobileSummary] = useState(false)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [resumeTimeLeft, setResumeTimeLeft] = useState(0)
 
   const oficinas = [
     { codigo: '2526', nombre: 'ALFA FORZA' }, { codigo: '2527', nombre: 'ALFA DIAMOND' },
@@ -158,8 +216,9 @@ export default function Checkout() {
     { codigo: '2606', nombre: 'ALFA CITY' }
   ]
 
-  // Función para liberar asientos al salir/cancelar
+  // Función para liberar asientos al salir/cancelar (solo aplica para modo ASIENTOS)
   const liberarAsientos = async () => {
+    if (isGeneralMode) return
     if (!reservaId || !eventId) return
     if (asientosLiberados) {
       console.log('⚠️ Asientos ya liberados, evitando duplicación')
@@ -168,7 +227,7 @@ export default function Checkout() {
 
     try {
       await api.post('/asientos/liberar-varios', {
-        asientosIds: seats.map(s => s.id),
+        asientosIds: seats.map((s: CheckoutSeat) => s.id),
         eventoId: eventId
       })
       setAsientosLiberados(true)
@@ -199,6 +258,25 @@ export default function Checkout() {
       sessionStorage.setItem(PAYMENT_KEY, JSON.stringify(paymentData))
     }
   }, [paymentData])
+
+  // Guardar estado del checkbox de términos
+  useEffect(() => {
+    if (eventId) {
+      sessionStorage.setItem(`checkout_terms_${eventId}`, String(termsAccepted))
+    }
+  }, [termsAccepted])
+
+  // Countdown timer para la tarjeta de QR pendiente
+  useEffect(() => {
+    if (!resumeQRData) return
+    const update = () => {
+      const diff = new Date(resumeQRData.fechaVencimiento).getTime() - Date.now()
+      setResumeTimeLeft(Math.max(0, Math.floor(diff / 1000)))
+    }
+    update()
+    const id = setInterval(update, 1000)
+    return () => clearInterval(id)
+  }, [resumeQRData])
 
   // Verificar si hay un QR pendiente reutilizable al montar
   // Si ya fue pagado → mostrar modal de éxito directo
@@ -231,6 +309,9 @@ export default function Checkout() {
             sessionStorage.removeItem(FORM_KEY)
             sessionStorage.removeItem(COMPLETE_KEY)
             sessionStorage.removeItem(PAYMENT_KEY)
+            sessionStorage.removeItem(`checkout_terms_${eventId}`)
+            sessionStorage.removeItem('checkout_state')
+            if (reservaId) localStorage.setItem(`compra_completada_${reservaId}`, '1')
             setShowPaidModal(true)
             return
           }
@@ -255,6 +336,9 @@ export default function Checkout() {
               sessionStorage.removeItem(FORM_KEY)
               sessionStorage.removeItem(COMPLETE_KEY)
               sessionStorage.removeItem(PAYMENT_KEY)
+              sessionStorage.removeItem(`checkout_terms_${eventId}`)
+              sessionStorage.removeItem('checkout_state')
+              if (reservaId) localStorage.setItem(`compra_completada_${reservaId}`, '1')
               silentPolling?.detener()
               setShowPaidModal(true)
             } else if (resultado.estado === 'FALLIDO' || resultado.estado === 'EXPIRADO') {
@@ -266,16 +350,25 @@ export default function Checkout() {
           15000
         )
         silentPolling.iniciar()
-        ;(window as any).silentPolling = silentPolling
+        silentPollingRef.current = silentPolling
       } catch {}
     }
 
     checkPendingPayment()
 
     return () => {
-      silentPolling?.detener()
+      silentPollingRef.current?.detener()
     }
   }, [eventId])
+
+  // Si viene del banner (flag en sessionStorage), abrir el modal del QR automáticamente
+  useEffect(() => {
+    const autoOpen = sessionStorage.getItem('checkout_auto_open_qr') === '1'
+    if (autoOpen) {
+      sessionStorage.removeItem('checkout_auto_open_qr')
+      if (resumeQRData) handleResumeQR()
+    }
+  }, [])
 
   // Limpiar polling al desmontar (NO liberar asientos)
   useEffect(() => {
@@ -285,7 +378,23 @@ export default function Checkout() {
     }
   }, [])
 
-  const totalPrice = seats.reduce((sum, seat) => sum + seat.price, 0)
+  const totalPrice = seats.reduce((sum: number, seat: CheckoutSeat) => sum + seat.price, 0)
+
+  const formatTimeLeft = (seconds: number): string => {
+    const h = Math.floor(seconds / 3600)
+    const m = Math.floor((seconds % 3600) / 60)
+    const s = seconds % 60
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+  }
+
+  const allAttendeeDone = completedAttendees.size >= seats.length
+  const currentStep = resumeQRData ? 3 : (allAttendeeDone && !!paymentData.medioPago) ? 3 : allAttendeeDone ? 2 : 1
+
+  const isGeneralSeat = (seat: CheckoutSeat) => seat.row?.toLowerCase() === 'general'
+  const seatLabel = (seat: CheckoutSeat, index: number) =>
+    isGeneralSeat(seat)
+      ? seats.length > 1 ? `Entrada General #${index + 1}` : 'Entrada General'
+      : `Fila ${seat.row} - Asiento ${seat.number}`
 
   useEffect(() => { if (eventId) loadEvent() }, [eventId])
 
@@ -372,7 +481,7 @@ export default function Checkout() {
     }
   }
 
-  const handlePaymentChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const _handlePaymentChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setPaymentData((prev) => ({ ...prev, [name]: value }))
     if (errors[name]) setErrors((prev) => { const n = { ...prev }; delete n[name]; return n })
@@ -397,6 +506,7 @@ export default function Checkout() {
       sessionStorage.removeItem(FORM_KEY)
       sessionStorage.removeItem(COMPLETE_KEY)
       sessionStorage.removeItem(PAYMENT_KEY)
+      sessionStorage.removeItem(`checkout_terms_${eventId}`)
       localStorage.removeItem('pending_payment')
       // Liberar asientos
       await liberarAsientos()
@@ -445,38 +555,51 @@ export default function Checkout() {
       return
     }
     if (!event) { alert('Error al cargar los datos del evento'); return }
-    if (!reservaId) { alert('No hay reserva activa. Por favor selecciona tus asientos nuevamente.'); return }
+    if (!isGeneralMode && !reservaId) { alert('No hay reserva activa. Por favor selecciona tus asientos nuevamente.'); return }
     if (paymentData.medioPago !== 'qr') { alert('Actualmente solo aceptamos pagos con QR'); return }
 
+    setShowConfirmModal(true)
+  }
+
+  const handleConfirmAndPay = async () => {
+    setShowConfirmModal(false)
     setProcessing(true)
     setPaymentStatus('PENDIENTE')
     try {
-      // Paso 1: Iniciar el pago con QR (los asientos ya están reservados)
-      const requestData = {
-        eventoId: eventId,
-        asientoId: seats[0]?.id, // Para compatibilidad, enviar el primer asiento
-        asientosIds: seats.map(s => s.id),
-        monto: totalPrice
-      }
-      console.log('📤 Enviando datos de pago:', requestData)
+      const asistentesBase = seats.map((_seat: CheckoutSeat, index: number) => {
+        const a = attendees[index]
+        return {
+          nombre: a.nombre,
+          apellido: a.apellido,
+          email: a.email,
+          telefono: a.telefono,
+          documento: a.documento,
+          oficina: a.otraOficina ? a.otraOficinaNombre : (a.oficina || undefined),
+        }
+      })
 
-      const pagoResponse = await paymentServiceV2.iniciarPagoQR(requestData)
-      console.log('📥 Respuesta del pago:', pagoResponse)
+      const pagoResponse = isGeneralMode
+        ? await paymentServiceV2.crearCompraGeneral({
+            eventoId: eventId,
+            cantidad: seats.length,
+            asistentes: asistentesBase,
+            medioPago: paymentData.medioPago,
+          })
+        : await paymentServiceV2.crearCompra({
+            eventoId: eventId,
+            asistentes: seats.map((seat: CheckoutSeat, index: number) => ({
+              ...asistentesBase[index],
+              asientoId: seat.id,
+            })),
+            medioPago: paymentData.medioPago,
+          })
 
       if (!pagoResponse.success || !pagoResponse.qrPago) {
         throw new Error(pagoResponse.error || 'Error al iniciar el pago')
       }
 
       const qrPagoId = pagoResponse.qrPago.id
-
-      // Configurar los datos del QR para mostrar en el modal
       const qrImageData = pagoResponse.qrPago.imagenQr
-      console.log('📷 Preparando datos del QR:', {
-        qrImageDataLength: qrImageData?.length,
-        qrImageDataPreview: qrImageData?.substring(0, 50) + '...',
-        pagoResponseKeys: Object.keys(pagoResponse),
-        hasQrPago: !!pagoResponse.qrPago
-      })
 
       setCurrentQRData({
         qrData: qrImageData,
@@ -490,20 +613,19 @@ export default function Checkout() {
       setCurrentPurchaseId(qrPagoId)
       setShowQRModal(true)
 
-      // Guardar pago pendiente en localStorage para recuperarlo si el usuario sale de la página
       const pendingPayloadToSave = {
         qrPagoId,
-        imagenQr:        qrImageData,
-        monto:           pagoResponse.qrPago.monto,
-        moneda:          pagoResponse.qrPago.moneda,
+        imagenQr:         qrImageData,
+        monto:            pagoResponse.qrPago.monto,
+        moneda:           pagoResponse.qrPago.moneda,
         fechaVencimiento: pagoResponse.qrPago.fechaVencimiento,
-        eventTitle:      event?.title ?? event?.titulo ?? '',
+        eventTitle:       event?.title ?? event?.titulo ?? '',
         eventId,
-        createdAt:       new Date().toISOString()
+        createdAt:        new Date().toISOString()
       }
       localStorage.setItem('pending_payment', JSON.stringify(pendingPayloadToSave))
+      setResumeQRData(pendingPayloadToSave)
 
-      // Auto-borrar del localStorage exactamente cuando vence el QR
       const msHastaVencimiento = new Date(pagoResponse.qrPago.fechaVencimiento).getTime() - Date.now()
       if (msHastaVencimiento > 0) {
         setTimeout(() => {
@@ -511,22 +633,18 @@ export default function Checkout() {
           if (current) {
             try {
               const parsed = JSON.parse(current)
-              // Solo borrar si es el mismo QR (no uno más nuevo)
               if (parsed.qrPagoId === qrPagoId) {
                 localStorage.removeItem('pending_payment')
-                console.log('⏰ pending_payment eliminado del localStorage por vencimiento del QR')
               }
             } catch { localStorage.removeItem('pending_payment') }
           }
         }, msHastaVencimiento)
       }
-      console.log('🔄 Iniciando polling con ID:', qrPagoId)
+
       const polling = paymentServiceV2.iniciarPollingPago(
         qrPagoId,
         (resultado) => {
           setPaymentStatus(resultado.estado)
-
-          // Si el pago fue exitoso
           if (resultado.estado === 'PAGADO') {
             handlePaymentSuccess(reservaId!, resultado.datos?.transaccionId)
           } else if (resultado.estado === 'FALLIDO') {
@@ -536,13 +654,15 @@ export default function Checkout() {
           }
         }
       )
-
       polling.iniciar()
-
-      // Guardar el polling en el componente para poder detenerlo
       ;(window as any).paymentPolling = polling
     } catch (error: any) {
       console.error('Error en el proceso de pago:', error)
+      if (error.status === 409) {
+        if (reservaId) localStorage.setItem(`compra_completada_${reservaId}`, '1')
+        navigate('/mis-compras', { replace: true })
+        return
+      }
       alert(`Error: ${error.message || 'Hubo un error al procesar tu compra.'}`)
       setPaymentStatus('FALLIDO')
     } finally {
@@ -550,44 +670,55 @@ export default function Checkout() {
     }
   }
 
-  const handlePaymentSuccess = (_compraId: string, _transaccionId?: string) => {
+  const handlePaymentSuccess = async (_compraId: string, _transaccionId?: string) => {
+    if (paymentProcessedRef.current) return
+    paymentProcessedRef.current = true
+
     setShowQRModal(false)
-    // Detener polling
     const polling = (window as any).paymentPolling
-    if (polling && polling.detener) {
-      polling.detener()
-    }
+    if (polling?.detener) polling.detener()
+    silentPollingRef.current?.detener()
 
     sessionStorage.removeItem('checkout_state')
     sessionStorage.removeItem(FORM_KEY)
     sessionStorage.removeItem(COMPLETE_KEY)
     sessionStorage.removeItem(PAYMENT_KEY)
+    sessionStorage.removeItem(`checkout_terms_${eventId}`)
     localStorage.removeItem('pending_payment')
-    // NO liberar los asientos - el backend ya los marcó como VENDIDO
+    if (reservaId) localStorage.setItem(`compra_completada_${reservaId}`, '1')
     setAsientosLiberados(true)
 
-    const purchase = purchasesService.createPurchase({
-      eventoId: eventId,
-      eventoTitulo: event.title,
-      eventoImagen: event.image,
-      eventoFecha: event.date,
-      eventoHora: event.time,
-      eventoUbicacion: event.location,
-      eventoDireccion: event.address,
-      asientos: seats.map((seat, index) => ({
-        fila: seat.row, numero: seat.number,
-        nombre: `${attendees[index].nombre} ${attendees[index].apellido}`.trim(),
-        email: attendees[index].email, ci: attendees[index].documento, sector: 'General'
-      })),
-      monto: totalPrice
-    })
-    navigate('/compra-exitosa', {
-      state: {
-        purchaseId: purchase.id,
-        eventData: event,
-        attendeeData: { asientos: purchase.asientos, total: totalPrice }
+    try {
+      const res = await api.get('/compras/mis-compras', { params: { limit: 100 } })
+      const compras: any[] = res.data.data ?? []
+      const eventCompras = compras.filter((c: any) => c.eventoId === eventId && c.estadoPago === 'PAGADO')
+
+      if (eventCompras.length > 0) {
+        const first = eventCompras[0]
+        navigate('/compra-exitosa', {
+          state: {
+            purchaseId: first.id,
+            eventData: event,
+            attendeeData: {
+              asientos: eventCompras.map((c: any) => ({
+                nombre: `${c.nombreAsistente ?? ''} ${c.apellidoAsistente ?? ''}`.trim() || attendees[0]?.nombre || '',
+                asiento: `${c.asiento?.fila ?? ''}${c.asiento?.numero ?? ''}`,
+                sector: 'General',
+                ci: c.documentoAsistente ?? '',
+                email: c.emailAsistente ?? '',
+                qrCode: c.qrCode,
+              })),
+              total: eventCompras.reduce((sum: number, c: any) => sum + c.monto, 0),
+            },
+          },
+        })
+        return
       }
-    })
+    } catch (err) {
+      console.error('Error fetching purchases after payment:', err)
+    }
+
+    navigate('/mis-compras', { replace: true })
   }
 
   const handlePaymentFailed = async (mensaje?: string) => {
@@ -603,6 +734,7 @@ export default function Checkout() {
     sessionStorage.removeItem(FORM_KEY)
     sessionStorage.removeItem(COMPLETE_KEY)
     sessionStorage.removeItem(PAYMENT_KEY)
+    sessionStorage.removeItem(`checkout_terms_${eventId}`)
     localStorage.removeItem('pending_payment')
     // Liberar asientos cuando el pago falla
     await liberarAsientos()
@@ -623,6 +755,7 @@ export default function Checkout() {
     sessionStorage.removeItem(FORM_KEY)
     sessionStorage.removeItem(COMPLETE_KEY)
     sessionStorage.removeItem(PAYMENT_KEY)
+    sessionStorage.removeItem(`checkout_terms_${eventId}`)
     localStorage.removeItem('pending_payment')
     // Liberar asientos cuando el tiempo expira
     await liberarAsientos()
@@ -724,9 +857,9 @@ export default function Checkout() {
         <div className="sm:hidden bg-white border-b px-4 py-4 shadow-sm">
           {event && <p className="font-semibold text-sm mb-2">{event.title}</p>}
           <div className="space-y-1 mb-3">
-            {seats.map((seat) => (
+            {seats.map((seat: CheckoutSeat, index: number) => (
               <div key={seat.id} className="flex justify-between text-sm text-gray-600">
-                <span>Fila {seat.row} - Asiento {seat.number}</span>
+                <span>{seatLabel(seat, index)}</span>
                 <span>Bs {seat.price.toFixed(2)}</span>
               </div>
             ))}
@@ -740,32 +873,40 @@ export default function Checkout() {
 
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
 
-        {/* Banner: reanudar QR pendiente */}
-        {resumeQRData && !showQRModal && (
-          <div className="mb-4 sm:mb-6 flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                <QrCode size={18} className="text-amber-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-amber-900 text-sm leading-tight">
-                  Ya generaste un QR de pago para este evento
-                </p>
-                <p className="text-xs text-amber-700 mt-0.5">
-                  Vence: {new Date(resumeQRData.fechaVencimiento).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                  {' · '}{resumeQRData.moneda} {resumeQRData.monto?.toFixed(2)}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleResumeQR}
-              className="flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
-            >
-              Ver QR
-            </button>
-          </div>
-        )}
+        {/* Stepper */}
+        <div className="flex items-center justify-center mb-6">
+          {[{ label: 'Datos', step: 1 }, { label: 'Pago', step: 2 }, { label: 'QR', step: 3 }].map(({ label, step }, i) => {
+            const done = step < currentStep
+            const active = step === currentStep
+            return (
+              <React.Fragment key={step}>
+                {i > 0 && (
+                  <div
+                    className="h-0.5 mx-2"
+                    style={{ width: '3rem', background: done ? '#22c55e' : '#e5e7eb' }}
+                  />
+                )}
+                <div className="flex flex-col items-center">
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all"
+                    style={{
+                      background: done ? '#22c55e' : active ? '#233C7A' : '#e5e7eb',
+                      color: (done || active) ? '#fff' : '#9ca3af'
+                    }}
+                  >
+                    {done ? <Check size={14} /> : step}
+                  </div>
+                  <span
+                    className="text-xs mt-1 font-semibold"
+                    style={{ color: done ? '#16a34a' : active ? '#233C7A' : '#9ca3af' }}
+                  >
+                    {label}
+                  </span>
+                </div>
+              </React.Fragment>
+            )
+          })}
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-8">
 
@@ -778,7 +919,7 @@ export default function Checkout() {
                   Datos de los asistentes
                 </h2>
                 <div className="space-y-3 sm:space-y-4">
-                  {seats.map((seat, index) => {
+                  {seats.map((seat: CheckoutSeat, index: number) => {
                     const isCompleted = completedAttendees.has(index)
                     const isExpanded = expandedAttendee === index
                     const attendee = attendees[index]
@@ -803,7 +944,7 @@ export default function Checkout() {
                                   Asistente {index + 1}{isCompleted && ' - Completado'}
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                  Fila {seat.row} - Asiento {seat.number}
+                                  {seatLabel(seat, index)}
                                 </p>
                               </div>
                             </div>
@@ -984,9 +1125,40 @@ export default function Checkout() {
                 </CardContent>
               </Card>
 
-              <Button type="submit" size="lg" disabled={processing || !termsAccepted} className="w-full text-sm sm:text-base">
-                {processing ? 'Procesando...' : 'Generar QR'}
-              </Button>
+              {resumeQRData ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-gray-500 px-1">
+                    <span>QR activo · Bs {resumeQRData.monto.toFixed(2)}</span>
+                    <span className="flex items-center gap-1" style={{ color: resumeTimeLeft < 300 ? '#E0081D' : '#F97316' }}>
+                      <Clock size={11} />
+                      {formatTimeLeft(resumeTimeLeft)}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleResumeQR}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-white text-sm transition-all hover:brightness-110 active:scale-[.98] shadow-md"
+                    style={{ background: '#F97316' }}
+                  >
+                    <QrCode size={18} />
+                    Ver QR de pago
+                  </button>
+                </div>
+              ) : (
+                <Button
+                  type="submit"
+                  size="lg"
+                  disabled={
+                    processing ||
+                    !termsAccepted ||
+                    !paymentData.medioPago ||
+                    completedAttendees.size < seats.length
+                  }
+                  className="w-full text-sm sm:text-base"
+                >
+                  {processing ? 'Procesando...' : 'Generar QR'}
+                </Button>
+              )}
             </form>
           </div>
 
@@ -1017,9 +1189,9 @@ export default function Checkout() {
                 <div className="mb-6 pb-6 border-b">
                   <h4 className="font-semibold mb-3">Asientos seleccionados:</h4>
                   <div className="space-y-2">
-                    {seats.map((seat, index) => (
+                    {seats.map((seat: CheckoutSeat, index: number) => (
                       <div key={seat.id} className="flex justify-between items-center text-sm">
-                        <span>Asiento {index + 1}: Fila {seat.row} - {seat.number}</span>
+                        <span>{seatLabel(seat, index)}</span>
                         <span className="font-semibold">Bs {seat.price.toFixed(2)}</span>
                       </div>
                     ))}
@@ -1063,6 +1235,73 @@ export default function Checkout() {
         }}
         selected={paymentData.medioPago}
       />
+
+      {/* Modal de confirmación antes de generar QR */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4" style={{ background: '#233C7A' }}>
+              <h2 className="text-white font-bold text-lg">Confirmar compra</h2>
+              <p className="text-xs" style={{ color: '#a8b8d8' }}>Revisa los datos antes de generar el QR</p>
+            </div>
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+              {event && (
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-1">Evento</p>
+                  <p className="font-semibold text-gray-900">{event.title || event.titulo}</p>
+                  {event.date && (
+                    <p className="text-sm text-gray-500">
+                      {new Date(event.date).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+              )}
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Asistentes</p>
+                <div className="space-y-2">
+                  {seats.map((seat: CheckoutSeat, index: number) => (
+                    <div key={seat.id} className="flex justify-between items-start bg-gray-50 rounded-lg px-3 py-2 text-sm">
+                      <div>
+                        <p className="font-semibold text-gray-900">
+                          {attendees[index]?.nombre} {attendees[index]?.apellido}
+                        </p>
+                        <p className="text-xs text-gray-500">{seatLabel(seat, index)}</p>
+                      </div>
+                      <span className="font-semibold text-gray-700 flex-shrink-0 ml-2">Bs {seat.price.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t">
+                <span className="font-bold text-gray-900">Total</span>
+                <span className="font-extrabold text-xl" style={{ color: '#233C7A' }}>Bs {totalPrice.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <QrCode size={14} />
+                <span>Pago con QR · Banco MC4</span>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t flex gap-3">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 py-3 rounded-xl font-semibold border-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                style={{ borderColor: '#e5e7eb' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmAndPay}
+                className="flex-1 py-3 rounded-xl font-semibold text-white transition-colors"
+                style={{ background: '#233C7A' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#1a2d5a')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#233C7A')}
+              >
+                Confirmar y pagar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Pago ya completado (detectado al volver al checkout) */}
       {showPaidModal && (

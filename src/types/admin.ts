@@ -32,6 +32,7 @@ export interface Event {
   totalTicketsSold: number
   createdAt: Date
   updatedAt: Date
+  seatMapConfig?: any
 }
 
 export interface AdminEvent extends Event {
@@ -122,6 +123,7 @@ export interface CreateEventDTO {
   image: string
   gallery: string[]
   sectors: Sector[]
+  seatMapConfig?: any
 }
 
 export interface UpdateEventDTO extends Partial<CreateEventDTO> {

@@ -1,4 +1,3 @@
-import React from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertCircle, ArrowLeft } from 'lucide-react'
 import Button from '@/components/ui/Button'

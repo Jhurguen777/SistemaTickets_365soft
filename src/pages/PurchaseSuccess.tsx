@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { CheckCircle, Download, Home, QrCode, Ticket, X } from 'lucide-react'
 import QRCode from 'qrcode.react'

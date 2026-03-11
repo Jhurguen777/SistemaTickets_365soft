@@ -11,7 +11,6 @@ import {
   Monitor,
   Filter,
   Search,
-  Trash2,
   Edit,
   UserX,
   CheckCircle,
@@ -19,8 +18,6 @@ import {
   Calendar,
   X
 } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/Card'
-import Button from '@/components/ui/Button'
 import adminService from '@/services/adminService'
 import { Admin, CreateAdminDTO, AuditLog, ActiveSession, AdminRole, AuditAction } from '@/types/admin'
 

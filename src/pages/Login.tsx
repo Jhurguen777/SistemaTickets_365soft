@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
 import Button from '@/components/ui/Button'
@@ -13,7 +13,7 @@ interface LoginState {
 export default function Login() {
   const navigate = useNavigate()
   const location = useLocation() as LoginState
-  const { login, register, isAdmin } = useAuthStore()
+  const { login, register } = useAuthStore()
 
   const [isLogin, setIsLogin] = useState(true)
   const [formData, setFormData] = useState({ email: '', password: '', nombre: '', apellido: '', confirmPassword: '' })

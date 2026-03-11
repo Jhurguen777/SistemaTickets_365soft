@@ -91,7 +91,8 @@ export default function CompleteProfile() {
         nombre: decoded.nombre || '',
         apellido: decoded.apellido || '',
         agencia: decoded.agencia || '',
-        rol: decoded.rol
+        rol: decoded.rol,
+        isAdmin: decoded.rol === 'ADMIN'
       }
 
       // Guardar en localStorage y store
@@ -173,7 +174,8 @@ export default function CompleteProfile() {
         nombre: usuario.nombre,
         apellido: usuario.apellido,
         agencia: usuario.agencia,
-        rol: usuario.rol
+        rol: usuario.rol,
+        isAdmin: usuario.rol === 'ADMIN'
       }
 
       localStorage.setItem('token', token)

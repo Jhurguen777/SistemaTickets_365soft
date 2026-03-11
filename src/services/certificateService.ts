@@ -281,7 +281,7 @@ class CertificateService {
   }
 
   // Generar certificado PDF
-  async generateCertificate(attendee: Attendee, template: CertificateTemplate, eventName: string, eventDate: string): Promise<string> {
+  async generateCertificate(attendee: Attendee, template: CertificateTemplate, _eventName: string, _eventDate: string): Promise<string> {
     // Llamar al backend para generar el certificado
     const response = await fetch(`${API_BASE_URL}/certificados/generar`, {
       method: 'POST',

@@ -47,7 +47,6 @@ export interface VerificarPagoResponse {
  * Crea la compra y genera el QR del banco
  */
 export const iniciarPagoQR = async (params: IniciarPagoRequest): Promise<IniciarPagoResponse> => {
-  console.log('📤 Enviando al backend:', params)
   const response = await api.post<IniciarPagoResponse>('/compras/iniciar-pago', params)
   return response.data
 }
@@ -75,7 +74,7 @@ export const obtenerMisCompras = async (page: number = 1, limit: number = 10) =>
  * Obtener detalle de compra
  */
 export const obtenerDetalleCompra = async (compraId: string) => {
-  const response = await api.get(`/compras/detalle/${compraId}`)
+  const response = await api.get(`/compras/${compraId}`)
   return response.data
 }
 

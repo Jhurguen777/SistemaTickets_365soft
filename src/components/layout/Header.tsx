@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Search, Menu, X, LogOut } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Menu, X, LogOut } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { useAuthStore } from '@/store/authStore'
 
@@ -132,7 +132,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                   <button
                     key={index}
                     onClick={() => {
-                      item.action()
+                      item.action?.()
                       setMobileMenuOpen(false)
                     }}
                     className="text-sm font-semibold text-white hover:text-white/90 transition-colors uppercase text-left"
@@ -160,7 +160,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                     Mis Compras
                   </Link>
                   <div className="flex items-center justify-between pt-2 border-t border-white/20">
-                    <span className="text-sm font-semibold text-white">{user.nombre}</span>
+                    <span className="text-sm font-semibold text-white">{user?.nombre}</span>
                     <button
                       onClick={() => {
                         handleLogout()

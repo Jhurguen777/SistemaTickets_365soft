@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Search } from 'lucide-react'
 import BannerCarousel from '@/components/home/BannerCarousel'
 import CategoryMenu from '@/components/home/CategoryMenu'

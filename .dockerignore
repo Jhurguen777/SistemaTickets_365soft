@@ -1,0 +1,47 @@
+# ── Dependencias (se instalan dentro del build) ───────────────────
+node_modules/
+
+# ── Build anterior ────────────────────────────────────────────────
+dist/
+dist-ssr/
+
+# ── Variables de entorno ──────────────────────────────────────────
+.env
+.env.*
+
+# ── Docker (no necesario dentro de la imagen) ─────────────────────
+docker-compose*.yml
+Dockerfile*
+
+# ── Git ────────────────────────────────────────────────────────────
+.git/
+.gitignore
+
+# ── Logs ───────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Testing ────────────────────────────────────────────────────────
+coverage/
+cypress/
+*.test.ts
+*.spec.ts
+vitest.config.*
+
+# ── IDE / OS ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Documentación ─────────────────────────────────────────────────
+*.md
+README*
+
+# ── Cache ──────────────────────────────────────────────────────────
+.cache/
+.vite/
+
+# ── Temporales ─────────────────────────────────────────────────────
+tmp/
+temp/

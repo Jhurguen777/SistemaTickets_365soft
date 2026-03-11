@@ -1,0 +1,15 @@
+services:
+
+  # ─── Frontend standalone (solo para desarrollo del frontend) ─────
+  # Para el stack completo usa: cd ../SistemaTickets_backend_365soft && docker compose up --build -d
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api}
+        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://localhost:3000}
+    container_name: tickets_frontend_dev
+    restart: unless-stopped
+    ports:
+      - "8080:80"

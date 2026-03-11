@@ -6,10 +6,9 @@ import { AdminEvent } from '@/types/admin'
 
 interface EventCardProps {
   event: AdminEvent
-  onViewDetails: (eventId: string) => void
 }
 
-export default function EventCard({ event, onViewDetails }: EventCardProps) {
+export default function EventCard({ event }: EventCardProps) {
   const availableTickets = event.sectors.reduce((sum, sector) => sum + sector.available, 0)
   const soldTickets = event.totalTicketsSold
 

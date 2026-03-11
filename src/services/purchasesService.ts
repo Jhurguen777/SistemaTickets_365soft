@@ -1,22 +1,6 @@
 import { generateTicketQRCode } from './qrService'
 import api from './api'
 
-// Clave localStorage para el mapa asientoId → datos asistente
-const ATTENDEE_MAP_KEY = 'ticket_attendee_map'
-
-
-
-/** Lee datos del asistente asociado a su asientoId */
-const getAttendeeData = (asientoId: string): { nombre: string; email: string; ci: string; telefono?: string; oficina?: string } | null => {
-  try {
-    const raw = localStorage.getItem(ATTENDEE_MAP_KEY)
-    if (!raw) return null
-    const map = JSON.parse(raw)
-    return map[asientoId] ?? null
-  } catch {
-    return null
-  }
-}
 
 export interface UserPurchase {
   id: string
@@ -47,116 +31,16 @@ export interface UserPurchase {
   createdAt: string
 }
 
-// Datos iniciales de ejemplo
-const INITIAL_PURCHASES: UserPurchase[] = [
-  {
-    id: 'pur-1',
-    eventoId: '1',
-    eventoTitulo: 'Vibra Carnavalera 2026',
-    eventoImagen: '/media/banners/vibra-carnavalera.jpg',
-    eventoFecha: '2026-02-15',
-    eventoHora: '20:00',
-    eventoUbicacion: 'Estadio Olímpico, La Paz',
-    eventoDireccion: 'Av. Saavedra #1895, La Paz, Bolivia',
-    asientos: [
-      {
-        fila: 'A',
-        numero: 5,
-        asiento: 'A5',
-        nombre: 'Juan Pérez',
-        email: 'juan@gmail.com',
-        ci: '1234567',
-        sector: 'VIP',
-        qrCode: generateTicketQRCode('pur-1', 'att1', 'A5', '1234567'),
-        attendeeId: 'att1'
-      },
-      {
-        fila: 'A',
-        numero: 6,
-        asiento: 'A6',
-        nombre: 'Ana Pérez',
-        email: 'ana@gmail.com',
-        ci: '7654321',
-        sector: 'VIP',
-        qrCode: generateTicketQRCode('pur-1', 'att2', 'A6', '7654321'),
-        attendeeId: 'att2'
-      }
-    ],
-    cantidad: 2,
-    monto: 700,
-    estadoPago: 'PAGADO',
-    qrCode: generateTicketQRCode('pur-1', 'att1', 'A5', '1234567'),
-    createdAt: '2025-01-25T10:30:00'
-  },
-  {
-    id: 'pur-2',
-    eventoId: '2',
-    eventoTitulo: 'Carnaval de Oruro 2026',
-    eventoImagen: '/media/banners/carnaval-oruro.jpg',
-    eventoFecha: '2026-02-28',
-    eventoHora: '19:00',
-    eventoUbicacion: 'Estadio Jesús Bermúdez, Oruro',
-    eventoDireccion: 'Calle Bolívar #456, Oruro, Bolivia',
-    asientos: [
-      {
-        fila: 'C',
-        numero: 1,
-        asiento: 'C1',
-        nombre: 'Carlos Mendoza',
-        email: 'carlos@gmail.com',
-        ci: '7890123',
-        sector: 'VIP',
-        qrCode: generateTicketQRCode('pur-2', 'att8', 'C1', '7890123'),
-        attendeeId: 'att8'
-      }
-    ],
-    cantidad: 1,
-    monto: 500,
-    estadoPago: 'PAGADO',
-    qrCode: generateTicketQRCode('pur-2', 'att8', 'C1', '7890123'),
-    createdAt: '2025-01-24T15:45:00'
-  },
-  {
-    id: 'pur-3',
-    eventoId: '1',
-    eventoTitulo: 'Vibra Carnavalera 2026',
-    eventoImagen: '/media/banners/vibra-carnavalera.jpg',
-    eventoFecha: '2026-02-15',
-    eventoHora: '20:00',
-    eventoUbicacion: 'Estadio Olímpico, La Paz',
-    eventoDireccion: 'Av. Saavedra #1895, La Paz, Bolivia',
-    asientos: [
-      {
-        fila: 'B',
-        numero: 1,
-        asiento: 'B1',
-        nombre: 'María González',
-        email: 'maria@gmail.com',
-        ci: '3456789',
-        sector: 'General',
-        qrCode: generateTicketQRCode('pur-3', 'att4', 'B1', '3456789'),
-        attendeeId: 'att4'
-      }
-    ],
-    cantidad: 1,
-    monto: 150,
-    estadoPago: 'PENDIENTE',
-    qrCode: generateTicketQRCode('pur-3', 'att4', 'B1', '3456789'),
-    createdAt: '2025-01-26T09:15:00'
-  }
-]
-
 const getPurchases = (): UserPurchase[] => {
   const stored = localStorage.getItem('user_purchases')
   if (stored) {
     try {
       return JSON.parse(stored)
-    } catch (error) {
-      console.error('Error parsing purchases:', error)
-      return INITIAL_PURCHASES
+    } catch {
+      return []
     }
   }
-  return INITIAL_PURCHASES
+  return []
 }
 
 const savePurchases = (purchases: UserPurchase[]) => {
@@ -172,7 +56,7 @@ export const getUserPurchases = async (
 ): Promise<UserPurchase[]> => {
   try {
     const res = await api.get('/compras/mis-compras', { params: { limit: 100 } })
-    const compras: any[] = res.data.data ?? []
+    const compras: any[] = (res.data.data ?? []).filter((c: any) => c.estadoPago === 'PAGADO')
 
     // Agrupar por eventoId
     const grouped = new Map<string, any[]>()
@@ -197,17 +81,16 @@ export const getUserPurchases = async (
         eventoUbicacion: first.evento?.ubicacion ?? '',
         eventoDireccion: first.evento?.direccion ?? '',
         asientos: group.map((c: any) => {
-          // Intentar leer los datos del asistente guardados en localStorage al momento de la compra
-          const savedAttendee = getAttendeeData(c.asientoId ?? c.asiento?.id ?? '')
+          const esGeneral = !c.asiento
           return {
-            fila: c.asiento?.fila ?? '',
-            numero: c.asiento?.numero ?? 0,
-            asiento: `${c.asiento?.fila ?? ''}${c.asiento?.numero ?? ''}`,
-            nombre: savedAttendee?.nombre ?? user?.nombre ?? '',
-            email: savedAttendee?.email ?? user?.email ?? '',
-            ci: savedAttendee?.ci ?? user?.ci ?? '',
-            sector: c.asiento?.sector ?? '-',
-            oficina: savedAttendee?.oficina,
+            fila: esGeneral ? 'General' : (c.asiento?.fila ?? ''),
+            numero: esGeneral ? (c.numeroBoleto ?? 0) : (c.asiento?.numero ?? 0),
+            asiento: esGeneral ? `#${c.numeroBoleto ?? ''}` : `${c.asiento?.fila ?? ''}${c.asiento?.numero ?? ''}`,
+            nombre: (`${c.nombreAsistente ?? ''} ${c.apellidoAsistente ?? ''}`.trim() || user?.nombre) ?? '',
+            email: c.emailAsistente ?? user?.email ?? '',
+            ci: c.documentoAsistente ?? user?.ci ?? '',
+            sector: esGeneral ? 'General' : '-',
+            oficina: c.oficina ?? undefined,
             qrCode: c.qrCode,
             attendeeId: c.id,
           }

@@ -105,7 +105,7 @@ export default function EventForm() {
         price: formData.precio, category: formData.category,
         subcategory: formData.subcategory, organizer: formData.organizer,
         status: formData.status, image: mainImage, gallery: images,
-        modo: conAsientos ? 'ASIENTOS' : 'CANTIDAD',
+        modo: (conAsientos ? 'ASIENTOS' : 'CANTIDAD') as 'ASIENTOS' | 'CANTIDAD',
         sectors: [{ id: '1', name: 'General', price: formData.precio, available: formData.capacity, total: formData.capacity }]
       }
       if (isEditing && id) await adminService.updateEvent(id, finalFormData)

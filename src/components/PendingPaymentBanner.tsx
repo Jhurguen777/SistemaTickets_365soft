@@ -1,9 +1,6 @@
-// Componente que detecta pagos pendientes guardados en localStorage
-// y permite al usuario retomar o verificar el estado sin perder su compra.
-
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { AlertCircle, CheckCircle2, X, QrCode, Loader2, ExternalLink } from 'lucide-react'
+import { AlertCircle, CheckCircle2, X, QrCode, ExternalLink } from 'lucide-react'
 import { paymentServiceV2 } from '@/services/paymentServiceV2'
 import { useAuthStore } from '@/store/authStore'
 
@@ -18,7 +15,7 @@ interface PendingPaymentData {
   createdAt: string
 }
 
-type BannerState = 'checking' | 'pending' | 'paid' | 'expired' | 'hidden'
+type BannerState = 'checking' | 'pending' | 'paid' | 'hidden'
 
 const HIDDEN_ROUTES = ['/checkout', '/compra-exitosa', '/login', '/admin']
 
@@ -29,214 +26,150 @@ export default function PendingPaymentBanner() {
 
   const [bannerState, setBannerState] = useState<BannerState>('hidden')
   const [pendingData, setPendingData] = useState<PendingPaymentData | null>(null)
-  const [showQRModal, setShowQRModal] = useState(false)
-  const [pollingActive, setPollingActive] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(0)
   const pollingRef = useRef<{ detener: () => void } | null>(null)
-  const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
-  const ttlRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const ttlRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // No mostrar en ciertas rutas
   const isHiddenRoute = HIDDEN_ROUTES.some(r => location.pathname.startsWith(r))
+
+  const handlePaid = (data: PendingPaymentData) => {
+    localStorage.removeItem('pending_payment')
+    pollingRef.current?.detener()
+    if (ttlRef.current) clearTimeout(ttlRef.current)
+
+    // Limpiar todos los datos del checkout de sessionStorage
+    const eid = data.eventId
+    sessionStorage.removeItem('checkout_state')
+    sessionStorage.removeItem(`checkout_form_${eid}`)
+    sessionStorage.removeItem(`checkout_completed_${eid}`)
+    sessionStorage.removeItem(`checkout_payment_${eid}`)
+    sessionStorage.removeItem(`checkout_terms_${eid}`)
+
+    setPendingData(data)
+    setBannerState('paid')
+    setTimeout(() => {
+      setBannerState('hidden')
+      navigate('/mis-compras')
+    }, 4000)
+  }
 
   useEffect(() => {
     if (!isAuthenticated || isHiddenRoute) {
+      pollingRef.current?.detener()
       setBannerState('hidden')
       return
     }
 
     const raw = localStorage.getItem('pending_payment')
-    if (!raw) {
-      setBannerState('hidden')
-      return
-    }
+    if (!raw) { setBannerState('hidden'); return }
 
     let data: PendingPaymentData
-    try {
-      data = JSON.parse(raw)
-    } catch {
+    try { data = JSON.parse(raw) } catch {
       localStorage.removeItem('pending_payment')
       setBannerState('hidden')
       return
     }
 
-    // Si ya expiró por tiempo sin consultar el banco
     const expiry = new Date(data.fechaVencimiento).getTime()
     if (Date.now() > expiry) {
-      // Expirado: limpiar inmediatamente sin gracia extra
       localStorage.removeItem('pending_payment')
       setBannerState('hidden')
       return
     }
+
+    // Ignorar si fue descartado en esta sesión
+    if (sessionStorage.getItem('banner_dismissed') === data.qrPagoId) return
 
     setPendingData(data)
     setBannerState('checking')
 
-    // Auto-borrar del localStorage cuando venza el QR (aunque el usuario no haga nada)
+    // Auto-limpiar cuando vence el QR
     if (ttlRef.current) clearTimeout(ttlRef.current)
-    const msRestantes = expiry - Date.now()
-    if (msRestantes > 0) {
-      ttlRef.current = setTimeout(() => {
-        const current = localStorage.getItem('pending_payment')
-        if (current) {
-          try {
-            const parsed = JSON.parse(current)
-            if (parsed.qrPagoId === data.qrPagoId) {
-              localStorage.removeItem('pending_payment')
-              console.log('⏰ pending_payment eliminado del localStorage por vencimiento (banner TTL)')
-            }
-          } catch { localStorage.removeItem('pending_payment') }
-        }
-        setBannerState('hidden')
-      }, msRestantes)
-    }
+    ttlRef.current = setTimeout(() => {
+      localStorage.removeItem('pending_payment')
+      pollingRef.current?.detener()
+      setBannerState('hidden')
+    }, expiry - Date.now())
 
-    // Verificar estado al montar
+    // Verificación inicial
     paymentServiceV2.verificarPago(data.qrPagoId)
       .then(resultado => {
         if (resultado.estado === 'PAGADO') {
-          localStorage.removeItem('pending_payment')
-          setBannerState('paid')
-          setTimeout(() => {
-            setBannerState('hidden')
-            navigate('/mis-compras')
-          }, 4000)
-        } else if (resultado.estado === 'EXPIRADO' || resultado.estado === 'FALLIDO') {
+          handlePaid(data)
+          return
+        }
+        if (resultado.estado === 'EXPIRADO' || resultado.estado === 'FALLIDO') {
           localStorage.removeItem('pending_payment')
           setBannerState('hidden')
-        } else {
-          // PENDIENTE o PROCESANDO
-          setBannerState('pending')
+          return
         }
-      })
-      .catch(() => {
-        // Error de red: mostrar igual por si el usuario quiere ver el QR
+        // PENDIENTE → mostrar banner + iniciar polling continuo
         setBannerState('pending')
+        const polling = paymentServiceV2.iniciarPollingPago(
+          data.qrPagoId,
+          (res) => {
+            if (res.estado === 'PAGADO') handlePaid(data)
+            else if (res.estado === 'EXPIRADO' || res.estado === 'FALLIDO') {
+              localStorage.removeItem('pending_payment')
+              pollingRef.current?.detener()
+              setBannerState('hidden')
+            }
+          },
+          15000
+        )
+        polling.iniciar()
+        pollingRef.current = polling
       })
-  }, [isAuthenticated, location.pathname])
-
-  // Countdown en el modal del QR
-  useEffect(() => {
-    if (!showQRModal || !pendingData) {
-      if (timerRef.current) clearInterval(timerRef.current)
-      return
-    }
-
-    const updateTimer = () => {
-      const diff = new Date(pendingData.fechaVencimiento).getTime() - Date.now()
-      setTimeLeft(Math.max(0, Math.floor(diff / 1000)))
-    }
-    updateTimer()
-    timerRef.current = setInterval(updateTimer, 1000)
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [showQRModal, pendingData])
-
-  // Iniciar / detener polling cuando se abre el modal QR
-  useEffect(() => {
-    if (!showQRModal || !pendingData || pollingActive) return
-
-    setPollingActive(true)
-    const polling = paymentServiceV2.iniciarPollingPago(
-      pendingData.qrPagoId,
-      resultado => {
-        if (resultado.estado === 'PAGADO') {
-          localStorage.removeItem('pending_payment')
-          setShowQRModal(false)
-          pollingRef.current?.detener()
-
-          // Crear registro local y navegar a éxito
-          setBannerState('paid')
-          setTimeout(() => {
-            setBannerState('hidden')
-            navigate('/mis-compras')
-          }, 3000)
-        } else if (resultado.estado === 'EXPIRADO' || resultado.estado === 'FALLIDO') {
-          localStorage.removeItem('pending_payment')
-          setShowQRModal(false)
-          pollingRef.current?.detener()
-          setBannerState('hidden')
-        }
-      },
-      15000
-    )
-
-    pollingRef.current = polling
-    polling.iniciar()
-    ;(window as any).paymentPolling = polling
+      .catch(() => setBannerState('pending'))
 
     return () => {
-      polling.detener()
-      setPollingActive(false)
-      // Limpiar TTL timer si el componente se desmonta
+      pollingRef.current?.detener()
       if (ttlRef.current) clearTimeout(ttlRef.current)
     }
-  }, [showQRModal])
+  }, [isAuthenticated, location.pathname])
 
   const handleDismiss = () => {
-    // Guardar en sessionStorage para no volver a mostrar en esta sesión
     sessionStorage.setItem('banner_dismissed', pendingData?.qrPagoId ?? '1')
     setBannerState('hidden')
   }
 
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60)
-    const sec = s % 60
-    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
+  const handleVerQR = () => {
+    sessionStorage.setItem('checkout_auto_open_qr', '1')
+    navigate('/checkout')
   }
-
-  // Verificar si fue descartado en esta sesión
-  useEffect(() => {
-    if (pendingData && sessionStorage.getItem('banner_dismissed') === pendingData.qrPagoId) {
-      setBannerState('hidden')
-    }
-  }, [pendingData])
 
   if (bannerState === 'hidden' || bannerState === 'checking') return null
 
   return (
     <>
-      {/* ── Banner Principal ── */}
+      {/* ── Banner pago pendiente ── */}
       {bannerState === 'pending' && pendingData && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-sm animate-slide-up">
+        <div className="fixed bottom-0 left-0 right-0 z-50 sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-sm">
           <div className="bg-white border border-amber-200 shadow-xl rounded-t-2xl sm:rounded-xl overflow-hidden">
-            {/* Barra de color superior */}
             <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-400" />
-
             <div className="p-4">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
                   <AlertCircle size={20} className="text-amber-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm leading-tight">
-                    Tienes un pago pendiente
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5 truncate">
-                    {pendingData.eventTitle || 'Evento'}
-                  </p>
-                  <p className="text-sm font-bold text-amber-700 mt-1">
-                    Bs {pendingData.monto?.toFixed(2)}
-                  </p>
+                  <p className="font-semibold text-gray-900 text-sm leading-tight">Tienes un pago pendiente</p>
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">{pendingData.eventTitle || 'Evento'}</p>
+                  <p className="text-sm font-bold text-amber-700 mt-1">Bs {pendingData.monto?.toFixed(2)}</p>
                 </div>
-                <button
-                  onClick={handleDismiss}
-                  className="p-1 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
-                  title="Ocultar"
-                >
+                <button onClick={handleDismiss} className="p-1 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
                   <X size={16} className="text-gray-400" />
                 </button>
               </div>
-
               <div className="flex gap-2 mt-3">
                 <button
-                  onClick={() => setShowQRModal(true)}
+                  onClick={handleVerQR}
                   className="flex-1 flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
                 >
                   <QrCode size={14} />
-                  Ver QR de pago
+                  Continuar pago
                 </button>
                 <button
-                  onClick={() => { navigate('/mis-compras') }}
+                  onClick={() => navigate('/mis-compras')}
                   className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 transition-colors"
                 >
                   <ExternalLink size={12} />
@@ -248,90 +181,35 @@ export default function PendingPaymentBanner() {
         </div>
       )}
 
-      {/* ── Banner de pago confirmado ── */}
-      {bannerState === 'paid' && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-sm animate-slide-up">
-          <div className="bg-white border border-green-200 shadow-xl rounded-t-2xl sm:rounded-xl overflow-hidden">
-            <div className="h-1 bg-gradient-to-r from-green-400 to-emerald-500" />
-            <div className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                <CheckCircle2 size={20} className="text-green-600" />
+      {/* ── Modal de pago exitoso (pantalla completa) ── */}
+      {bannerState === 'paid' && pendingData && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden text-center">
+            <div className="h-2" style={{ background: '#22c55e' }} />
+            <div className="p-8">
+              <div
+                className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5"
+                style={{ background: '#dcfce7' }}
+              >
+                <CheckCircle2 size={44} style={{ color: '#16a34a' }} />
               </div>
-              <div>
-                <p className="font-semibold text-gray-900 text-sm">¡Pago confirmado!</p>
-                <p className="text-xs text-gray-500">Redirigiendo a Mis Compras…</p>
-              </div>
-              <Loader2 size={16} className="animate-spin text-green-500 ml-auto flex-shrink-0" />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Modal QR ── */}
-      {showQRModal && pendingData && (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b">
-              <div>
-                <h2 className="font-bold text-gray-900">Pago pendiente</h2>
-                <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[220px]">
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">¡Pago confirmado!</h2>
+              <p className="text-gray-500 text-sm mb-2">Tu pago fue procesado exitosamente.</p>
+              {pendingData.eventTitle && (
+                <p className="font-semibold text-sm mb-5" style={{ color: '#233C7A' }}>
                   {pendingData.eventTitle}
                 </p>
+              )}
+              <div className="rounded-xl px-4 py-3 mb-6 text-sm font-medium" style={{ background: '#dcfce7', color: '#166534' }}>
+                Tus entradas están disponibles en Mis Compras
               </div>
               <button
-                onClick={() => { setShowQRModal(false); pollingRef.current?.detener(); setPollingActive(false) }}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                onClick={() => { setBannerState('hidden'); navigate('/mis-compras') }}
+                className="w-full py-3 rounded-xl font-bold text-white transition-colors"
+                style={{ background: '#233C7A' }}
               >
-                <X size={18} />
+                Ver mis entradas
               </button>
-            </div>
-
-            <div className="p-5">
-              {/* Countdown */}
-              <div className="flex items-center justify-between mb-4 text-sm">
-                <span className="text-gray-600">Tiempo restante</span>
-                <span className={`font-mono font-bold ${timeLeft < 120 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {formatTime(timeLeft)}
-                </span>
-              </div>
-
-              {/* QR Image */}
-              <div className="bg-white border-2 border-gray-200 rounded-xl p-4 flex items-center justify-center mb-4">
-                {pendingData.imagenQr ? (
-                  pendingData.imagenQr.startsWith('data:') || pendingData.imagenQr.startsWith('http') ? (
-                    <img
-                      src={pendingData.imagenQr}
-                      alt="QR de pago"
-                      className="w-48 h-48 object-contain"
-                    />
-                  ) : (
-                    <img
-                      src={`data:image/png;base64,${pendingData.imagenQr}`}
-                      alt="QR de pago"
-                      className="w-48 h-48 object-contain"
-                    />
-                  )
-                ) : (
-                  <div className="w-48 h-48 flex items-center justify-center">
-                    <Loader2 className="animate-spin text-gray-300" size={40} />
-                  </div>
-                )}
-              </div>
-
-              {/* Monto */}
-              <div className="bg-gray-50 rounded-lg px-4 py-3 flex justify-between items-center mb-4">
-                <span className="text-sm text-gray-600">Monto a pagar</span>
-                <span className="font-bold text-gray-900 text-lg">
-                  {pendingData.moneda} {pendingData.monto?.toFixed(2)}
-                </span>
-              </div>
-
-              {/* Estado polling */}
-              <div className="flex items-center gap-2 justify-center text-xs text-gray-500">
-                <Loader2 size={12} className="animate-spin" />
-                Verificando pago automáticamente…
-              </div>
             </div>
           </div>
         </div>

@@ -1,46 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  TrendingUp,
-  Calendar,
-  Users,
-  DollarSign,
-  ArrowRight,
-  Eye,
-  Edit
-} from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/Card'
-import Button from '@/components/ui/Button'
+import { TrendingUp, Calendar, Users, DollarSign, ArrowRight } from 'lucide-react'
 import EventCard from '@/components/admin/EventCard'
 import adminService from '@/services/adminService'
 import { DashboardStats, AdminEvent } from '@/types/admin'
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from 'recharts'
-
-// Paleta Alfa para gráficos
-const COLORS = ['#233C7A', '#E0081D', '#FAB90E', '#212121', '#8884D8']
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [recentEvents, setRecentEvents] = useState<AdminEvent[]>([])
   const [allEvents, setAllEvents] = useState<AdminEvent[]>([])
   const [loading, setLoading] = useState(true)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [selectedEventId, setSelectedEventId] = useState<string>('')
-  const [selectedEventTitle, setSelectedEventTitle] = useState<string>('')
 
   useEffect(() => {
     loadDashboardData()
@@ -55,28 +23,11 @@ export default function Dashboard() {
       ])
       setStats(statsData)
       setAllEvents(eventsData)
-      // Últimos 5 eventos
-      setRecentEvents(eventsData.slice(-5).reverse())
     } catch (error) {
       console.error('Error loading dashboard:', error)
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleViewDetails = (eventId: string) => {
-    const event = allEvents.find(e => e.id === eventId)
-    if (event) {
-      setSelectedEventId(eventId)
-      setSelectedEventTitle(event.title)
-      setModalOpen(true)
-    }
-  }
-
-  const handleCloseModal = () => {
-    setModalOpen(false)
-    setSelectedEventId('')
-    setSelectedEventTitle('')
   }
 
   if (loading) {
@@ -89,19 +40,6 @@ export default function Dashboard() {
 
   if (!stats) return null
 
-  // Datos de ventas recientes (últimos 7 días)
-  const ventasSemanales = stats.ventasUltimaSemana.length > 0
-    ? stats.ventasUltimaSemana
-    : [
-        { dia: 'Lun', monto: 0 },
-        { dia: 'Mar', monto: 0 },
-        { dia: 'Mié', monto: 0 },
-        { dia: 'Jue', monto: 0 },
-        { dia: 'Vie', monto: 0 },
-        { dia: 'Sáb', monto: 0 },
-        { dia: 'Dom', monto: 0 }
-      ]
-
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -112,7 +50,6 @@ export default function Dashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Ventas */}
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5 hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between">
             <div>
@@ -131,7 +68,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Eventos Activos */}
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5 hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between">
             <div>
@@ -150,7 +86,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Total Usuarios */}
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5 hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between">
             <div>
@@ -169,7 +104,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Próximos Eventos */}
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5 hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between">
             <div>
@@ -205,7 +139,6 @@ export default function Dashboard() {
             <EventCard
               key={event.id}
               event={event}
-              onViewDetails={handleViewDetails}
             />
           ))}
         </div>

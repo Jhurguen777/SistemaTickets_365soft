@@ -1,15 +1,15 @@
 import React from 'react'
-import { Facebook, Twitter, Youtube, Instagram, LucideIcon } from 'lucide-react'
+import { Facebook, Twitter, Youtube, Instagram } from 'lucide-react'
 
 interface FooterProps {
   onOpenModal: (modalType: string) => void
 }
 
 // Icon components
-const FacebookIcon: LucideIcon = (props) => <Facebook {...props} />
-const TwitterIcon: LucideIcon = (props) => <Twitter {...props} />
-const YoutubeIcon: LucideIcon = (props) => <Youtube {...props} />
-const InstagramIcon: LucideIcon = (props) => <Instagram {...props} />
+const FacebookIcon = (props: any) => <Facebook {...props} />
+const TwitterIcon = (props: any) => <Twitter {...props} />
+const YoutubeIcon = (props: any) => <Youtube {...props} />
+const InstagramIcon = (props: any) => <Instagram {...props} />
 
 const Footer: React.FC<FooterProps> = ({ onOpenModal }) => {
   const socialLinks = [
