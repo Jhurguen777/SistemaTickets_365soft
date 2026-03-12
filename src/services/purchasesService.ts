@@ -9,8 +9,11 @@ export interface UserPurchase {
   eventoImagen: string
   eventoFecha: string
   eventoHora: string
+  eventoDoorsOpen?: string
   eventoUbicacion: string
   eventoDireccion: string
+  eventoCategoria?: string
+  eventoDescripcion?: string
   asientos: Array<{
     fila: string
     numero: number
@@ -78,8 +81,11 @@ export const getUserPurchases = async (
         eventoImagen: first.evento?.imagenUrl ?? '/media/banners/default.jpg',
         eventoFecha: first.evento?.fecha ?? '',
         eventoHora: first.evento?.hora ?? '',
+        eventoDoorsOpen: first.evento?.doorsOpen ?? '',
         eventoUbicacion: first.evento?.ubicacion ?? '',
         eventoDireccion: first.evento?.direccion ?? '',
+        eventoCategoria: first.evento?.categoria ?? '',
+        eventoDescripcion: first.evento?.descripcion ?? '',
         asientos: group.map((c: any) => {
           const esGeneral = !c.asiento
           return {

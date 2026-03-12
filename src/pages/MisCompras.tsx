@@ -1,12 +1,21 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, Calendar, MapPin, QrCode, Ticket as TicketIcon, Home, X } from 'lucide-react'
-import QRCode from 'qrcode.react'
+import { Download, QrCode, Home, X, Ticket as TicketIcon } from 'lucide-react'
+import QRCode, { QRCodeCanvas } from 'qrcode.react'
 import Button from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { useAuthStore } from '@/store/authStore'
 import purchasesService, { UserPurchase } from '@/services/purchasesService'
 import { generateTicketPDF } from '@/services/pdfService'
+
+const C = {
+  azul:    '#233C7A',
+  rojo:    '#E0081D',
+  amarillo: '#FAB90E',
+  gris:    '#F5F5F5',
+  negro:   '#212121',
+  blanco:  '#FFFFFF',
+}
 
 export default function MisCompras() {
   const [purchases, setPurchases] = useState<UserPurchase[]>([])
@@ -14,6 +23,9 @@ export default function MisCompras() {
   const [showQRModal, setShowQRModal] = useState(false)
   const [selectedQR, setSelectedQR] = useState<string | null>(null)
   const [selectedAttendee, setSelectedAttendee] = useState<any>(null)
+  const [selectedEventName, setSelectedEventName] = useState('')
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [downloadingAll, setDownloadingAll] = useState(false)
   const { user } = useAuthStore()
   const navigate = useNavigate()
 
@@ -31,54 +43,84 @@ export default function MisCompras() {
     }
   }
 
-  const downloadTicketPDF = (purchase: UserPurchase) => {
+  const getQrDataUrls = (purchaseId: string, count: number): (string | null)[] => {
+    return Array.from({ length: count }, (_, i) => {
+      const canvas = document.getElementById(`pdf-qr-${purchaseId}-${i}`) as HTMLCanvasElement
+      return canvas ? canvas.toDataURL('image/png') : null
+    })
+  }
+
+  const formatEventDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
+
+  const formatPurchaseDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+  const downloadSingleTicketPDF = async (purchase: UserPurchase, asiento: UserPurchase['asientos'][0], idx: number) => {
+    const key = `${purchase.id}-${idx}`
+    setDownloadingId(key)
     try {
-      generateTicketPDF({
+      const canvas = document.getElementById(`pdf-qr-${purchase.id}-${idx}`) as HTMLCanvasElement
+      const qrDataUrl = canvas ? canvas.toDataURL('image/png') : null
+      await generateTicketPDF({
         purchaseId: purchase.id,
         eventName: purchase.eventoTitulo,
-        eventDate: new Date(purchase.eventoFecha).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        eventDate: purchase.eventoFecha ? formatEventDate(purchase.eventoFecha) : '',
         eventTime: purchase.eventoHora,
+        eventDoorsOpen: purchase.eventoDoorsOpen,
         eventLocation: purchase.eventoUbicacion,
         eventAddress: purchase.eventoDireccion,
-        attendees: purchase.asientos,
+        eventCategory: purchase.eventoCategoria,
+        eventDescription: purchase.eventoDescripcion,
+        attendees: [{ nombre: asiento.nombre, asiento: asiento.asiento, sector: asiento.sector, ci: asiento.ci, qrCode: asiento.qrCode }],
         totalPaid: purchase.monto,
-        purchaseDate: new Date(purchase.createdAt).toLocaleDateString('es-ES')
+        purchaseDate: new Date(purchase.createdAt).toLocaleDateString('es-ES'),
+        qrDataUrls: [qrDataUrl],
       })
     } catch (error) {
       console.error('Error generating PDF:', error)
       alert('Error al generar el PDF')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
+  const downloadAllPDF = async () => {
+    setDownloadingAll(true)
+    try {
+      for (const purchase of purchases) {
+        const qrDataUrls = getQrDataUrls(purchase.id, purchase.asientos.length)
+        await generateTicketPDF({
+          purchaseId: purchase.id,
+          eventName: purchase.eventoTitulo,
+          eventDate: purchase.eventoFecha ? formatEventDate(purchase.eventoFecha) : '',
+          eventTime: purchase.eventoHora,
+          eventDoorsOpen: purchase.eventoDoorsOpen,
+          eventLocation: purchase.eventoUbicacion,
+          eventAddress: purchase.eventoDireccion,
+          eventCategory: purchase.eventoCategoria,
+          eventDescription: purchase.eventoDescripcion,
+          attendees: purchase.asientos.map(a => ({ nombre: a.nombre, asiento: a.asiento, sector: a.sector, ci: a.ci, qrCode: a.qrCode })),
+          totalPaid: purchase.monto,
+          purchaseDate: new Date(purchase.createdAt).toLocaleDateString('es-ES'),
+          qrDataUrls,
+        })
+        await new Promise(r => setTimeout(r, 300))
+      }
+    } finally {
+      setDownloadingAll(false)
     }
   }
 
   const downloadQR = () => {
     if (!selectedQR) return
-    const canvas = document.querySelector('canvas') as HTMLCanvasElement
+    const canvas = document.querySelector('#qr-modal-canvas canvas') as HTMLCanvasElement
     if (canvas) {
       const url = canvas.toDataURL('image/png')
       const link = document.createElement('a')
-      link.download = `QR-${selectedAttendee.nombre.replace(/\s+/g, '-')}.png`
+      link.download = `QR-${selectedAttendee?.nombre?.replace(/\s+/g, '-') ?? 'entrada'}.png`
       link.href = url
       link.click()
-    }
-  }
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-  }
-
-  const formatEventDate = (dateStr: string) => {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'PAGADO': return 'bg-green-100 text-green-800 border-green-200'
-      case 'PENDIENTE': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'REEMBOLSADO': return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'FALLIDO': return 'bg-red-100 text-red-800 border-red-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
     }
   }
 
@@ -99,282 +141,321 @@ export default function MisCompras() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F7F8FA' }}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-b-2 border-primary mx-auto mb-4" />
-          <p className="text-gray-600 text-sm sm:text-base">Cargando tus compras...</p>
+          <div className="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-4"
+            style={{ borderColor: `${C.azul} transparent transparent transparent` }} />
+          <p className="text-gray-600 text-sm">Cargando tus compras...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* QR Modal — bottom sheet en móvil */}
+    <div style={{ background: '#F7F8FA', minHeight: '100vh' }}>
+
+      {/* QR Modal */}
       {showQRModal && selectedQR && selectedAttendee && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-md">
-            <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Código QR de Entrada</h2>
-              <button onClick={() => setShowQRModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <X size={20} />
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          style={{ background: 'rgba(0,0,0,0.7)' }}
+          onClick={() => setShowQRModal(false)}
+        >
+          <div
+            className="rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm overflow-hidden"
+            style={{ background: C.azul }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+              <div>
+                <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  VAS A VER
+                </p>
+                <p className="font-black uppercase text-white leading-tight" style={{ fontSize: 17 }}>
+                  {selectedEventName}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowQRModal(false)}
+                className="p-2 rounded-xl"
+                style={{ background: 'rgba(255,255,255,0.1)' }}
+              >
+                <X size={18} color="white" />
               </button>
             </div>
-            <div className="p-5 sm:p-6">
-              <div className="text-center mb-4">
-                <p className="font-semibold text-gray-900">{selectedAttendee.nombre}</p>
-                <p className="text-sm text-gray-600">Fila: {selectedAttendee.fila} | Nº {selectedAttendee.numero}{selectedAttendee.sector && selectedAttendee.sector !== '-' ? ` | Sector: ${selectedAttendee.sector}` : ''}</p>
-                <p className="text-xs text-gray-500 mt-1">CI: {selectedAttendee.ci}</p>
+
+            <div className="px-5 pt-4 pb-2 text-center">
+              <p className="text-xl font-extrabold uppercase text-white tracking-tight">
+                {selectedAttendee.nombre}
+              </p>
+              <div className="flex justify-center gap-2 mt-2">
+                <div className="flex rounded overflow-hidden" style={{ border: '2px solid rgba(255,255,255,0.3)' }}>
+                  <span className="px-2 py-0.5 text-xs font-black uppercase text-white" style={{ background: 'rgba(255,255,255,0.15)' }}>SEC</span>
+                  <span className="px-2 py-0.5 text-xs font-extrabold uppercase" style={{ color: 'rgba(255,255,255,0.8)' }}>{selectedAttendee.sector || 'GEN'}</span>
+                </div>
+                <div className="flex rounded overflow-hidden" style={{ border: '2px solid rgba(255,255,255,0.3)' }}>
+                  <span className="px-2 py-0.5 text-xs font-black uppercase text-white" style={{ background: 'rgba(255,255,255,0.15)' }}>N°</span>
+                  <span className="px-2 py-0.5 text-xs font-extrabold uppercase" style={{ color: 'rgba(255,255,255,0.8)' }}>{selectedAttendee.asiento}</span>
+                </div>
               </div>
-              <div className="flex justify-center mb-4 bg-white p-4 sm:p-6 rounded-lg border-2 border-primary">
-                <QRCode value={selectedQR} size={200} level="H" includeMargin={true} />
+            </div>
+
+            <div className="flex items-center px-5 py-3">
+              <div className="flex-1 border-t-2 border-dashed" style={{ borderColor: 'rgba(255,255,255,0.2)' }} />
+            </div>
+
+            <div id="qr-modal-canvas" className="flex justify-center px-5 pb-2">
+              <div className="p-3 rounded-2xl bg-white">
+                <QRCode
+                  value={selectedQR || 'DEMO-QR'}
+                  size={210}
+                  level="H"
+                  includeMargin={false}
+                  fgColor={C.negro}
+                  bgColor="#fff"
+                />
               </div>
-              <p className="text-xs text-gray-500 text-center mb-4">Presenta este código QR en la entrada del evento</p>
-              <Button onClick={downloadQR} className="w-full" variant="outline">
-                <Download size={16} className="mr-2" />
+            </div>
+
+            <p className="text-xs text-center pb-4 pt-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              Escanea este código en la entrada del evento
+            </p>
+
+            <div className="px-5 pb-6">
+              <button
+                onClick={downloadQR}
+                className="w-full flex items-center justify-center gap-2 font-bold text-sm py-3.5 rounded-xl"
+                style={{ background: C.azul, color: C.blanco }}
+              >
+                <Download size={16} />
                 Descargar QR
-              </Button>
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Header */}
-      <div className="bg-primary text-white py-4 sm:py-6">
-        <div className="container mx-auto px-3 sm:px-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl sm:text-3xl font-bold">Mis Compras</h1>
-              <p className="text-white/80 mt-1 text-xs sm:text-base">Gestiona tus entradas y certificados</p>
-            </div>
-            <Button variant="ghost" className="text-white hover:text-white/80 text-sm" onClick={() => navigate('/')}>
-              <Home size={16} className="mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Inicio</span>
-            </Button>
+      <div className="max-w-6xl mx-auto px-4 py-6 sm:py-8 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold" style={{ color: C.azul }}>Mis Compras</h1>
+            <p className="text-xs sm:text-sm mt-0.5" style={{ color: '#9CA3AF' }}>Gestiona tus entradas</p>
           </div>
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border"
+            style={{ borderColor: C.azul, color: C.azul }}
+          >
+            <Home size={16} />
+            <span className="hidden sm:inline">Inicio</span>
+          </button>
         </div>
-      </div>
 
-      <div className="container mx-auto px-3 sm:px-4 py-5 sm:py-8">
         {purchases.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 sm:p-12 text-center">
-              <TicketIcon size={48} className="mx-auto mb-4 text-gray-300" />
-              <h2 className="text-lg sm:text-2xl font-bold mb-2">Aún no tienes compras</h2>
-              <p className="text-gray-600 mb-5 sm:mb-6 text-sm sm:text-base">Explora nuestros eventos y compra tus primeras entradas</p>
-              <Button onClick={() => navigate('/')}>Explorar eventos</Button>
-            </CardContent>
-          </Card>
+          <div className="text-center py-16">
+            <TicketIcon size={48} className="mx-auto mb-4 text-gray-300" />
+            <h2 className="text-xl font-bold mb-2 text-gray-700">Aún no tienes compras</h2>
+            <p className="text-gray-500 mb-6 text-sm">Explora nuestros eventos y compra tus primeras entradas</p>
+            <Button onClick={() => navigate('/')}>Explorar eventos</Button>
+          </div>
         ) : (
-          <div className="space-y-5 sm:space-y-6">
-            {/* Stats — 3 columnas en móvil con texto más pequeño */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-5 sm:mb-8">
-              <Card>
-                <CardContent className="p-3 sm:p-6">
-                  <p className="text-xs sm:text-sm text-gray-600 mb-1">Compras</p>
-                  <p className="text-xl sm:text-3xl font-bold text-primary">{purchases.length}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3 sm:p-6">
-                  <p className="text-xs sm:text-sm text-gray-600 mb-1">Gastado</p>
-                  <p className="text-lg sm:text-3xl font-bold text-green-600">
-                    Bs {purchases.filter(p => p.estadoPago === 'PAGADO').reduce((sum, p) => sum + p.monto, 0).toLocaleString()}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3 sm:p-6">
-                  <p className="text-xs sm:text-sm text-gray-600 mb-1">Próximo</p>
-                  <p className="text-lg sm:text-xl font-bold">
-                    {purchases.length > 0
-                      ? new Date(purchases[0].eventoFecha).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })
-                      : '-'}
-                  </p>
-                </CardContent>
-              </Card>
+          <>
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Boletos', value: purchases.reduce((s, p) => s + p.asientos.length, 0), color: C.azul },
+                { label: 'Gastado', value: `Bs ${purchases.reduce((s, p) => s + p.monto, 0).toLocaleString()}`, color: '#16a34a' },
+                { label: 'Próximo', value: purchases.length > 0 ? new Date(purchases[0].eventoFecha).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }) : '-', color: C.negro },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="bg-white rounded-2xl p-3 sm:p-5 shadow-sm">
+                  <p className="text-xs text-gray-400 mb-1">{label}</p>
+                  <p className="font-extrabold text-lg sm:text-2xl" style={{ color }}>{value}</p>
+                </div>
+              ))}
             </div>
 
-            {/* Purchases List */}
+            {/* Descargar todos */}
+            <button
+              onClick={downloadAllPDF}
+              disabled={downloadingAll}
+              className="w-full flex items-center justify-center gap-2 font-bold text-sm py-3.5 rounded-xl transition-all active:scale-95 disabled:opacity-50"
+              style={{ background: C.azul, color: C.blanco }}
+            >
+              <Download size={17} />
+              {downloadingAll ? 'Generando PDFs…' : 'Descargar todos los boletos'}
+            </button>
+
+            {/* Purchases */}
             {purchases.map((purchase) => (
-              <Card key={purchase.id} className="overflow-hidden">
-                <CardContent className="p-0">
-                  {/* Event Header */}
-                  <div className="bg-gradient-to-r from-primary to-primary/80 p-4 sm:p-6 text-white">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-                      <div className="flex items-center gap-3 sm:gap-4">
-                        <img
-                          src={purchase.eventoImagen}
-                          alt={purchase.eventoTitulo}
-                          className="w-14 h-14 sm:w-20 sm:h-20 object-cover rounded-lg shadow-md flex-shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <h3 className="text-base sm:text-xl font-bold mb-1 truncate">{purchase.eventoTitulo}</h3>
-                          <div className="space-y-0.5 text-xs sm:text-sm text-white/90">
-                            <div className="flex items-center gap-1">
-                              <Calendar size={12} />
-                              <span className="truncate">{formatEventDate(purchase.eventoFecha)} - {purchase.eventoHora}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <MapPin size={12} />
-                              <span className="truncate">{purchase.eventoUbicacion}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between sm:flex-col sm:items-end gap-2">
-                        <div>
-                          <p className="text-xs text-white/70">Total pagado</p>
-                          <p className="text-lg sm:text-2xl font-bold">Bs {purchase.monto.toLocaleString()}</p>
-                        </div>
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusColor(purchase.estadoPago)}`}>
-                          {purchase.estadoPago}
+              <div key={purchase.id} className="space-y-4">
+                {/* Event header */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="font-black uppercase truncate" style={{ color: C.amarillo, fontSize: 16 }}>
+                      {purchase.eventoTitulo}
+                    </h2>
+                    <p className="text-xs truncate" style={{ color: C.negro }}>
+                      {purchase.eventoFecha ? formatEventDate(purchase.eventoFecha) : ''}{purchase.eventoHora ? ` · ${purchase.eventoHora}` : ''}{purchase.eventoUbicacion ? ` · ${purchase.eventoUbicacion}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Ticket cards — 2 columnas */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {purchase.asientos.map((asiento, idx) => (
+                    <div key={idx} className="flex flex-col gap-2">
+                    <div
+                      className="rounded-2xl overflow-hidden flex"
+                      style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.14)', minHeight: 240 }}
+                    >
+                      {/* Tira izquierda azul */}
+                      <div
+                        className="flex-shrink-0 flex flex-col items-center justify-between py-5 px-2"
+                        style={{ background: C.azul, width: 60 }}
+                      >
+                        <span
+                          className="text-white font-black uppercase select-none"
+                          style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 13, letterSpacing: '0.2em' }}
+                        >
+                          ALFA BOLIVIA
                         </span>
+                        <img
+                          src="/assets/alfa-negativo.png"
+                          alt="Alfa Bolivia"
+                          style={{ width: 44, height: 'auto', objectFit: 'contain' }}
+                        />
                       </div>
-                    </div>
-                  </div>
 
-                  {/* Tickets List */}
-                  <div className="p-4 sm:p-6">
-                    <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-3 sm:mb-4 flex items-center gap-2">
-                      <TicketIcon size={14} />
-                      {purchase.cantidad} {purchase.cantidad === 1 ? 'Entrada' : 'Entradas'}
-                    </h4>
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mt-2">
-                      {purchase.asientos.map((asiento, index) => (
-                        <div key={index} className="relative flex flex-col sm:flex-row w-full bg-white rounded-xl border border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group">
-
-                          {/* Main Left Section - Attendee Details */}
-                          <div className="flex-1 p-4 sm:p-5 pb-5 sm:pb-5 bg-gradient-to-br from-white to-gray-50/80">
-                            <div className="flex justify-between items-start mb-4">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
-                                  <TicketIcon size={16} />
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider truncate mb-0.5">{purchase.eventoTitulo}</p>
-                                  <p className="text-xs sm:text-sm font-semibold text-primary">Entrada Generada</p>
-                                </div>
-                              </div>
-                              <div className="text-right flex-shrink-0 ml-2 mt-1">
-                                {purchase.estadoPago === 'PAGADO' ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 bg-green-50 text-green-600 border border-green-200 text-[10px] font-bold rounded uppercase tracking-wide">
-                                    Válido
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center px-2 py-0.5 bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] font-bold rounded uppercase tracking-wide">
-                                    {purchase.estadoPago}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Attendee Info */}
-                            <div className="mb-5 pl-1">
-                              <h3 className="font-bold text-gray-900 text-lg sm:text-xl uppercase tracking-tight truncate">{asiento.nombre}</h3>
-                              {asiento.oficina && (
-                                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest mt-0.5 truncate flex items-center gap-1.5">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-primary/40 inline-block"></span>
-                                  {asiento.oficina}
-                                </p>
-                              )}
-                            </div>
-
-
-                            {/* Seat Info Grid */}
-                            <div className="flex gap-2 sm:gap-4 justify-between bg-white border border-gray-100 rounded-lg p-2.5 sm:p-3 shadow-sm">
-                              <div className="flex-1 text-center border-r border-gray-100 last:border-0 px-1">
-                                <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5">Sector</p>
-                                <p className="font-bold text-gray-800 text-xs sm:text-sm truncate">{asiento.sector && asiento.sector !== '-' ? asiento.sector : 'General'}</p>
-                              </div>
-                              {!asiento.fila || asiento.fila.toLowerCase() === 'general' ? (
-                                <div className="flex-[2] text-center font-bold px-1">
-                                  <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5">Entrada N°</p>
-                                  <p className="font-bold text-primary text-xs sm:text-sm truncate">{asiento.numero}</p>
-                                </div>
-                              ) : (
-                                <>
-                                  <div className="flex-1 text-center border-r border-gray-100 last:border-0 px-1">
-                                    <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5">Fila</p>
-                                    <p className="font-bold text-gray-800 text-xs sm:text-sm truncate">{asiento.fila}</p>
-                                  </div>
-                                  <div className="flex-1 text-center font-bold px-1">
-                                    <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5">Asiento</p>
-                                    <p className="font-bold text-primary text-xs sm:text-sm truncate">{asiento.numero}</p>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Perforated Separator */}
-                          <div className="relative flex flex-row sm:flex-col items-center justify-center bg-white z-10 w-full sm:w-auto">
-                            {/* Mask borders inside the card body to avoid showing circle borders outside */}
-                            <div className="absolute -left-4 sm:-top-4 w-8 h-8 bg-white z-0 hidden sm:block"></div>
-
-                            {/* Left/Top semi-circle */}
-                            <div className="absolute -left-3 sm:-top-3 w-6 h-6 bg-white rounded-full border border-gray-200 z-20 hidden sm:block"></div>
-
-                            {/* Dashed line */}
-                            <div className="w-full sm:w-px h-px sm:h-full border-t sm:border-l border-dashed border-gray-300 sm:my-3 mx-4 sm:mx-0 z-10"></div>
-
-                            {/* Right/Bottom semi-circle */}
-                            <div className="absolute -right-3 sm:-bottom-3 w-6 h-6 bg-white rounded-full border border-gray-200 z-20 hidden sm:block"></div>
-
-                            <div className="absolute -right-4 sm:-bottom-4 w-8 h-8 bg-white z-0 hidden sm:block"></div>
-                          </div>
-
-                          {/* Right Stub Section - Actions & QR Code */}
-                          <div className="sm:w-40 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:8px_8px] bg-gray-50 p-4 sm:p-5 flex flex-col items-center justify-center relative border-t-0 sm:border-t-0 sm:border-l-0">
-                            {/* Overlay to fade pattern */}
-                            <div className="absolute inset-0 bg-white/60"></div>
-
-                            <div className="w-full h-full flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-4 sm:gap-3 z-10 relative">
-                              <div className="flex flex-col items-center gap-3 w-full max-w-[120px]">
-                                <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 group-hover:border-primary/40 transition-colors">
-                                  <div className="w-11 h-11 sm:w-16 sm:h-16 flex items-center justify-center">
-                                    <QrCode size={typeof window !== 'undefined' && window.innerWidth < 640 ? 44 : 64} className="text-gray-900 w-full h-full p-0.5" strokeWidth={1.5} />
-                                  </div>
-                                </div>
-
-                                <Button
-                                  size="sm"
-                                  className="w-full text-xs shadow-sm bg-gray-900 hover:bg-gray-800 text-white"
-                                  onClick={() => { setSelectedQR(asiento.qrCode); setSelectedAttendee(asiento); setShowQRModal(true) }}
-                                >
-                                  Ver QR
-                                </Button>
-                              </div>
-
-                              <div className="hidden sm:block absolute right-0 top-1/2 -translate-y-1/2 -mr-[18px]">
-                                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-[0.2em] font-mono whitespace-nowrap -rotate-90">
-                                  TCKT-{purchase.id.slice(-6).toUpperCase()}-{index + 1}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-
+                      {/* Cuerpo blanco */}
+                      <div className="flex-1 flex flex-col bg-white min-w-0">
+                        {/* Cabecera evento */}
+                        <div className="px-5 pt-5 pb-3" style={{ borderBottom: '1px solid #E5E7EB' }}>
+                          <p className="text-xs uppercase tracking-widest font-semibold mb-0.5" style={{ color: C.negro }}>
+                            VAS A VER
+                          </p>
+                          <p className="font-black uppercase leading-tight truncate" style={{ fontSize: 20, color: C.amarillo }}>
+                            {purchase.eventoTitulo}
+                          </p>
+                          {purchase.eventoUbicacion && (
+                            <p className="text-xs mt-0.5 truncate" style={{ color: C.negro }}>
+                              {purchase.eventoUbicacion}{purchase.eventoDireccion ? `, ${purchase.eventoDireccion}` : ''}
+                            </p>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  </div>
 
-                  {/* Footer */}
-                  <div className="bg-gray-50 px-4 sm:px-6 py-3 sm:py-4 border-t">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
-                      <p className="text-xs text-gray-500">Comprado el {formatDate(purchase.createdAt)}</p>
-                      {purchase.estadoPago === 'PAGADO' && (
-                        <Button size="sm" onClick={() => downloadTicketPDF(purchase)} className="w-full sm:w-auto text-xs sm:text-sm">
-                          <Download size={14} className="mr-1.5" />
-                          Descargar PDF
-                        </Button>
+                        {/* Datos + QR */}
+                        <div className="px-5 py-4 flex gap-4 flex-1">
+                          <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-4 content-start">
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-wider" style={{ color: C.negro }}>NOMBRE</p>
+                              <p className="text-xs font-semibold uppercase mt-0.5 truncate" style={{ color: C.negro }}>{asiento.nombre || 'Asistente'}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-wider" style={{ color: C.negro }}>FECHA</p>
+                              <p className="text-xs font-semibold uppercase mt-0.5" style={{ color: C.negro }}>
+                                {purchase.eventoFecha ? formatEventDate(purchase.eventoFecha) : '—'}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-wider" style={{ color: C.negro }}>HORA</p>
+                              <p className="text-xs font-semibold uppercase mt-0.5" style={{ color: C.negro }}>{purchase.eventoHora || '—'}</p>
+                            </div>
+                          </div>
+
+                          {/* QR mini + Ver QR */}
+                          <div className="flex-shrink-0 flex flex-col items-center justify-center gap-2">
+                            <QRCode
+                              value={asiento.qrCode || 'TICKET'}
+                              size={64}
+                              level="M"
+                              includeMargin={false}
+                              fgColor={C.negro}
+                              bgColor="#ffffff"
+                            />
+                            <button
+                              onClick={() => {
+                                setSelectedQR(asiento.qrCode)
+                                setSelectedAttendee(asiento)
+                                setSelectedEventName(purchase.eventoTitulo)
+                                setShowQRModal(true)
+                              }}
+                              className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded w-full justify-center"
+                              style={{ background: C.negro, color: '#fff' }}
+                            >
+                              <QrCode size={11} />
+                              Ver QR
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Footer: badge SEC */}
+                        <div className="flex flex-wrap items-center gap-2 px-5 pb-5">
+                          <div className="flex rounded overflow-hidden" style={{ border: `2px solid ${C.negro}` }}>
+                            <span className="px-2 py-1 text-xs font-black text-white uppercase" style={{ background: C.negro }}>SEC</span>
+                            <span className="px-3 py-1 text-xs font-extrabold uppercase bg-white" style={{ color: C.negro }}>{asiento.sector || 'GEN'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Imagen evento derecha */}
+                      {purchase.eventoImagen ? (
+                        <>
+                          <div className="flex-shrink-0 bg-white flex flex-col justify-around py-3" style={{ width: 14 }}>
+                            {Array.from({ length: 7 }).map((_, i) => (
+                              <div key={i} className="rounded-full self-end" style={{ width: 14, height: 14, background: '#F7F8FA', marginRight: -7 }} />
+                            ))}
+                          </div>
+                          <div className="flex-shrink-0" style={{ width: 160, position: 'relative', overflow: 'hidden' }}>
+                            <img
+                              src={purchase.eventoImagen}
+                              alt="evento"
+                              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex-shrink-0" style={{ width: 8, background: `linear-gradient(180deg, ${C.amarillo}, ${C.rojo})` }} />
                       )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    {/* Descargar boleto individual */}
+                    <button
+                      onClick={() => downloadSingleTicketPDF(purchase, asiento, idx)}
+                      disabled={downloadingId === `${purchase.id}-${idx}`}
+                      className="w-full flex items-center justify-center gap-2 font-bold text-xs py-2.5 rounded-xl transition-all active:scale-95 disabled:opacity-50"
+                      style={{ background: C.azul, color: C.blanco }}
+                    >
+                      <Download size={13} />
+                      {downloadingId === `${purchase.id}-${idx}` ? 'Generando…' : 'Descargar boleto'}
+                    </button>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-xs text-gray-400">Comprado el {formatPurchaseDate(purchase.createdAt)}</p>
+
+                {/* Separador */}
+                <div style={{ height: 1, background: '#E5E7EB' }} />
+              </div>
             ))}
-          </div>
+          </>
+        )}
+      </div>
+
+      {/* Canvases ocultos para PDF */}
+      <div style={{ position: 'absolute', left: -9999, top: -9999, pointerEvents: 'none' }}>
+        {purchases.map(purchase =>
+          purchase.asientos.map((asiento, i) => (
+            <QRCodeCanvas
+              key={`${purchase.id}-${i}`}
+              id={`pdf-qr-${purchase.id}-${i}`}
+              value={asiento.qrCode || 'TICKET'}
+              size={200}
+              level="H"
+              includeMargin={false}
+              fgColor={C.azul}
+              bgColor="#ffffff"
+            />
+          ))
         )}
       </div>
     </div>

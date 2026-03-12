@@ -1,189 +1,252 @@
 import jsPDF from 'jspdf'
 
-/**
- * Genera un certificado PDF para una entrada
- */
-export const generateTicketPDF = (ticketData: {
+const AZ  = { r: 35,  g: 60,  b: 122 }   // AZUL ALFA  #233C7A
+const AZ2 = { r: 20,  g: 38,  b: 85  }   // azul oscuro variante
+const RJ  = { r: 224, g: 8,   b: 29  }   // ROJO ALFA  #E0081D
+const AM  = { r: 250, g: 185, b: 14  }   // AMARILLO   #FAB90E
+const WH  = { r: 255, g: 255, b: 255 }   // blanco
+const GR  = { r: 245, g: 245, b: 245 }   // GRIS NEUTRO #F5F5F5
+const NG  = { r: 33,  g: 33,  b: 33  }   // NEGRO ELEGANTE #212121
+const GR2 = { r: 100, g: 110, b: 130 }   // gris texto secundario
+
+const rgb = (c: { r: number; g: number; b: number }) =>
+  [c.r, c.g, c.b] as [number, number, number]
+
+async function loadImage(url: string): Promise<string | null> {
+  try {
+    const blob = await (await fetch(url)).blob()
+    return await new Promise<string>(resolve => {
+      const r = new FileReader()
+      r.onloadend = () => resolve(r.result as string)
+      r.readAsDataURL(blob)
+    })
+  } catch { return null }
+}
+
+function drawBadge(doc: jsPDF, label: string, value: string, x: number, y: number): number {
+  doc.setFontSize(7)
+  const lw = doc.getTextWidth(label) + 6
+  const vw = doc.getTextWidth(value.toUpperCase()) + 8
+  doc.setFillColor(...rgb(AZ))
+  doc.roundedRect(x, y, lw, 8, 1.5, 1.5, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...rgb(WH))
+  doc.text(label, x + lw / 2, y + 5.2, { align: 'center' })
+  doc.setFillColor(...rgb(WH))
+  doc.setDrawColor(...rgb(AZ))
+  doc.setLineWidth(0.5)
+  doc.roundedRect(x + lw, y, vw, 8, 1.5, 1.5, 'FD')
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...rgb(AZ))
+  doc.text(value.toUpperCase(), x + lw + vw / 2, y + 5.2, { align: 'center' })
+  return lw + vw + 4
+}
+
+export const generateTicketPDF = async (ticketData: {
   purchaseId: string
   eventName: string
   eventDate: string
   eventTime: string
+  eventDoorsOpen?: string
   eventLocation: string
   eventAddress: string
-  attendees: Array<{
-    nombre: string
-    asiento: string
-    sector: string
-    ci: string
-    qrCode: string
-  }>
+  eventCategory?: string
+  eventDescription?: string
+  attendees: Array<{ nombre: string; asiento: string; sector: string; ci: string; qrCode: string }>
   totalPaid: number
   purchaseDate: string
+  qrDataUrls?: (string | null)[]
 }) => {
-  const doc = new jsPDF()
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
-  const margin = 20
-  let yPosition = margin
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const pw = doc.internal.pageSize.getWidth()
+  const ph = doc.internal.pageSize.getHeight()
 
-  // Colores del tema
-  const primaryColor = { r: 59, g: 130, b: 246 } // #3B82F6
+  const logoUrl = await loadImage('/assets/alfa-negativo.png')
 
-  // Header
-  doc.setFillColor(primaryColor.r, primaryColor.g, primaryColor.b)
-  doc.rect(0, 0, pageWidth, 40, 'F')
+  for (let idx = 0; idx < ticketData.attendees.length; idx++) {
+    const attendee = ticketData.attendees[idx]
+    const qrImg   = ticketData.qrDataUrls?.[idx] ?? null
 
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(24)
-  doc.setFont('helvetica', 'bold')
-  doc.text('ENTRADA', pageWidth / 2, 25, { align: 'center' })
+    if (idx > 0) doc.addPage()
 
-  doc.setFontSize(12)
-  doc.setFont('helvetica', 'normal')
-  doc.text('SistemaTickets 365soft', pageWidth / 2, 35, { align: 'center' })
+    // ── FONDO ────────────────────────────────────────────────
+    doc.setFillColor(...rgb(GR))
+    doc.rect(0, 0, pw, ph, 'F')
 
-  // Número de compra
-  yPosition = 55
-  doc.setTextColor(0, 0, 0)
-  doc.setFontSize(10)
-  doc.setTextColor(100, 100, 100)
-  doc.text('Número de Compra:', margin, yPosition)
+    // ── HEADER AZUL ──────────────────────────────────────────
+    const hH = 52
+    doc.setFillColor(...rgb(AZ))
+    doc.rect(0, 0, pw, hH, 'F')
 
-  doc.setFontSize(16)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(primaryColor.r, primaryColor.g, primaryColor.b)
-  doc.text(`#${ticketData.purchaseId}`, margin, yPosition + 8)
+    if (logoUrl) doc.addImage(logoUrl, 'PNG', 8, 6, 16, 12)
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...rgb(WH))
+    doc.text('ALFA BOLIVIA', 27, 10)
+    doc.setFontSize(7); doc.setFont('helvetica', 'normal')
+    doc.setTextColor(200, 210, 235)
+    doc.text('Sistema de Tickets', 27, 15)
 
-  // Información del evento
-  yPosition += 25
-  doc.setFillColor(245, 245, 245)
-  doc.roundedRect(margin, yPosition, pageWidth - 2 * margin, 35, 3, 3, 'F')
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal')
+    doc.setTextColor(180, 195, 230)
+    doc.text('VAS A VER', pw / 2, 26, { align: 'center' })
 
-  yPosition += 10
-  doc.setTextColor(0, 0, 0)
-  doc.setFontSize(14)
-  doc.setFont('helvetica', 'bold')
-  doc.text(ticketData.eventName, margin + 5, yPosition)
+    doc.setFontSize(22); doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...rgb(WH))
+    const evLine = doc.splitTextToSize(ticketData.eventName.toUpperCase(), pw - 20)[0] ?? ''
+    doc.text(evLine, pw / 2, 38, { align: 'center' })
 
-  yPosition += 8
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(60, 60, 60)
-  doc.text(`Fecha: ${ticketData.eventDate}`, margin + 5, yPosition)
-  doc.text(`Hora: ${ticketData.eventTime}`, margin + 70, yPosition)
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal')
+    doc.setTextColor(180, 195, 230)
+    const locText = [ticketData.eventLocation, ticketData.eventDate, ticketData.eventTime]
+      .filter(Boolean).join('  ·  ')
+    doc.text(locText, pw / 2, 47, { align: 'center' })
 
-  yPosition += 6
-  doc.text(`Ubicación: ${ticketData.eventLocation}`, margin + 5, yPosition)
-  doc.text(`Dirección: ${ticketData.eventAddress}`, margin + 70, yPosition)
+    // ── TARJETA DEL BOLETO ───────────────────────────────────
+    const hasExtra = !!(ticketData.eventDoorsOpen || ticketData.eventCategory || ticketData.eventDescription)
+    const cX = 10, cY = 58, cW = pw - 20, cH = hasExtra ? 100 : 78
+    const stripW = 20
 
-  // Información de los asistentes
-  yPosition += 20
-  doc.setFontSize(12)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(0, 0, 0)
-  doc.text('ASISTENTES', margin, yPosition)
+    doc.setFillColor(210, 215, 230)
+    doc.roundedRect(cX + 1.5, cY + 1.5, cW, cH, 5, 5, 'F')
+    doc.setFillColor(...rgb(WH))
+    doc.roundedRect(cX, cY, cW, cH, 5, 5, 'F')
 
-  yPosition += 5
-  doc.setDrawColor(200, 200, 200)
-  doc.line(margin, yPosition, pageWidth - margin, yPosition)
+    // Tira azul izquierda
+    doc.setFillColor(...rgb(AZ))
+    doc.roundedRect(cX, cY, stripW, cH, 5, 5, 'F')
+    doc.rect(cX + stripW - 5, cY, 5, cH, 'F')
 
-  yPosition += 10
-  ticketData.attendees.forEach((attendee, index) => {
-    // Verificar si necesitamos nueva página
-    if (yPosition > pageHeight - 60) {
-      doc.addPage()
-      yPosition = margin
+    // "ALFA BOLIVIA" rotado
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...rgb(WH))
+    doc.text('ALFA BOLIVIA', cX + stripW / 2, cY + cH - 8, { angle: 90, align: 'center' })
+
+    // Logo abajo en la tira
+    if (logoUrl) doc.addImage(logoUrl, 'PNG', cX + 3, cY + cH - 20, 13, 10)
+
+    // Barcode simulado
+    const bars = [14,6,10,6,16,6,10,6,14,6,10]
+    doc.setFillColor(...rgb(WH))
+    bars.forEach((h, bi) => doc.rect(cX + 4 + bi * 1.3, cY + 6, 0.7, h, 'F'))
+
+    // ── Contenido ──────────────────────────────────────────
+    const bX = cX + stripW + 4
+
+    doc.setDrawColor(225, 228, 240)
+    doc.setLineWidth(0.3)
+    doc.line(cX + stripW, cY + 22, cX + cW, cY + 22)
+
+    doc.setFontSize(7); doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...rgb(GR2))
+    doc.text('VAS A VER', bX, cY + 10)
+
+    doc.setFontSize(13); doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...rgb(AZ))
+    const eName = doc.splitTextToSize(ticketData.eventName.toUpperCase(), cW - stripW - 45)[0] ?? ''
+    doc.text(eName, bX, cY + 18)
+
+    if (ticketData.eventLocation) {
+      doc.setFontSize(7.5); doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...rgb(GR2))
+      doc.text(
+        `${ticketData.eventLocation}${ticketData.eventAddress ? ', ' + ticketData.eventAddress : ''}`,
+        bX, cY + 26
+      )
     }
 
-    // Tarjeta de asistente
-    doc.setFillColor(250, 250, 250)
-    doc.roundedRect(margin, yPosition, pageWidth - 2 * margin, 30, 3, 3, 'F')
+    const dY = cY + 34
+    const col2X = bX + (cW - stripW - 45) / 2
 
-    yPosition += 8
-    doc.setFontSize(11)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(0, 0, 0)
-    doc.text(`${index + 1}. ${attendee.nombre}`, margin + 5, yPosition)
+    const drawField = (label: string, val: string, x: number, y: number) => {
+      doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...rgb(AZ))
+      doc.text(label, x, y)
+      doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...rgb(GR2))
+      doc.text(val || '—', x, y + 5.5)
+    }
 
-    yPosition += 6
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(80, 80, 80)
-    doc.text(`Asiento: ${attendee.asiento}  |  Sector: ${attendee.sector}  |  CI: ${attendee.ci}`, margin + 5, yPosition)
+    drawField('NOMBRE', attendee.nombre || 'Asistente', bX, dY)
+    drawField('FECHA', ticketData.eventDate || '—', col2X, dY)
+    drawField('HORA DEL EVENTO', ticketData.eventTime || '—', bX, dY + 13)
+    if (ticketData.eventDoorsOpen) {
+      drawField('APERTURA DE PUERTAS', ticketData.eventDoorsOpen, col2X, dY + 13)
+    }
+    if (ticketData.eventCategory) {
+      drawField('CATEGORÍA', ticketData.eventCategory, bX, dY + 26)
+    }
+    if (ticketData.eventDescription) {
+      doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...rgb(AZ))
+      doc.text('DESCRIPCIÓN', bX, dY + (ticketData.eventCategory ? 39 : 26))
+      doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...rgb(GR2))
+      const descLines = doc.splitTextToSize(ticketData.eventDescription, cW - stripW - 50)
+      doc.text(descLines.slice(0, 2), bX, dY + (ticketData.eventCategory ? 44 : 31))
+    }
 
-    yPosition += 8
-    doc.setFontSize(8)
-    doc.setTextColor(150, 150, 150)
-    doc.text(`Código QR: ${attendee.qrCode}`, margin + 5, yPosition)
+    // QR mini
+    if (qrImg) {
+      const qMini = 28
+      doc.setFillColor(...rgb(WH))
+      doc.rect(cX + cW - qMini - 5, cY + 5, qMini + 2, qMini + 2, 'F')
+      doc.addImage(qrImg, 'PNG', cX + cW - qMini - 4, cY + 6, qMini, qMini)
+    }
 
-    yPosition += 10
-  })
+    // Separador dashed
+    doc.setDrawColor(210, 215, 230)
+    doc.setLineDashPattern([1.5, 1.5], 0)
+    doc.setLineWidth(0.3)
+    doc.line(cX + stripW, cY + 56, cX + cW, cY + 56)
+    doc.setLineDashPattern([], 0)
 
-  // Total pagado
-  yPosition += 10
-  doc.setFillColor(245, 245, 245)
-  doc.roundedRect(margin, yPosition, pageWidth - 2 * margin, 25, 3, 3, 'F')
+    // Badge SEC únicamente
+    const badgeY = cY + 62
+    drawBadge(doc, 'SEC', attendee.sector || 'GEN', bX, badgeY)
 
-  yPosition += 10
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(100, 100, 100)
-  doc.text('Total Pagado:', margin + 5, yPosition)
+    // ── SECCIÓN QR ───────────────────────────────────────────
+    const qcY = cY + cH + 10
+    const qcH = ph - qcY - 10
+    const qSize = Math.min(qcH - 52, 75)
+    const qImgX = (pw - qSize) / 2
 
-  doc.setFontSize(18)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(primaryColor.r, primaryColor.g, primaryColor.b)
-  doc.text(`Bs ${ticketData.totalPaid.toLocaleString()}`, pageWidth - margin - 5, yPosition, { align: 'right' })
+    doc.setFillColor(210, 215, 230)
+    doc.roundedRect(cX + 1.5, qcY + 1.5, cW, qcH, 5, 5, 'F')
+    doc.setFillColor(...rgb(WH))
+    doc.roundedRect(cX, qcY, cW, qcH, 5, 5, 'F')
 
-  yPosition += 8
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(150, 150, 150)
-  doc.text(`Compra realizada el ${ticketData.purchaseDate}`, margin + 5, yPosition)
+    doc.setFillColor(...rgb(AZ))
+    doc.roundedRect(cX, qcY, cW, 14, 5, 5, 'F')
+    doc.rect(cX, qcY + 7, cW, 7, 'F')
 
-  // Footer
-  const footerY = pageHeight - 20
-  doc.setFontSize(8)
-  doc.setTextColor(150, 150, 150)
-  doc.text(
-    'Este documento es tu comprobante de compra. Preséntalo junto con tu código QR en la entrada.',
-    pageWidth / 2,
-    footerY,
-    { align: 'center' }
-  )
-  doc.text(
-    'Las entradas son intransferibles. Para más información visita www.365soft.com',
-    pageWidth / 2,
-    footerY + 5,
-    { align: 'center' }
-  )
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...rgb(WH))
+    doc.text('TU CÓDIGO QR DE ACCESO', pw / 2, qcY + 9, { align: 'center' })
 
-  // Guardar el PDF
-  const fileName = `Entrada-${ticketData.eventName.replace(/\s+/g, '-')}-${ticketData.purchaseId}.pdf`
+    const qrStartY = qcY + 18
+
+    if (qrImg) {
+      doc.setFillColor(...rgb(WH))
+      doc.setDrawColor(225, 228, 240)
+      doc.setLineWidth(0.5)
+      doc.roundedRect(qImgX - 3, qrStartY, qSize + 6, qSize + 6, 3, 3, 'FD')
+      doc.addImage(qrImg, 'PNG', qImgX, qrStartY + 3, qSize, qSize)
+    }
+
+    const instrY = qrStartY + qSize + 14
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...rgb(NG))
+    doc.text('PRESENTA ESTE QR PARA INGRESAR AL EVENTO', pw / 2, instrY, { align: 'center' })
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...rgb(GR2))
+    doc.text('Este código es único e intransferible  ·  Alfa Bolivia', pw / 2, instrY + 6, { align: 'center' })
+  }
+
+  const fileName = `Entrada-${ticketData.eventName.replace(/\s+/g, '-').slice(0, 30)}-${ticketData.purchaseId.slice(-8)}.pdf`
   doc.save(fileName)
-
   return fileName
 }
 
-/**
- * Genera un PDF con múltiples entradas (para cuando hay varios asistentes)
- */
 export const generateMultipleTicketsPDF = (tickets: any[]) => {
   const doc = new jsPDF()
-
-  tickets.forEach((_ticket, index) => {
-    if (index > 0) {
-      doc.addPage()
-    }
-
-    // Aquí se generaría cada ticket individual
-    // Por simplicidad, llamamos a generateTicketPDF pero guardando en memoria
-  })
-
+  tickets.forEach((_t, i) => { if (i > 0) doc.addPage() })
   return doc
 }
 
-export default {
-  generateTicketPDF,
-  generateMultipleTicketsPDF
-}
+export default { generateTicketPDF, generateMultipleTicketsPDF }
