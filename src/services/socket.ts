@@ -76,10 +76,12 @@ class SocketService {
   }
 
   onSeatReserved(callback: (data: any) => void) {
+    console.log('🔧 Registrando listener asiento:reservado')
     this.getSocket().on('asiento:reservado', callback)
   }
 
   onSeatReleased(callback: (data: any) => void) {
+    console.log('🔧 Registrando listener asiento:liberado')
     this.getSocket().on('asiento:liberado', callback)
   }
 

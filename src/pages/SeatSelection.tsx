@@ -365,6 +365,7 @@ export default function SeatSelection() {
 
       // Actualizar asientos en tiempo real con los nuevos estados
       socketService.onSeatReserved((data: any) => {
+        console.log('🟡 Socket recibido: asiento:reservado', data)
         const ids = data.asientosIds || []
         setSeats(prev => prev.map(s =>
           ids.includes(s.id) ? { ...s, status: data.estado || 'RESERVANDO' } : s
@@ -372,6 +373,7 @@ export default function SeatSelection() {
       })
 
       socketService.onSeatReleased((data: any) => {
+        console.log('🟢 Socket recibido: asiento:liberado', data)
         const ids = data.asientosIds || []
         setSeats(prev => prev.map(s =>
           ids.includes(s.id) ? { ...s, status: 'DISPONIBLE' } : s
@@ -381,17 +383,27 @@ export default function SeatSelection() {
       timeoutId = setTimeout(() => { if (!socketService.isConnected()) setDemoMode(true) }, 3000)
     } catch { setDemoMode(true) }
     return () => {
+      console.log('🧹 Cleanup de SeatSelection:', { reservaIdRef: reservaIdRef.current, selectedSeatsCount: selectedSeatsRef.current.length })
       if (timeoutId) clearTimeout(timeoutId)
       // Liberar asientos solo si no se inició el proceso de pago
       if (!reservaIdRef.current && selectedSeatsRef.current.length > 0) {
+        console.log('⚠️ Ejecutando liberarAsientos en cleanup porque reservaIdRef.current es null')
         liberarAsientos()
+      } else {
+        console.log('✅ NO liberando asientos en cleanup - reservaIdRef tiene valor:', reservaIdRef.current)
       }
-      try { socketService.disconnect() } catch {}
+      // Limpiar listeners de socket antes de desconectar para evitar eventos fantasma
+      try {
+        socketService.off('asiento:reservado')
+        socketService.off('asiento:liberado')
+        socketService.disconnect()
+      } catch {}
     }
   }, [eventId])
 
   // ── Toggle asiento ──
   const toggleSeat = useCallback((seat: Seat) => {
+    console.log('🪑 toggleSeat:', { id: seat.id, status: seat.status })
     if (seat.status !== 'DISPONIBLE' && seat.status !== 'RESERVANDO' && seat.status !== 'EN_PROCESO') return
     setSelectedSeats(prev => {
       const isSelected = prev.some(s => s.id === seat.id)
@@ -409,6 +421,7 @@ export default function SeatSelection() {
       return
     }
 
+    console.log('🚀 proceedToCheckout iniciado:', { selectedSeatsCount: selectedSeats.length, selectedSeatsIds: selectedSeats.map(s => s.id) })
     setIsReserving(true)
     try {
       // Usar la nueva API de reservación múltiple con Redis locks
@@ -418,12 +431,18 @@ export default function SeatSelection() {
       }
 
       const response = await seatReservationService.reservarAsientos(reservationData)
+      console.log('✅ Respuesta de reserva:', response)
 
       if (response.ok) {
         // Generar un reservaId usando los IDs de asientos
         const reservaId = response.data.map(s => s.id).join('-')
+        console.log('📝 reservaId generado:', reservaId)
 
         setReservaId(reservaId)
+        // 🚨 IMPORTANTE: Actualizar el ref sincrónicamente para evitar race condition en cleanup
+        reservaIdRef.current = reservaId
+        console.log('✅ reservaIdRef.current actualizado sincrónicamente:', reservaIdRef.current)
+
         setTimerPhase('RESERVACION')
         setTimeLeft(180) // 3 minutos para completar el pago (según backend)
 
@@ -436,6 +455,7 @@ export default function SeatSelection() {
         })
         setSelectedSeats(updatedSeats)
 
+        console.log('🔜 Navegando a checkout con reservaId:', reservaId)
         navigate('/checkout', {
           state: {
             eventId,
@@ -459,6 +479,7 @@ export default function SeatSelection() {
   // Función para liberar asientos correctamente
   const liberarAsientos = async () => {
     const currentSeats = selectedSeatsRef.current
+    console.log('🔓 liberarAsientos llamada', { eventId, currentSeats: currentSeats.map(s => s.id) })
     if (!eventId || currentSeats.length === 0) return
 
     try {
@@ -466,7 +487,9 @@ export default function SeatSelection() {
         asientosIds: currentSeats.map(s => s.id),
         eventoId: eventId
       })
-    } catch {
+      console.log('✅ Asientos liberados correctamente')
+    } catch (error) {
+      console.error('❌ Error liberando asientos:', error)
       // silenciar — no interrumpir la navegación por errores de limpieza
     }
   }
