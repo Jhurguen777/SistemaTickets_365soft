@@ -151,16 +151,11 @@ export default function EventDetail() {
     }
   }
 
-  const handleScanSuccess = async (attendee: Attendee) => {
-    try {
-      await adminService.markAttendance(attendee.id)
-      await loadData()
-      setTimeout(() => {
-        alert(`✅ Asistencia marcada: ${attendee.nombre}`)
-      }, 1000)
-    } catch (error) {
-      alert('Error al marcar asistencia')
-    }
+  const handleScanSuccess = async (data: { usuario: { nombre: string } }) => {
+    await loadData()
+    setTimeout(() => {
+      alert(`✅ Asistencia registrada: ${data.usuario.nombre}`)
+    }, 500)
   }
 
   const togglePurchaseExpanded = (purchaseId: string) => {
@@ -235,7 +230,7 @@ export default function EventDetail() {
       {/* QR Scanner Modal */}
       {showQRScanner && (
         <QRScanner
-          eventId={event.id}
+          eventoId={event.id}
           onScanSuccess={handleScanSuccess}
           onClose={() => setShowQRScanner(false)}
         />

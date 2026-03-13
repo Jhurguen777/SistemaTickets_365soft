@@ -1,20 +1,23 @@
 import { useState, useEffect } from 'react'
 import {
   ScanLine, Search, Download, CheckCircle, XCircle,
-  Clock, QrCode, User as UserIcon
+  Clock, QrCode, User as UserIcon, Camera
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { AsistenciaStatus } from '@/types/admin'
 import { adminService } from '@/services/adminService'
 import api from '@/services/api'
+import QRScanner from '@/components/admin/QRScanner'
 
 interface AttendeeRow {
   id: string
   nombre: string
   email: string
   ci: string
-  asiento: string
+  asiento: string | null
+  numeroBoleto: number | null
+  esGeneral: boolean
   asistencia: 'ASISTIO' | 'PENDIENTE'
   horaCheckIn: string | null
   qrCode: string
@@ -24,13 +27,15 @@ type TabType = 'scanner' | 'lista'
 
 export default function Attendance() {
   const [activeTab, setActiveTab] = useState<TabType>('scanner')
-  const [selectedEvent, setSelectedEvent] = useState<string>('')
+  const [selectedEvent, setSelectedEvent] = useState<string>(
+    () => localStorage.getItem('attendance_selectedEvent') ?? ''
+  )
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<AsistenciaStatus | 'TODOS'>('TODOS')
-  const [selectedAttendees, setSelectedAttendees] = useState<Set<string>>(new Set())
   const [attendees, setAttendees] = useState<AttendeeRow[]>([])
   const [events, setEvents] = useState<{ id: string; title: string }[]>([])
   const [loading, setLoading] = useState(false)
+  const [scannerAbierto, setScannerAbierto] = useState(false)
 
   useEffect(() => {
     adminService.getEvents().then(evts =>
@@ -46,6 +51,8 @@ export default function Attendance() {
       .catch(() => setAttendees([]))
       .finally(() => setLoading(false))
   }, [selectedEvent])
+
+  const esEventoGeneral = attendees.length > 0 && attendees.every(a => a.esGeneral)
 
   const filteredAttendees = attendees.filter(a => {
     const matchesSearch = a.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || a.email.toLowerCase().includes(searchTerm.toLowerCase()) || a.ci.includes(searchTerm)
@@ -65,24 +72,35 @@ export default function Attendance() {
       const res = await api.post('/asistencia/verificar-qr', { qrCode })
       const { usuario } = res.data.data
       alert(`✅ Asistencia registrada: ${usuario.nombre}`)
-      // Refrescar lista
-      if (selectedEvent) {
-        const updated = await api.get(`/asistencia/evento/${selectedEvent}`)
-        setAttendees(updated.data.data ?? [])
-      }
+      refrescarAsistentes()
     } catch (err: any) {
       alert(err.response?.data?.mensaje ?? 'Error al escanear QR')
     }
   }
 
-  const handleSelectAll = () => {
-    setSelectedAttendees(selectedAttendees.size === filteredAttendees.length ? new Set() : new Set(filteredAttendees.map(a => a.id)))
+  const refrescarAsistentes = async () => {
+    if (!selectedEvent) return
+    const updated = await api.get(`/asistencia/evento/${selectedEvent}`)
+    setAttendees(updated.data.data ?? [])
   }
 
-  const handleSelectAttendee = (id: string) => {
-    const n = new Set(selectedAttendees)
-    n.has(id) ? n.delete(id) : n.add(id)
-    setSelectedAttendees(n)
+  const handleScannerSuccess = () => {
+    refrescarAsistentes()
+  }
+
+  const handleExportar = async () => {
+    if (!selectedEvent) return
+    try {
+      const res = await api.get(`/asistencia/exportar/${selectedEvent}`, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `asistentes-${selectedEvent}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      alert('Error al exportar')
+    }
   }
 
   const statusStyle: Record<AsistenciaStatus, { bg: string; label: string; icon: any }> = {
@@ -115,7 +133,10 @@ export default function Attendance() {
         <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">Evento:</label>
         <select
           value={selectedEvent}
-          onChange={e => setSelectedEvent(e.target.value)}
+          onChange={e => {
+            setSelectedEvent(e.target.value)
+            localStorage.setItem('attendance_selectedEvent', e.target.value)
+          }}
           className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary"
         >
           <option value="">Seleccionar evento...</option>
@@ -174,21 +195,31 @@ export default function Attendance() {
                 <QrCode className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400" />
               </div>
               <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-1">Escanear Código QR</h3>
-              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-5">Apunta la cámara al código QR del boleto</p>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-5">Usa la cámara o ingresa el código manualmente</p>
+
+              {/* Botón cámara */}
+              <Button
+                className="w-full mb-4 flex items-center justify-center gap-2"
+                onClick={() => {
+                  if (!selectedEvent) { alert('Selecciona un evento primero'); return }
+                  setScannerAbierto(true)
+                }}
+              >
+                <Camera size={16} /> Activar Cámara
+              </Button>
+
+              {/* Entrada manual */}
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Ingresa código QR (ej: QR001)"
+                  placeholder="Ingresar código QR manualmente"
                   className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
                   onKeyPress={e => { if (e.key === 'Enter') { handleScanQR((e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value = '' } }}
                 />
                 <Button size="sm" onClick={() => {
-                  const input = document.querySelector('input[placeholder*="QR"]') as HTMLInputElement
+                  const input = document.querySelector('input[placeholder*="manualmente"]') as HTMLInputElement
                   if (input?.value) { handleScanQR(input.value); input.value = '' }
-                }}>Escanear</Button>
-              </div>
-              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <p className="text-xs text-blue-800 dark:text-blue-200"><strong>Prueba con:</strong> QR001, QR002, QR003</p>
+                }}>Enviar</Button>
               </div>
             </div>
           </CardContent>
@@ -214,7 +245,7 @@ export default function Attendance() {
                   <option value="PENDIENTE">Pendientes</option>
                   <option value="NO_SHOW">No Shows</option>
                 </select>
-                <Button variant="outline" size="sm" className="flex items-center gap-1.5 text-xs flex-shrink-0">
+                <Button variant="outline" size="sm" onClick={handleExportar} disabled={!selectedEvent} className="flex items-center gap-1.5 text-xs flex-shrink-0">
                   <Download className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Exportar</span>
                 </Button>
@@ -226,10 +257,7 @@ export default function Attendance() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="text-left py-3 px-3">
-                      <input type="checkbox" checked={selectedAttendees.size === filteredAttendees.length && filteredAttendees.length > 0} onChange={handleSelectAll} className="w-4 h-4 rounded border-gray-300" />
-                    </th>
-                    {['Asistente', 'CI', 'Asiento', 'Estado', 'Check-in'].map(h => (
+                    {['Asistente', 'CI', esEventoGeneral ? 'N° Boleto' : 'Asiento', 'Estado', 'Check-in'].map(h => (
                       <th key={h} className="text-left py-3 px-3 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -237,47 +265,70 @@ export default function Attendance() {
                 <tbody>
                   {filteredAttendees.map(a => (
                     <tr key={a.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                      <td className="py-3 px-3"><input type="checkbox" checked={selectedAttendees.has(a.id)} onChange={() => handleSelectAttendee(a.id)} className="w-4 h-4 rounded border-gray-300" /></td>
-                      <td className="py-3 px-3"><p className="font-medium text-gray-900 dark:text-white text-sm">{a.nombre}</p><p className="text-xs text-gray-500">{a.email}</p></td>
+                      <td className="py-3 px-3">
+                        <p className="font-medium text-gray-900 dark:text-white text-sm">{a.nombre}</p>
+                        <p className="text-xs text-gray-500">{a.email}</p>
+                      </td>
                       <td className="py-3 px-3 text-sm text-gray-700 dark:text-gray-300">{a.ci || '-'}</td>
-                      <td className="py-3 px-3 text-sm font-semibold text-gray-700 dark:text-gray-300">{a.asiento}</td>
+                      <td className="py-3 px-3 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        {esEventoGeneral
+                          ? (a.numeroBoleto != null ? `#${a.numeroBoleto}` : '-')
+                          : (a.asiento || '-')}
+                      </td>
                       <td className="py-3 px-3"><StatusBadge status={a.asistencia} /></td>
-                      <td className="py-3 px-3 text-xs text-gray-500">{a.horaCheckIn ? new Date(a.horaCheckIn).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                      <td className="py-3 px-3 text-xs text-gray-500">
+                        {a.horaCheckIn ? new Date(a.horaCheckIn).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               {filteredAttendees.length === 0 && (
-                <div className="text-center py-12"><UserIcon className="w-10 h-10 text-gray-400 mx-auto mb-3" /><p className="text-sm text-gray-500">{loading ? 'Cargando...' : !selectedEvent ? 'Selecciona un evento para ver la lista' : 'No se encontraron asistentes'}</p></div>
+                <div className="text-center py-12">
+                  <UserIcon className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500">{loading ? 'Cargando...' : !selectedEvent ? 'Selecciona un evento para ver la lista' : 'No se encontraron asistentes'}</p>
+                </div>
               )}
             </div>
 
             {/* ── MOBILE: Cards ── */}
             <div className="sm:hidden space-y-2">
               {filteredAttendees.length === 0 ? (
-                <div className="text-center py-10"><UserIcon className="w-10 h-10 text-gray-400 mx-auto mb-3" /><p className="text-sm text-gray-500">{loading ? 'Cargando...' : !selectedEvent ? 'Selecciona un evento para ver la lista' : 'No se encontraron asistentes'}</p></div>
+                <div className="text-center py-10">
+                  <UserIcon className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500">{loading ? 'Cargando...' : !selectedEvent ? 'Selecciona un evento para ver la lista' : 'No se encontraron asistentes'}</p>
+                </div>
               ) : filteredAttendees.map(a => (
-                <div key={a.id} className="flex items-start gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800">
-                  <input type="checkbox" checked={selectedAttendees.has(a.id)} onChange={() => handleSelectAttendee(a.id)} className="mt-1 w-4 h-4 rounded border-gray-300 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{a.nombre}</p>
-                        <p className="text-xs text-gray-500 truncate">{a.email}</p>
-                      </div>
-                      <StatusBadge status={a.asistencia} />
+                <div key={a.id} className="p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-white text-sm">{a.nombre}</p>
+                      <p className="text-xs text-gray-500 truncate">{a.email}</p>
                     </div>
-                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                      <span className="text-xs text-gray-500">CI: <strong className="text-gray-700 dark:text-gray-300">{a.ci || '-'}</strong></span>
-                      <span className="text-xs text-gray-500">Asiento: <strong className="text-gray-700 dark:text-gray-300">{a.asiento}</strong></span>
-                      {a.horaCheckIn && <span className="text-xs text-gray-400">{new Date(a.horaCheckIn).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>}
-                    </div>
+                    <StatusBadge status={a.asistencia} />
+                  </div>
+                  <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                    <span className="text-xs text-gray-500">CI: <strong className="text-gray-700 dark:text-gray-300">{a.ci || '-'}</strong></span>
+                    {esEventoGeneral
+                      ? <span className="text-xs text-gray-500">Boleto: <strong className="text-gray-700 dark:text-gray-300">{a.numeroBoleto != null ? `#${a.numeroBoleto}` : '-'}</strong></span>
+                      : <span className="text-xs text-gray-500">Asiento: <strong className="text-gray-700 dark:text-gray-300">{a.asiento || '-'}</strong></span>
+                    }
+                    {a.horaCheckIn && <span className="text-xs text-gray-400">{new Date(a.horaCheckIn).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>}
                   </div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Modal escáner con cámara */}
+      {scannerAbierto && (
+        <QRScanner
+          eventoId={selectedEvent}
+          onScanSuccess={handleScannerSuccess}
+          onClose={() => setScannerAbierto(false)}
+        />
       )}
     </div>
   )

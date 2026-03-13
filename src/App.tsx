@@ -63,7 +63,7 @@ function App() {
         {/* Solo mostrar Header en rutas públicas, no en admin */}
         {!isAdminRoute && <Header onOpenModal={openModal as (modalType: string) => void} />}
 
-      <main className={`flex-grow ${!isAdminRoute ? 'pt-16 md:pt-20' : ''}`}>
+      <main className={`flex-grow ${!isAdminRoute ? 'pt-12 md:pt-14' : ''}`}>
         <Routes>
           {/* Rutas Públicas */}
           <Route path="/" element={<Home onOpenModal={openModal as (modalType: string) => void} />} />

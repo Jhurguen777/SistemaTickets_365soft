@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Menu, X, LogOut } from 'lucide-react'
+import { Menu, X, LogOut, ShoppingBag } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { useAuthStore } from '@/store/authStore'
 
@@ -13,10 +13,9 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
   const { user, logout, isAdmin, isAuthenticated } = useAuthStore()
 
   const navItems = [
+    { label: 'INICIO', to: '/' },
     { label: 'CÓMO COMPRAR', action: () => onOpenModal('howToBuy') },
-    { label: 'ATENCIÓN AL CLIENTE', to: '/atencion_cliente' },
     { label: 'PREGUNTAS FRECUENTES', action: () => onOpenModal('faq') },
-    { label: 'PUNTOS DE VENTA', action: () => onOpenModal('storeLocations') }
   ]
 
   const handleLogout = () => {
@@ -27,13 +26,13 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
   return (
     <header className="fixed top-0 left-0 right-0 z-40 bg-primary text-white shadow-md">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16 md:h-20">
+        <div className="flex items-center justify-between h-12 md:h-14">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
             <img
               src="/assets/alfa-negativo.png"
               alt="SistemaTickets 365soft"
-              className="h-10 md:h-12"
+              className="h-8 md:h-10"
             />
           </Link>
 
@@ -77,8 +76,9 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                 )}
                 <Link
                   to="/mis-compras"
-                  className="text-sm font-semibold text-white hover:text-white/90 transition-colors"
+                  className="flex items-center gap-1.5 text-sm font-semibold text-white hover:text-white/90 transition-colors"
                 >
+                  <ShoppingBag size={16} />
                   Mis Compras
                 </Link>
                 <span className="text-white/60">|</span>
@@ -154,9 +154,10 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                   )}
                   <Link
                     to="/mis-compras"
-                    className="text-sm font-semibold text-white hover:text-white/90 transition-colors py-2"
+                    className="flex items-center gap-1.5 text-sm font-semibold text-white hover:text-white/90 transition-colors py-2"
                     onClick={() => setMobileMenuOpen(false)}
                   >
+                    <ShoppingBag size={16} />
                     Mis Compras
                   </Link>
                   <div className="flex items-center justify-between pt-2 border-t border-white/20">

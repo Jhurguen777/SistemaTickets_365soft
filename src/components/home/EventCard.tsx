@@ -117,7 +117,11 @@ const EventCard: React.FC<EventCardProps> = ({
             className="text-xs px-3 py-1.5 flex-shrink-0"
             onClick={(e) => {
               e.stopPropagation()
-              onBuyClick?.()
+              if (onBuyClick) {
+                onBuyClick()
+              } else {
+                window.location.href = `/eventos/${id}`
+              }
             }}
           >
             Comprar

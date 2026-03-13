@@ -21,7 +21,7 @@ const Footer: React.FC<FooterProps> = ({ onOpenModal }) => {
 
   return (
     <footer className="bg-gray-900 text-white">
-      <div className="container mx-auto px-4 py-12 md:py-16">
+      <div className="container mx-auto px-4 py-6 md:py-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
           {/* Column 1: Información */}
           <div>
@@ -59,14 +59,6 @@ const Footer: React.FC<FooterProps> = ({ onOpenModal }) => {
                   PREGUNTAS FRECUENTES
                 </button>
               </li>
-              <li>
-                <button
-                  onClick={() => onOpenModal('storeLocations')}
-                  className="text-gray-300 hover:text-white transition-colors"
-                >
-                  PUNTOS DE VENTA
-                </button>
-              </li>
             </ul>
           </div>
 
@@ -81,14 +73,6 @@ const Footer: React.FC<FooterProps> = ({ onOpenModal }) => {
                 >
                   TÉRMINOS Y CONDICIONES
                 </button>
-              </li>
-              <li>
-                <a
-                  href="/atencion_cliente"
-                  className="text-gray-300 hover:text-white transition-colors"
-                >
-                  ATENCIÓN AL CLIENTE
-                </a>
               </li>
               <li>
                 <button
@@ -125,9 +109,8 @@ const Footer: React.FC<FooterProps> = ({ onOpenModal }) => {
         </div>
 
         {/* Powered By */}
-        <div className="mt-12 pt-8 border-t border-gray-800 text-center text-sm text-gray-400">
+        <div className="mt-6 pt-4 border-t border-gray-800 text-center text-sm text-gray-400">
           <p>© {new Date().getFullYear()} SistemaTickets 365soft. Todos los derechos reservados.</p>
-          <p className="mt-2">Powered by 365soft</p>
         </div>
       </div>
     </footer>

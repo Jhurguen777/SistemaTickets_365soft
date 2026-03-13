@@ -70,6 +70,8 @@ const CategoryMenu: React.FC<CategoryMenuProps> = ({ onCategoryChange }) => {
     }
   }
 
+  if (categories.length === 0) return null
+
   return (
     <div ref={menuRef} className="bg-primary text-white sticky top-16 md:top-20 z-30 shadow-md">
       <div className="container mx-auto px-4">

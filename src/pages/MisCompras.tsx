@@ -300,133 +300,140 @@ export default function MisCompras() {
                   </div>
                 </div>
 
-                {/* Ticket cards — 2 columnas */}
+                {/* Ticket cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {purchase.asientos.map((asiento, idx) => (
                     <div key={idx} className="flex flex-col gap-2">
-                    <div
-                      className="rounded-2xl overflow-hidden flex"
-                      style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.14)', minHeight: 240 }}
-                    >
-                      {/* Tira izquierda azul */}
                       <div
-                        className="flex-shrink-0 flex flex-col items-center justify-between py-5 px-2"
-                        style={{ background: C.azul, width: 60 }}
+                        className="rounded-2xl overflow-hidden flex w-full"
+                        style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.14)' }}
                       >
-                        <span
-                          className="text-white font-black uppercase select-none"
-                          style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 13, letterSpacing: '0.2em' }}
+                        {/* Tira izquierda azul */}
+                        <div
+                          className="flex-shrink-0 flex flex-col items-center justify-between py-4 px-1.5"
+                          style={{ background: C.azul, width: 44 }}
                         >
-                          ALFA BOLIVIA
-                        </span>
-                        <img
-                          src="/assets/alfa-negativo.png"
-                          alt="Alfa Bolivia"
-                          style={{ width: 44, height: 'auto', objectFit: 'contain' }}
-                        />
-                      </div>
+                          <span
+                            className="text-white font-black uppercase select-none"
+                            style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 11, letterSpacing: '0.18em' }}
+                          >
+                            ALFA BOLIVIA
+                          </span>
+                          <img
+                            src="/assets/alfa-negativo.png"
+                            alt="Alfa Bolivia"
+                            style={{ width: 34, height: 'auto', objectFit: 'contain' }}
+                          />
+                        </div>
 
-                      {/* Cuerpo blanco */}
-                      <div className="flex-1 flex flex-col bg-white min-w-0">
-                        {/* Cabecera evento */}
-                        <div className="px-5 pt-5 pb-3" style={{ borderBottom: '1px solid #E5E7EB' }}>
-                          <p className="text-xs uppercase tracking-widest font-semibold mb-0.5" style={{ color: C.negro }}>
-                            VAS A VER
-                          </p>
-                          <p className="font-black uppercase leading-tight truncate" style={{ fontSize: 20, color: C.amarillo }}>
-                            {purchase.eventoTitulo}
-                          </p>
-                          {purchase.eventoUbicacion && (
-                            <p className="text-xs mt-0.5 truncate" style={{ color: C.negro }}>
-                              {purchase.eventoUbicacion}{purchase.eventoDireccion ? `, ${purchase.eventoDireccion}` : ''}
+                        {/* Cuerpo blanco */}
+                        <div className="flex-1 flex flex-col bg-white min-w-0">
+                          {/* Cabecera evento */}
+                          <div className="px-3 pt-3 pb-2" style={{ borderBottom: '1px solid #E5E7EB' }}>
+                            <p className="text-xs uppercase tracking-widest font-semibold mb-0.5" style={{ color: C.negro }}>
+                              VAS A VER
                             </p>
-                          )}
-                        </div>
-
-                        {/* Datos + QR */}
-                        <div className="px-5 py-4 flex gap-4 flex-1">
-                          <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-4 content-start">
-                            <div>
-                              <p className="text-xs font-black uppercase tracking-wider" style={{ color: C.negro }}>NOMBRE</p>
-                              <p className="text-xs font-semibold uppercase mt-0.5 truncate" style={{ color: C.negro }}>{asiento.nombre || 'Asistente'}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs font-black uppercase tracking-wider" style={{ color: C.negro }}>FECHA</p>
-                              <p className="text-xs font-semibold uppercase mt-0.5" style={{ color: C.negro }}>
-                                {purchase.eventoFecha ? formatEventDate(purchase.eventoFecha) : '—'}
+                            <p className="font-black uppercase leading-tight" style={{ fontSize: 15, color: C.amarillo, wordBreak: 'break-word' }}>
+                              {purchase.eventoTitulo}
+                            </p>
+                            {purchase.eventoUbicacion && (
+                              <p className="text-xs mt-0.5 truncate" style={{ color: C.negro }}>
+                                {purchase.eventoUbicacion}{purchase.eventoDireccion ? `, ${purchase.eventoDireccion}` : ''}
                               </p>
+                            )}
+                          </div>
+
+                          {/* Datos + QR */}
+                          <div className="px-3 py-3 flex gap-3 flex-1">
+                            <div className="flex-1 grid grid-cols-2 gap-x-3 gap-y-2 content-start">
+                              <div className="col-span-2">
+                                <p className="text-xs font-black uppercase tracking-wider" style={{ color: C.negro }}>NOMBRE</p>
+                                <p className="text-xs font-semibold uppercase mt-0.5 truncate" style={{ color: C.negro }}>{asiento.nombre || 'Asistente'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-wider" style={{ color: C.negro }}>FECHA</p>
+                                <p className="text-xs font-semibold uppercase mt-0.5 leading-tight" style={{ color: C.negro }}>
+                                  {purchase.eventoFecha ? formatEventDate(purchase.eventoFecha) : '—'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-wider" style={{ color: C.negro }}>HORA</p>
+                                <p className="text-xs font-semibold uppercase mt-0.5" style={{ color: C.negro }}>{purchase.eventoHora || '—'}</p>
+                              </div>
+                              {purchase.eventoDoorsOpen && (
+                                <div className="col-span-2">
+                                  <p className="text-xs font-black uppercase tracking-wider" style={{ color: C.negro }}>APERTURA</p>
+                                  <p className="text-xs font-semibold uppercase mt-0.5" style={{ color: C.rojo }}>{purchase.eventoDoorsOpen}</p>
+                                </div>
+                              )}
                             </div>
-                            <div>
-                              <p className="text-xs font-black uppercase tracking-wider" style={{ color: C.negro }}>HORA</p>
-                              <p className="text-xs font-semibold uppercase mt-0.5" style={{ color: C.negro }}>{purchase.eventoHora || '—'}</p>
+
+                            {/* QR mini + Ver QR */}
+                            <div className="flex-shrink-0 flex flex-col items-center justify-center gap-1.5">
+                              <QRCode
+                                value={asiento.qrCode || 'TICKET'}
+                                size={58}
+                                level="M"
+                                includeMargin={false}
+                                fgColor={C.negro}
+                                bgColor="#ffffff"
+                              />
+                              <button
+                                onClick={() => {
+                                  setSelectedQR(asiento.qrCode)
+                                  setSelectedAttendee(asiento)
+                                  setSelectedEventName(purchase.eventoTitulo)
+                                  setShowQRModal(true)
+                                }}
+                                className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded w-full justify-center"
+                                style={{ background: C.negro, color: '#fff' }}
+                              >
+                                <QrCode size={10} />
+                                Ver QR
+                              </button>
                             </div>
                           </div>
 
-                          {/* QR mini + Ver QR */}
-                          <div className="flex-shrink-0 flex flex-col items-center justify-center gap-2">
-                            <QRCode
-                              value={asiento.qrCode || 'TICKET'}
-                              size={64}
-                              level="M"
-                              includeMargin={false}
-                              fgColor={C.negro}
-                              bgColor="#ffffff"
-                            />
-                            <button
-                              onClick={() => {
-                                setSelectedQR(asiento.qrCode)
-                                setSelectedAttendee(asiento)
-                                setSelectedEventName(purchase.eventoTitulo)
-                                setShowQRModal(true)
-                              }}
-                              className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded w-full justify-center"
-                              style={{ background: C.negro, color: '#fff' }}
-                            >
-                              <QrCode size={11} />
-                              Ver QR
-                            </button>
+                          {/* Footer: badge SEC */}
+                          <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
+                            <div className="flex rounded overflow-hidden" style={{ border: `2px solid ${C.negro}` }}>
+                              <span className="px-2 py-0.5 text-xs font-black text-white uppercase" style={{ background: C.negro }}>SEC</span>
+                              <span className="px-2 py-0.5 text-xs font-extrabold uppercase bg-white" style={{ color: C.negro }}>{asiento.sector || 'GEN'}</span>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Footer: badge SEC */}
-                        <div className="flex flex-wrap items-center gap-2 px-5 pb-5">
-                          <div className="flex rounded overflow-hidden" style={{ border: `2px solid ${C.negro}` }}>
-                            <span className="px-2 py-1 text-xs font-black text-white uppercase" style={{ background: C.negro }}>SEC</span>
-                            <span className="px-3 py-1 text-xs font-extrabold uppercase bg-white" style={{ color: C.negro }}>{asiento.sector || 'GEN'}</span>
-                          </div>
-                        </div>
+                        {/* Imagen evento derecha */}
+                        {purchase.eventoImagen ? (
+                          <>
+                            <div className="flex-shrink-0 bg-white flex flex-col justify-around py-3" style={{ width: 12 }}>
+                              {Array.from({ length: 6 }).map((_, i) => (
+                                <div key={i} className="rounded-full self-end" style={{ width: 12, height: 12, background: '#F7F8FA', marginRight: -6 }} />
+                              ))}
+                            </div>
+                            <div className="flex-shrink-0 relative overflow-hidden" style={{ width: 90 }}>
+                              <img
+                                src={purchase.eventoImagen}
+                                alt="evento"
+                                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex-shrink-0" style={{ width: 6, background: `linear-gradient(180deg, ${C.amarillo}, ${C.rojo})` }} />
+                        )}
                       </div>
 
-                      {/* Imagen evento derecha */}
-                      {purchase.eventoImagen ? (
-                        <>
-                          <div className="flex-shrink-0 bg-white flex flex-col justify-around py-3" style={{ width: 14 }}>
-                            {Array.from({ length: 7 }).map((_, i) => (
-                              <div key={i} className="rounded-full self-end" style={{ width: 14, height: 14, background: '#F7F8FA', marginRight: -7 }} />
-                            ))}
-                          </div>
-                          <div className="flex-shrink-0" style={{ width: 160, position: 'relative', overflow: 'hidden' }}>
-                            <img
-                              src={purchase.eventoImagen}
-                              alt="evento"
-                              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
-                            />
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex-shrink-0" style={{ width: 8, background: `linear-gradient(180deg, ${C.amarillo}, ${C.rojo})` }} />
-                      )}
-                    </div>
-                    {/* Descargar boleto individual */}
-                    <button
-                      onClick={() => downloadSingleTicketPDF(purchase, asiento, idx)}
-                      disabled={downloadingId === `${purchase.id}-${idx}`}
-                      className="w-full flex items-center justify-center gap-2 font-bold text-xs py-2.5 rounded-xl transition-all active:scale-95 disabled:opacity-50"
-                      style={{ background: C.azul, color: C.blanco }}
-                    >
-                      <Download size={13} />
-                      {downloadingId === `${purchase.id}-${idx}` ? 'Generando…' : 'Descargar boleto'}
-                    </button>
+                      {/* Descargar boleto individual */}
+                      <button
+                        onClick={() => downloadSingleTicketPDF(purchase, asiento, idx)}
+                        disabled={downloadingId === `${purchase.id}-${idx}`}
+                        className="w-full flex items-center justify-center gap-2 font-bold text-xs py-2.5 rounded-xl transition-all active:scale-95 disabled:opacity-50"
+                        style={{ background: C.azul, color: C.blanco }}
+                      >
+                        <Download size={13} />
+                        {downloadingId === `${purchase.id}-${idx}` ? 'Generando…' : 'Descargar boleto'}
+                      </button>
                     </div>
                   ))}
                 </div>

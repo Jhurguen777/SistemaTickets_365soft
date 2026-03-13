@@ -1,183 +1,239 @@
-import { useState } from 'react'
-import { Camera, X, CheckCircle, XCircle, QrCode } from 'lucide-react'
-import { Attendee, CheckInResult } from '@/types/admin'
+import { useEffect, useRef, useState } from 'react'
+import QrScanner from 'qr-scanner'
+import { X, CheckCircle, XCircle, QrCode, Loader2, Zap } from 'lucide-react'
+import api from '@/services/api'
+
+interface CheckInData {
+  usuario: { id: string; nombre: string; email: string }
+  evento: { id: string; titulo: string }
+  asiento: { id: string; fila: string; numero: number } | null
+  ingresoEn: string
+}
+
+type ResultadoState = {
+  tipo: 'success' | 'error'
+  mensaje: string
+  detalle?: string
+  data?: CheckInData
+} | null
 
 interface QRScannerProps {
-  eventId: string
-  onScanSuccess: (attendee: Attendee) => void
+  eventoId: string
+  onScanSuccess: (data: CheckInData) => void
   onClose: () => void
 }
 
-export default function QRScanner({ eventId, onScanSuccess, onClose }: QRScannerProps) {
-  const [qrInput, setQrInput] = useState('')
-  const [scanResult, setScanResult] = useState<CheckInResult | null>(null)
-  const [scanning, setScanning] = useState(false)
+export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
+  const [iniciando, setIniciando] = useState(true)
+  const [errorCamara, setErrorCamara] = useState<string | null>(null)
+  const [resultado, setResultado] = useState<ResultadoState>(null)
+  const [flashActivo, setFlashActivo] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const scannerRef = useRef<QrScanner | null>(null)
+  const cooldownRef = useRef(false)
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const handleManualInput = async () => {
-    if (!qrInput.trim()) return
+  useEffect(() => {
+    let scanner: QrScanner | null = null
 
-    setScanning(true)
-    // Simular escaneo - en producción esto usaría react-qr-reader
-    setTimeout(async () => {
-      const adminService = (await import('@/services/adminService')).default
-      const result = await adminService.getAttendeeByQR(qrInput.trim(), eventId)
-      setScanResult(result)
-      setScanning(false)
-
-      if (result.success && result.attendee) {
-        onScanSuccess(result.attendee)
-        // Reproducir sonido de éxito
-        playSuccessSound()
-      } else {
-        // Reproducir sonido de error
-        playErrorSound()
+    const init = async () => {
+      if (!videoRef.current) return
+      try {
+        scanner = new QrScanner(
+          videoRef.current,
+          (result) => {
+            if (cooldownRef.current) return
+            cooldownRef.current = true
+            procesarQR(result.data)
+          },
+          {
+            returnDetailedScanResult: true,
+            highlightScanRegion: true,
+            highlightCodeOutline: true,
+            maxScansPerSecond: 15,
+            preferredCamera: 'environment',
+          }
+        )
+        scannerRef.current = scanner
+        await scanner.start()
+        setIniciando(false)
+      } catch (err: any) {
+        setErrorCamara(
+          String(err).toLowerCase().includes('permission')
+            ? 'Permiso de cámara denegado'
+            : 'No se pudo acceder a la cámara'
+        )
+        setIniciando(false)
       }
-    }, 500)
+    }
+
+    init()
+    return () => {
+      scanner?.stop()
+      scanner?.destroy()
+      if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current)
+    }
+  }, [])
+
+  const showResultado = (r: ResultadoState, autoDismissMs?: number) => {
+    if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current)
+    setResultado(r)
+    if (autoDismissMs) {
+      dismissTimerRef.current = setTimeout(() => {
+        setResultado(null)
+        cooldownRef.current = false
+      }, autoDismissMs)
+    }
   }
 
-  const playSuccessSound = () => {
-    const audio = new Audio('/sounds/success.mp3')
-    audio.volume = 0.5
-    audio.play().catch(() => {
-      // Fallback si no hay archivo de audio
-      console.log('Sonido de éxito')
-    })
+  const procesarQR = async (qrCode: string) => {
+    try {
+      const res = await api.post('/asistencia/verificar-qr', { qrCode })
+      const data: CheckInData = res.data.data
+      showResultado({
+        tipo: 'success',
+        mensaje: 'Registrado exitoso',
+        data,
+      }, 3000)
+      onScanSuccess(data)
+    } catch (err: any) {
+      const msg = err.response?.data?.mensaje ?? 'QR inválido o error del servidor'
+      showResultado({ tipo: 'error', mensaje: 'No se pudo registrar', detalle: msg }, 3000)
+    }
   }
 
-  const playErrorSound = () => {
-    const audio = new Audio('/sounds/error.mp3')
-    audio.volume = 0.5
-    audio.play().catch(() => {
-      console.log('Sonido de error')
-    })
+  const toggleFlash = async () => {
+    try {
+      await scannerRef.current?.toggleFlash()
+      setFlashActivo(v => !v)
+    } catch {}
   }
 
-  const reset = () => {
-    setQrInput('')
-    setScanResult(null)
+  const handleClose = () => {
+    scannerRef.current?.stop()
+    scannerRef.current?.destroy()
+    onClose()
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
-              <QrCode className="text-white" size={24} />
+    /* Fondo oscuro */
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-0 sm:p-8">
+
+      {/* Contenedor — full screen móvil, tamaño fijo desktop */}
+      <div className="relative bg-black w-full h-full sm:w-[480px] sm:h-[600px] sm:rounded-2xl overflow-hidden">
+
+        {/* ── Video (posición absoluta, llena el contenedor) ── */}
+        <video
+          ref={videoRef}
+          className="absolute inset-0 w-full h-full object-cover"
+          playsInline
+          muted
+        />
+
+        {/* ── Barra superior ── */}
+        <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3"
+          style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)' }}>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+              <QrCode size={16} className="text-white" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">Escáner QR</h2>
+            <span className="text-white font-bold text-base">Escáner QR</span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X size={24} />
+          <button onClick={handleClose}
+            className="w-9 h-9 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors">
+            <X size={18} className="text-white" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6">
-          {/* Simulación de cámara */}
-          <div className="border-4 border-dashed border-gray-300 rounded-lg p-8 mb-6 bg-gray-50">
-            <div className="flex flex-col items-center justify-center">
-              <Camera size={64} className="text-gray-400 mb-4" />
-              <p className="text-gray-600 text-center">Escáner QR</p>
-              <p className="text-sm text-gray-500 mt-2 text-center">
-                En producción, aquí se activaría la cámara del dispositivo
+        {/* ── Overlay cargando ── */}
+        {iniciando && !errorCamara && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60">
+            <Loader2 size={40} className="text-white animate-spin mb-3" />
+            <p className="text-white text-sm font-medium">Iniciando cámara...</p>
+          </div>
+        )}
+
+        {/* ── Overlay error cámara ── */}
+        {errorCamara && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black px-8 text-center">
+            <XCircle size={48} className="text-red-400 mb-3" />
+            <p className="text-white font-semibold mb-1">Sin acceso a cámara</p>
+            <p className="text-gray-400 text-sm">{errorCamara}</p>
+          </div>
+        )}
+
+        {/* ── Marco guía de escaneo ── */}
+        {!iniciando && !errorCamara && !resultado && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+            <div className="relative" style={{ width: 220, height: 220 }}>
+              {/* Esquinas */}
+              {[
+                'top-0 left-0 border-t-4 border-l-4 rounded-tl-lg',
+                'top-0 right-0 border-t-4 border-r-4 rounded-tr-lg',
+                'bottom-0 left-0 border-b-4 border-l-4 rounded-bl-lg',
+                'bottom-0 right-0 border-b-4 border-r-4 rounded-br-lg',
+              ].map((cls, i) => (
+                <div key={i} className={`absolute w-10 h-10 border-white ${cls}`} />
+              ))}
+              {/* Línea animada */}
+              <div className="absolute left-2 right-2 top-1/2 h-0.5 bg-primary/80 animate-pulse" />
+              <p className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-white/80 text-xs whitespace-nowrap">
+                Centra el QR aquí
               </p>
             </div>
           </div>
+        )}
 
-          {/* Input manual (para pruebas) */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Ingresa código QR manualmente (para pruebas):
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={qrInput}
-                onChange={(e) => setQrInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleManualInput()}
-                placeholder="Ej: QR-JUAN-1234567-A5"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                disabled={scanning}
-              />
-              <button
-                onClick={handleManualInput}
-                disabled={scanning || !qrInput.trim()}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {scanning ? 'Escaneando...' : 'Escanear'}
-              </button>
-            </div>
-          </div>
-
-          {/* Códigos de prueba */}
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm font-medium text-blue-800 mb-2">Códigos QR de prueba:</p>
-            <div className="text-xs text-blue-700 space-y-1">
-              <p>• QR-JUAN-1234567-A5 (Asistente que ya asistió)</p>
-              <p>• QR-ANA-7654321-A6 (Asistente que ya asistió)</p>
-              <p>• QR-MARIA-3456789-B1 (Confirmado, puede asistir)</p>
-              <p>• QR-LUIS-4567890-B2 (Confirmado, puede asistir)</p>
-              <p>• QR-CARLOS-2345678-A7 (No Show)</p>
-            </div>
-          </div>
-
-          {/* Resultado del escaneo */}
-          {scanResult && (
-            <div className={`border-2 rounded-lg p-4 ${
-              scanResult.success
-                ? 'border-green-500 bg-green-50'
-                : 'border-red-500 bg-red-50'
+        {/* ── Notificación resultado (overlay sobre cámara) ── */}
+        {resultado && (
+          <div className="absolute bottom-20 left-4 right-4 z-20">
+            <div className={`rounded-2xl px-5 py-4 shadow-2xl flex items-center gap-3 ${
+              resultado.tipo === 'success' ? 'bg-green-500' : 'bg-red-500'
             }`}>
-              <div className="flex items-start gap-3">
-                {scanResult.success ? (
-                  <CheckCircle className="text-green-600 flex-shrink-0 mt-1" size={24} />
-                ) : (
-                  <XCircle className="text-red-600 flex-shrink-0 mt-1" size={24} />
+              {resultado.tipo === 'success'
+                ? <CheckCircle size={26} className="text-white flex-shrink-0" />
+                : <XCircle size={26} className="text-white flex-shrink-0" />}
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-white text-base leading-tight">
+                  {resultado.tipo === 'success' ? 'Registrado exitoso' : resultado.mensaje}
+                </p>
+                {resultado.tipo === 'error' && (
+                  <p className="text-white/80 text-sm mt-0.5 truncate">{resultado.detalle}</p>
                 )}
-                <div className="flex-1">
-                  <p className={`font-semibold ${
-                    scanResult.success ? 'text-green-900' : 'text-red-900'
-                  }`}>
-                    {scanResult.success ? '¡Asistente válido!' : 'Error'}
-                  </p>
-                  <p className={`text-sm mt-1 ${
-                    scanResult.success ? 'text-green-700' : 'text-red-700'
-                  }`}>
-                    {scanResult.message}
-                  </p>
-                  {scanResult.attendee && (
-                    <div className="mt-3 p-2 bg-white rounded border border-gray-200">
-                      <p className="font-semibold text-gray-900">{scanResult.attendee.nombre}</p>
-                      <p className="text-sm text-gray-600">CI: {scanResult.attendee.ci}</p>
-                      <p className="text-sm text-gray-600">Asiento: {scanResult.attendee.asiento}</p>
-                      <p className="text-sm text-gray-600">Sector: {scanResult.attendee.sector}</p>
-                    </div>
-                  )}
-                </div>
               </div>
               <button
-                onClick={reset}
-                className="mt-3 w-full py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                onClick={() => { setResultado(null); cooldownRef.current = false }}
+                className="flex-shrink-0 p-1 hover:bg-white/20 rounded-lg"
               >
-                Escanear otro código
+                <X size={16} className="text-white" />
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+        {/* ── Barra inferior ── */}
+        <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center justify-between px-6 py-4"
+          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' }}>
+          {/* Flash */}
           <button
-            onClick={onClose}
-            className="w-full py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+            onClick={toggleFlash}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
+              flashActivo ? 'bg-yellow-400' : 'bg-white/20 hover:bg-white/30'
+            }`}
           >
-            Cerrar Escáner
+            <Zap size={20} className={flashActivo ? 'text-black' : 'text-white'} />
           </button>
+
+          {/* Cerrar */}
+          <button
+            onClick={handleClose}
+            className="px-6 py-2.5 bg-white/20 hover:bg-white/30 rounded-full text-white font-semibold text-sm transition-colors"
+          >
+            Cerrar
+          </button>
+
+          {/* Balance */}
+          <div className="w-12" />
         </div>
       </div>
     </div>
