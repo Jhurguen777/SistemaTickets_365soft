@@ -12,6 +12,8 @@ build/
 # ── Variables de entorno (NUNCA subir al repo) ─────────────────────
 .env
 .env.*
+
+
 !.env.example
 
 # ── Logs ───────────────────────────────────────────────────────────

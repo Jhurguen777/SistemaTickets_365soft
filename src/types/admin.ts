@@ -44,14 +44,28 @@ export interface RegisteredUser {
   eventId: string
   eventTitle: string
   nombre: string
+  nombreCompleto?: string
+  apellido?: string
   email: string
   telefono: string
+  documento: string
   sector: string
   cantidad: number
   totalPagado: number
   fechaCompra: Date
   estadoPago: 'PAGADO' | 'PENDIENTE'
+  asiento?: string
   asientos?: string[]
+  // Datos del comprador (para referencia)
+  comprador?: {
+    id: string
+    nombre: string
+    email: string
+  }
+  // Datos de asistencia
+  asistenciaRegistrada: boolean
+  fechaAsistencia?: Date | null
+  qrCode?: string
 }
 
 export interface SectorReport {

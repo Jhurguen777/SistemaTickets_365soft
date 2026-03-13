@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Search, Plus, Eye, Edit, Trash2, Filter, Calendar, MapPin, Tag, X, LayoutGrid, Hash } from 'lucide-react'
+import { Search, Plus, Eye, EyeOff, Edit, Trash2, Filter, Calendar, MapPin, Tag, X, LayoutGrid, Hash, Users, DollarSign, MoreVertical, Ticket, TrendingUp, Clock, Settings } from 'lucide-react'
 import adminService from '@/services/adminService'
 import { AdminEvent } from '@/types/admin'
 
@@ -19,88 +19,88 @@ function EventTypeModal({ open, onClose }: { open: boolean; onClose: () => void 
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              ¿Cómo quieres vender los tickets?
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              Elige el tipo de evento antes de continuar
-            </p>
+      <div className="relative w-full max-w-2xl bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        {/* Header con gradiente */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 pt-6 pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white">
+                ¿Cómo quieres vender los tickets?
+              </h2>
+              <p className="text-blue-100 text-sm mt-1">
+                Elige el tipo de evento antes de continuar
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
+            >
+              <X size={20} />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-          >
-            <X size={18} />
-          </button>
         </div>
-
-        {/* Divider */}
-        <div className="border-t border-gray-100 dark:border-gray-800" />
 
         {/* Options */}
         <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-
           {/* Opción 1: Con mapa de asientos */}
-          <button
-            onClick={() => navigate('/admin/eventos/crear?tipo=asientos')}
-            className="group flex flex-col items-start gap-3 p-5 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 transition-all text-left"
+          <Link
+            to="/admin/eventos/crear?tipo=asientos"
+            className="group flex flex-col items-start gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-left"
           >
-            <div className="p-2.5 bg-primary/10 text-primary rounded-lg group-hover:bg-primary group-hover:text-white transition-colors">
-              <LayoutGrid size={22} />
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white group-hover:scale-110 transition-transform shadow-lg">
+              <LayoutGrid size={24} />
             </div>
             <div>
-              <p className="font-semibold text-gray-900 dark:text-white text-sm">
+              <p className="font-bold text-gray-900 dark:text-white text-base">
                 Con mapa de asientos
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
-                Los compradores eligen su asiento en un plano interactivo.
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
+                Los compradores eligen su asiento en un plano interactivo
               </p>
             </div>
-            <span className="text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-              Continuar →
-            </span>
-          </button>
+            <div className="mt-auto">
+              <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-100 text-blue-700 group-hover:bg-blue-200 transition-colors">
+                Continuar →
+              </span>
+            </div>
+          </Link>
 
           {/* Opción 2: Por cantidad */}
-          <button
-            onClick={() => navigate('/admin/eventos/crear?tipo=cantidad')}
-            className="group flex flex-col items-start gap-3 p-5 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 transition-all text-left"
+          <Link
+            to="/admin/eventos/crear?tipo=cantidad"
+            className="group flex flex-col items-start gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all text-left"
           >
-            <div className="p-2.5 bg-primary/10 text-primary rounded-lg group-hover:bg-primary group-hover:text-white transition-colors">
-              <Hash size={22} />
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white group-hover:scale-110 transition-transform shadow-lg">
+              <Hash size={24} />
             </div>
             <div>
-              <p className="font-semibold text-gray-900 dark:text-white text-sm">
+              <p className="font-bold text-gray-900 dark:text-white text-base">
                 Entrada general
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
-                Se vende una cantidad fija de asientos.
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
+                Se vende una cantidad fija de entradas sin asignación
               </p>
             </div>
-            <span className="text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-              Continuar →
-            </span>
-          </button>
+            <div className="mt-auto">
+              <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-100 text-purple-700 group-hover:bg-purple-200 transition-colors">
+                Continuar →
+              </span>
+            </div>
+          </Link>
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-5">
-          <p className="text-xs text-center text-gray-400 dark:text-gray-500">
+        <div className="px-6 pb-6 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+          <p className="text-xs text-center text-gray-500 dark:text-gray-400">
             Podrás cambiar esta configuración más adelante desde el formulario
           </p>
         </div>
-
       </div>
     </div>
   )
 }
 
-// ── EventList ─────────────────────────────────────────────────────────────────
+// ── EventList ────────────────────────────────────────────────────────────────────
 export default function EventList() {
   const [events, setEvents] = useState<AdminEvent[]>([])
   const [filteredEvents, setFilteredEvents] = useState<AdminEvent[]>([])
@@ -147,64 +147,75 @@ export default function EventList() {
 
   const statusBadge = (status: string) => {
     const map: Record<string, string> = {
-      ACTIVO: 'bg-green-50 text-green-700',
-      INACTIVO: 'bg-gray-100 text-gray-700 dark:text-gray-300',
-      CANCELADO: 'bg-red-50 text-red-700',
+      ACTIVO: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+      INACTIVO: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+      CANCELADO: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
     }
-    return map[status] || 'bg-gray-100 text-gray-600'
+    return map[status] || 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
   }
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
-    </div>
-  )
+  const statusIcon = (status: string) => {
+    const map: Record<string, any> = {
+      ACTIVO: <TrendingUp size={16} />,
+      INACTIVO: <Clock size={16} />,
+      CANCELADO: <X size={16} />
+    }
+    return map[status] || <Clock size={16} />
+  }
+
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-
+    <div className="space-y-6">
       {/* Modal de selección de tipo */}
       <EventTypeModal open={showTypeModal} onClose={() => setShowTypeModal(false)} />
 
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
             Gestión de Eventos
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Administra todos los eventos del sistema
           </p>
         </div>
 
-        {/* ← Ahora abre el modal en lugar de navegar directo */}
+        {/* Botón crear */}
         <button
           onClick={() => setShowTypeModal(true)}
-          className="self-start sm:self-auto flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center"
+          className="self-start lg:self-auto flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors shadow-lg"
         >
-          <Plus size={16} />
+          <Plus size={18} />
           Crear Evento
         </button>
       </div>
 
       {/* ── Filters ── */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Buscar</label>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="relative">
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Buscar</label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
                 placeholder="Buscar por nombre..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 bg-white dark:bg-gray-800"
+                className="w-full pl-10 pr-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white dark:bg-gray-800"
               />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Categoría</label>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Categoría</label>
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
@@ -216,7 +227,7 @@ export default function EventList() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Estado</label>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Estado</label>
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
@@ -228,159 +239,200 @@ export default function EventList() {
               <option value="CANCELADO">Cancelado</option>
             </select>
           </div>
+          <div className="flex items-end">
+            {searchTerm || categoryFilter !== 'todas' || statusFilter !== 'todos' ? (
+              <button
+                onClick={() => { setSearchTerm(''); setCategoryFilter('todas'); setStatusFilter('todos') }}
+                className="w-full px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Limpiar filtros
+              </button>
+            ) : (
+              <button className="w-full px-3 py-2 text-sm text-gray-400 rounded-lg" disabled>
+                No hay filtros
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Resultados */}
+        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
+          <span className="text-sm text-gray-600 dark:text-gray-300">
+            {filteredEvents.length === 0 ? 'No se encontraron eventos' : `${filteredEvents.length} evento${filteredEvents.length === 1 ? '' : 's'}`}
+          </span>
         </div>
       </div>
 
-      {/* ── Count ── */}
-      <p className="text-sm text-gray-600 dark:text-gray-300">
-        Mostrando <span className="font-semibold text-gray-900 dark:text-white">{filteredEvents.length}</span> {filteredEvents.length === 1 ? 'evento' : 'eventos'}
-      </p>
-
       {/* ── DESKTOP: Table ── */}
-      <div className="hidden md:block bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Evento</th>
-                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Fecha</th>
-                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Categoría</th>
-                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Estado</th>
-                <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Precio</th>
-                <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Ventas</th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Acciones</th>
+      <div className="hidden md:block bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-b-2 border-gray-200 dark:border-gray-700">
+              <th className="text-left py-3 px-4 text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Evento</th>
+              <th className="text-left py-3 px-4 text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Fecha</th>
+              <th className="text-left py-3 px-4 text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Categoría</th>
+              <th className="text-left py-3 px-4 text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Estado</th>
+              <th className="text-right py-3 px-4 text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Precio</th>
+              <th className="text-right py-3 px-4 text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Ventas</th>
+              <th className="text-right py-3 px-4 text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Tickets</th>
+              <th className="text-center py-3 px-4 text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredEvents.map(event => (
+              <tr key={event.id} className="border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors">
+                <td className="py-3 px-4">
+                  <div className="flex items-center gap-3">
+                    <img src={event.image} alt={event.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0 shadow-sm" />
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-white text-sm">{event.title}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{event.location}</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="py-3 px-4">
+                  <p className="text-sm text-gray-900 dark:text-white">
+                    {new Date(event.date).toLocaleDateString('es-ES', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                  </p>
+                  <p className="text-xs text-gray-500">{event.time}</p>
+                </td>
+                <td className="py-3 px-4">
+                  <span className="text-sm text-gray-600 dark:text-gray-300">{event.category}</span>
+                  {event.subcategory && <span className="text-xs text-gray-400 dark:text-gray-500 block">{event.subcategory}</span>}
+                </td>
+                <td className="py-3 px-4">
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusBadge(event.status)}`}>
+                    {statusIcon(event.status)}
+                    {event.status}
+                  </span>
+                </td>
+                <td className="py-3 px-4 text-right">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Bs {event.price}</p>
+                </td>
+                <td className="py-3 px-4 text-right">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Bs {event.totalSales.toLocaleString()}</p>
+                  <p className="text-xs text-gray-500">{event.totalTicketsSold} vendidos</p>
+                </td>
+                <td className="py-3 px-4 text-right">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{event.totalTicketsSold}</p>
+                </td>
+                <td className="py-3 px-4">
+                  <div className="flex items-center justify-end gap-1">
+                    <Link to={`/admin/eventos/${event.id}`} className="px-2 py-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors text-sm font-medium" title="Ver detalles">
+                      <Eye size={16} />
+                    </Link>
+                    <Link to={`/admin/eventos/${event.id}/clientes`} className="px-2 py-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors text-sm font-medium" title="Ver asistentes">
+                      <Users size={16} />
+                    </Link>
+                    <Link to={`/admin/eventos/${event.id}/editar`} className="px-2 py-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors text-sm font-medium" title="Editar">
+                      <Edit size={16} />
+                    </Link>
+                    <button onClick={() => handleDelete(event.id)} className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Eliminar">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {filteredEvents.map(event => (
-                <tr key={event.id} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                  <td className="py-4 px-4">
-                    <div className="flex items-center gap-3">
-                      <img src={event.image} alt={event.title} className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white text-sm">{event.title}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{event.location}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <p className="text-sm text-gray-900 dark:text-white">
-                      {new Date(event.date).toLocaleDateString('es-ES', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
-                    </p>
-                    <p className="text-xs text-gray-500">{event.time}</p>
-                  </td>
-                  <td className="py-4 px-4">
-                    <span className="text-sm text-gray-600 dark:text-gray-300">{event.category}</span>
-                    {event.subcategory && <span className="text-xs text-gray-400 block">{event.subcategory}</span>}
-                  </td>
-                  <td className="py-4 px-4">
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${statusBadge(event.status)}`}>
-                      {event.status}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-right">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Bs {event.price}</p>
-                  </td>
-                  <td className="py-4 px-4 text-right">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Bs {event.totalSales.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">{event.totalTicketsSold} vendidos</p>
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <Link to={`/admin/eventos/${event.id}`}>
-                        <button className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" title="Ver">
-                          <Eye size={16} />
-                        </button>
-                      </Link>
-                      <Link to={`/admin/eventos/${event.id}/editar`}>
-                        <button className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" title="Editar">
-                          <Edit size={16} />
-                        </button>
-                      </Link>
-                      <button onClick={() => handleDelete(event.id)} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {filteredEvents.length === 0 && (
-            <div className="text-center py-16">
-              <Filter size={40} className="mx-auto mb-3 text-gray-300" />
-              <p className="text-sm text-gray-500">No se encontraron eventos</p>
-              <p className="text-xs text-gray-400 mt-1">Intenta con otros filtros</p>
-            </div>
-          )}
-        </div>
+            ))}
+          </tbody>
+        </table>
+
+        {filteredEvents.length === 0 && (
+          <div className="text-center py-16">
+            <Filter size={48} className="mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+            <p className="text-gray-600 dark:text-gray-400 font-medium">No se encontraron eventos</p>
+            <p className="text-sm text-gray-500 dark:text-gray-500">Intenta con otros filtros</p>
+          </div>
+        )}
       </div>
 
       {/* ── MOBILE: Cards ── */}
       <div className="md:hidden space-y-3">
         {filteredEvents.length === 0 ? (
-          <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-            <Filter size={40} className="mx-auto mb-3 text-gray-300" />
-            <p className="text-sm text-gray-500">No se encontraron eventos</p>
+          <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+            <Filter size={48} className="mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+            <p className="text-gray-600 dark:text-gray-400 font-medium">No se encontraron eventos</p>
+            <p className="text-sm text-gray-500 dark:text-gray-500">Intenta con otros filtros</p>
           </div>
-        ) : filteredEvents.map(event => (
-          <div key={event.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-            <div className="flex gap-3 p-3">
-              <img src={event.image} alt={event.title} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-semibold text-gray-900 dark:text-white text-sm leading-tight truncate">{event.title}</p>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium flex-shrink-0 ${statusBadge(event.status)}`}>
+        ) : (
+          filteredEvents.map(event => (
+            <div key={event.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {/* Imagen */}
+              <div className="relative h-40 overflow-hidden">
+                <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
+                <div className={`absolute top-3 right-3 ${statusBadge(event.status)}`}>
+                  {statusIcon(event.status)}
+                </div>
+              </div>
+
+              {/* Contenido */}
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-900 dark:text-white text-base leading-tight truncate">{event.title}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{event.location}</p>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${statusBadge(event.status)}`}>
                     {event.status}
                   </span>
                 </div>
-                <div className="mt-1 space-y-0.5">
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <MapPin size={10} />
-                    <span className="truncate">{event.location}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <Calendar size={10} />
+
+                {/* Info secundaria */}
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    <Calendar size={12} />
                     <span>{new Date(event.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} · {event.time}</span>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <Tag size={10} />
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    <Tag size={12} />
                     <span>{event.category}</span>
                   </div>
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    <MapPin size={12} />
+                    <span className="truncate">{event.location}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-gray-900 dark:text-white">
+                    <DollarSign size={12} className="text-gray-400" />
+                    <span>Bs {event.price}</span>
+                  </div>
+                </div>
+
+                {/* Estadísticas del evento */}
+                <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700 pt-3">
+                  <div className="px-2 py-2 text-center">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Precio</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Bs {event.price}</p>
+                  </div>
+                  <div className="px-2 py-2 text-center">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Ventas</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Bs {event.totalSales.toLocaleString()}</p>
+                  </div>
+                  <div className="px-2 py-2 text-center">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Tickets</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{event.totalTicketsSold}</p>
+                  </div>
+                </div>
+
+                {/* Acciones */}
+                <div className="grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
+                  <Link to={`/admin/eventos/${event.id}`} className="flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <Eye size={14} />
+                  </Link>
+                  <Link to={`/admin/eventos/${event.id}/clientes`} className="flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                  </Link>
+                  <Link to={`/admin/eventos/${event.id}/editar`} className="flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+                    <Edit size={14} />
+                    Editar
+                  </Link>
+                  <button onClick={() => handleDelete(event.id)} className="flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                    <Trash2 size={14} /> Eliminar
+                  </button>
                 </div>
               </div>
             </div>
-
-            <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
-              <div className="px-3 py-2 text-center">
-                <p className="text-xs text-gray-500">Precio</p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">Bs {event.price}</p>
-              </div>
-              <div className="px-3 py-2 text-center">
-                <p className="text-xs text-gray-500">Ventas</p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">Bs {event.totalSales.toLocaleString()}</p>
-              </div>
-              <div className="px-3 py-2 text-center">
-                <p className="text-xs text-gray-500">Tickets</p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">{event.totalTicketsSold}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
-              <Link to={`/admin/eventos/${event.id}`} className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <Eye size={14} /> Ver
-              </Link>
-              <Link to={`/admin/eventos/${event.id}/editar`} className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors">
-                <Edit size={14} /> Editar
-              </Link>
-              <button onClick={() => handleDelete(event.id)} className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors">
-                <Trash2 size={14} /> Eliminar
-              </button>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
-
     </div>
   )
 }
