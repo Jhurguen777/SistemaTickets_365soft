@@ -233,6 +233,64 @@ export default function EventDetail({ onOpenModal }: EventDetailProps) {
               </CardContent>
             </Card>
 
+            {/* ── MONETES ── */}
+            <Card>
+              <CardContent className="p-4 sm:p-6">
+                <h2 className="text-base sm:text-2xl font-bold mb-1">Ponentes</h2>
+                <p className="text-xs sm:text-sm text-gray-500 mb-4 sm:mb-6">
+                  Expertos del sector inmobiliario que estarán presentes en el evento
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-5">
+                  {[
+                    {
+                      name: 'Carlos Medina',
+                      image: 'https://picsum.photos/seed/carlos1/200/200',
+                      description: 'CEO de Grupo Medina Propiedades. 20 años liderando desarrollos residenciales en Latinoamérica.',
+                    },
+                    {
+                      name: 'Lucía Ferreyra',
+                      image: 'https://picsum.photos/seed/lucia2/200/200',
+                      description: 'Directora de inversiones en Real Capital. Especialista en fideicomisos y financiamiento inmobiliario.',
+                    },
+                    {
+                      name: 'Martín Solís',
+                      image: 'https://picsum.photos/seed/martin3/200/200',
+                      description: 'Arquitecto urbanista y consultor de proyectos de uso mixto a nivel regional.',
+                    },
+                    {
+                      name: 'Andrea Vega',
+                      image: 'https://picsum.photos/seed/andrea4/200/200',
+                      description: 'Abogada especializada en derecho inmobiliario y contratos de compraventa.',
+                    },
+                    {
+                      name: 'Roberto Paz',
+                      image: 'https://picsum.photos/seed/roberto5/200/200',
+                      description: 'Analista de mercado y autor del informe anual de tendencias del sector en Bolivia.',
+                    },
+                    {
+                      name: 'Valeria Torres',
+                      image: 'https://picsum.photos/seed/valeria6/200/200',
+                      description: 'Gerente comercial de Torres del Sur. Referente en estrategias de preventa y lanzamiento.',
+                    },
+                  ].map((ponente) => (
+                    <div
+                      key={ponente.name}
+                      className="flex flex-col items-center text-center gap-2 p-2 sm:p-3 rounded-xl hover:bg-gray-50 transition-colors"
+                    >
+                      <img
+                        src={ponente.image}
+                        alt={ponente.name}
+                        className="w-16 h-16 sm:w-24 sm:h-24 rounded-full object-cover ring-2 ring-primary/20"
+                      />
+                      <p className="font-bold text-xs sm:text-sm leading-tight">{ponente.name}</p>
+                      <p className="text-xs text-gray-500 leading-snug hidden sm:block">{ponente.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+            {/* ── FIN MONETES ── */}
+
             {/* Gallery */}
             {event.gallery && event.gallery.length > 0 && (
               <Card>
@@ -247,12 +305,6 @@ export default function EventDetail({ onOpenModal }: EventDetailProps) {
                 </CardContent>
               </Card>
             )}
-
-            {/* Related Events */}
-            {/* <div>
-              <h2 className="text-base sm:text-2xl font-bold mb-3 sm:mb-6">Otros eventos</h2>
-              <EventGrid hasMore={false} />
-            </div> */}
           </div>
 
           {/* Sidebar — solo desktop */}
