@@ -26,13 +26,23 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
   return (
     <header className="fixed top-0 left-0 right-0 z-40 bg-primary text-white shadow-md">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-12 md:h-14">
+
+        <div className="flex items-center justify-between h-16 md:h-20">
+
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
+          <Link
+            to="/"
+            className="flex items-center space-x-2"
+            style={{ colorScheme: 'light' }}
+          >
             <img
               src="/assets/alfa-negativo.png"
               alt="SistemaTickets 365soft"
-              className="h-8 md:h-10"
+              className="h-10 md:h-12"
+              style={{
+                colorScheme: 'light',
+                filter: 'none',
+              }}
             />
           </Link>
 
@@ -74,6 +84,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                     <span className="text-white/60">|</span>
                   </>
                 )}
+
                 <Link
                   to="/mis-compras"
                   className="flex items-center gap-1.5 text-sm font-semibold text-white hover:text-white/90 transition-colors"
@@ -81,10 +92,13 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                   <ShoppingBag size={16} />
                   Mis Compras
                 </Link>
+
                 <span className="text-white/60">|</span>
+
                 <span className="text-sm font-semibold text-white">
                   {user?.nombre}
                 </span>
+
                 <button
                   onClick={handleLogout}
                   className="text-sm text-red-300 hover:text-red-200 font-semibold transition-colors"
@@ -107,17 +121,20 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 text-foreground hover:text-primary transition-colors"
+            className="md:hidden p-2 text-white hover:text-white/80 transition-colors"
             aria-label="Abrir menú"
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
+
         </div>
 
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <div className="md:hidden py-4 border-t border-white/20 bg-primary">
+
             <nav className="flex flex-col space-y-4">
+
               {navItems.map((item, index) => (
                 item.to ? (
                   <Link
@@ -141,6 +158,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                   </button>
                 )
               ))}
+
               {isAuthenticated ? (
                 <>
                   {isAdmin && (
@@ -152,6 +170,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                       Panel Admin
                     </Link>
                   )}
+
                   <Link
                     to="/mis-compras"
                     className="flex items-center gap-1.5 text-sm font-semibold text-white hover:text-white/90 transition-colors py-2"
@@ -160,8 +179,12 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                     <ShoppingBag size={16} />
                     Mis Compras
                   </Link>
+
                   <div className="flex items-center justify-between pt-2 border-t border-white/20">
-                    <span className="text-sm font-semibold text-white">{user?.nombre}</span>
+                    <span className="text-sm font-semibold text-white">
+                      {user?.nombre}
+                    </span>
+
                     <button
                       onClick={() => {
                         handleLogout()
@@ -186,9 +209,12 @@ const Header: React.FC<HeaderProps> = ({ onOpenModal }) => {
                   ACCEDER
                 </Button>
               )}
+
             </nav>
+
           </div>
         )}
+
       </div>
     </header>
   )

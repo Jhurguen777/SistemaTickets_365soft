@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Users, ChevronDown, Check, X, QrCode, CheckCircle2, Clock } from 'lucide-react'
+import { ArrowLeft, Users, ChevronDown, Check, X, QrCode, CheckCircle2, Clock, Info } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -32,6 +32,7 @@ interface FormData {
   oficina: string
   otraOficina: boolean
   otraOficinaNombre: string
+  esExterno: boolean
 }
 
 interface PaymentData {
@@ -47,12 +48,10 @@ export default function Checkout() {
   const location = useLocation() as CheckoutState
 
   const rawState = (() => {
-    // Si viene con nueva navegación (location.state), detectar si es una reserva diferente
     if (location.state) {
       try {
         const saved = sessionStorage.getItem('checkout_state')
         const savedState = saved ? JSON.parse(saved) : null
-        // Si el reservaId cambió, limpiar datos del formulario anterior
         if (savedState && savedState.reservaId !== (location.state as any).reservaId) {
           const oldEventId = savedState.eventId
           sessionStorage.removeItem(`checkout_form_${oldEventId}`)
@@ -84,13 +83,11 @@ export default function Checkout() {
     }
   }, [])
 
-  // Si esta reserva ya fue pagada (usuario volvió atrás), redirigir a Mis Compras
   useEffect(() => {
     if (reservaId && localStorage.getItem(`compra_completada_${reservaId}`)) {
       navigate('/mis-compras', { replace: true })
       return
     }
-    // Si no hay datos del checkout (sessionStorage limpiado por pago completado), redirigir
     if (!reservaId && !eventId && !seats?.length) {
       navigate('/', { replace: true })
     }
@@ -114,7 +111,7 @@ export default function Checkout() {
     } catch {}
     return seats.map(() => ({
       nombre: '', apellido: '', email: '', telefono: '',
-      documento: '', oficina: '', otraOficina: false, otraOficinaNombre: ''
+      documento: '', oficina: '', otraOficina: false, otraOficinaNombre: '', esExterno: false
     }))
   })
 
@@ -127,7 +124,6 @@ export default function Checkout() {
   })
 
   const [expandedAttendee, setExpandedAttendee] = useState<number>(() => {
-    // Abrir el primer asistente incompleto
     try {
       const saved = sessionStorage.getItem(COMPLETE_KEY)
       if (saved) {
@@ -152,12 +148,10 @@ export default function Checkout() {
     return { medioPago: '' }
   })
 
-  // Estado para reanudar un QR ya generado
   const [resumeQRData, setResumeQRData] = useState<{
     qrPagoId: string; imagenQr: string; monto: number; moneda: string
     fechaVencimiento: string; eventTitle: string
   } | null>(() => {
-    // Leer síncronamente para evitar flash del botón incorrecto al refrescar
     try {
       const raw = localStorage.getItem('pending_payment')
       if (!raw) return null
@@ -171,7 +165,6 @@ export default function Checkout() {
     } catch { return null }
   })
 
-  // Modal de pago exitoso (detectado al volver al checkout después de pagar)
   const [showPaidModal, setShowPaidModal] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
   const [processing, setProcessing] = useState(false)
@@ -216,7 +209,6 @@ export default function Checkout() {
     { codigo: '2606', nombre: 'ALFA CITY' }
   ]
 
-  // Función para liberar asientos al salir/cancelar (solo aplica para modo ASIENTOS)
   const liberarAsientos = async () => {
     if (isGeneralMode) return
     if (!reservaId || !eventId) return
@@ -224,7 +216,6 @@ export default function Checkout() {
       console.log('⚠️ Asientos ya liberados, evitando duplicación')
       return
     }
-
     try {
       await api.post('/asientos/liberar-varios', {
         asientosIds: seats.map((s: CheckoutSeat) => s.id),
@@ -234,7 +225,6 @@ export default function Checkout() {
       console.log('✅ Asientos liberados al salir del checkout')
     } catch (error) {
       console.error('⚠️ Error liberando asientos:', error)
-      // Continuar aunque falle - el TTL de Redis eventualmente expirará
     }
   }
 
@@ -278,9 +268,6 @@ export default function Checkout() {
     return () => clearInterval(id)
   }, [resumeQRData])
 
-  // Verificar si hay un QR pendiente reutilizable al montar
-  // Si ya fue pagado → mostrar modal de éxito directo
-  // Si sigue pendiente → iniciar polling silencioso en background
   useEffect(() => {
     if (!eventId) return
     let silentPolling: { iniciar: () => void; detener: () => void } | null = null
@@ -292,19 +279,16 @@ export default function Checkout() {
         const data = JSON.parse(raw)
         if (data.eventId !== eventId) return
 
-        // Si expiró, limpiar y salir
         const expiry = new Date(data.fechaVencimiento).getTime()
         if (Date.now() > expiry) {
           localStorage.removeItem('pending_payment')
           return
         }
 
-        // Verificar estado real en el backend (Opción A)
         try {
           const resultado = await paymentServiceV2.verificarPago(data.qrPagoId)
 
           if (resultado.estado === 'PAGADO') {
-            // Ya pagado: limpiar y mostrar modal de éxito
             localStorage.removeItem('pending_payment')
             sessionStorage.removeItem(FORM_KEY)
             sessionStorage.removeItem(COMPLETE_KEY)
@@ -324,10 +308,8 @@ export default function Checkout() {
           // Error de red: igual mostrar el QR guardado
         }
 
-        // PENDIENTE: guardar para banner + iniciar polling silencioso (Opción C)
         setResumeQRData(data)
 
-        // Polling silencioso sin abrir el modal
         silentPolling = paymentServiceV2.iniciarPollingPago(
           data.qrPagoId,
           (resultado) => {
@@ -361,8 +343,6 @@ export default function Checkout() {
     }
   }, [eventId])
 
-  // Si viene del banner (flag en sessionStorage), abrir el modal del QR automáticamente
-  // Depende de resumeQRData para esperar a que el efecto async lo cargue
   useEffect(() => {
     const autoOpen = sessionStorage.getItem('checkout_auto_open_qr') === '1'
     if (autoOpen && resumeQRData) {
@@ -371,7 +351,6 @@ export default function Checkout() {
     }
   }, [resumeQRData])
 
-  // Limpiar polling al desmontar (NO liberar asientos)
   useEffect(() => {
     return () => {
       const polling = (window as any).paymentPolling
@@ -410,10 +389,11 @@ export default function Checkout() {
 
   const validateAttendeeField = (attendeeIndex: number, name: string, value: string): string | null => {
     const trimmedValue = value.trim()
+    const attendee = attendees[attendeeIndex]
     switch (name) {
       case 'nombre':
       case 'apellido':
-        if (!trimmedValue || trimmedValue.length < 2) return `El ${name} debe tener al menos 2 letras`
+        if (!trimmedValue || trimmedValue.length < 2) return `El ${name} debe tener al menos 3 letras`
         if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(trimmedValue)) return `El ${name} solo puede contener letras`
         return null
       case 'email':
@@ -426,7 +406,7 @@ export default function Checkout() {
         if (value && (value.length < 5 || !/^\d+$/.test(value))) return 'El documento debe tener al menos 5 dígitos y solo números'
         return null
       case 'oficina': {
-        const attendee = attendees[attendeeIndex]
+        if (attendee?.esExterno) return null
         if (attendee?.otraOficina) {
           if (!attendee.otraOficinaNombre || attendee.otraOficinaNombre.trim().length < 3) {
             return 'Debes ingresar el nombre de tu oficina Alfa'
@@ -466,6 +446,11 @@ export default function Checkout() {
       const updated: FormData = { ...newAttendees[attendeeIndex], [name]: value }
       if (name === 'otraOficina' && value === true) updated.oficina = ''
       if (name === 'otraOficina' && value === false) updated.otraOficinaNombre = ''
+      if (name === 'esExterno' && value === true) {
+        updated.oficina = ''
+        updated.otraOficina = false
+        updated.otraOficinaNombre = ''
+      }
       newAttendees[attendeeIndex] = updated
       return newAttendees
     })
@@ -497,7 +482,6 @@ export default function Checkout() {
 
   const handleCancel = async () => {
     if (confirm('¿Estás seguro de cancelar la compra? Los asientos seleccionados serán liberados.')) {
-      // Detener polling
       const polling = (window as any).paymentPolling
       if (polling && polling.detener) {
         polling.detener()
@@ -509,9 +493,8 @@ export default function Checkout() {
       sessionStorage.removeItem(PAYMENT_KEY)
       sessionStorage.removeItem(`checkout_terms_${eventId}`)
       localStorage.removeItem('pending_payment')
-      // Liberar asientos
-      await liberarAsientos()
 
+      await liberarAsientos()
       navigate(-1)
     }
   }
@@ -519,7 +502,6 @@ export default function Checkout() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Validar automáticamente todos los asistentes
     let allAttendeesValid = true
     const newErrors: FormErrors = {}
 
@@ -538,7 +520,6 @@ export default function Checkout() {
     setErrors(newErrors)
 
     if (!allAttendeesValid) {
-      // Expandir el primer asistente con errores
       const firstErrorIndex = Object.keys(newErrors)[0]?.split('_')[0]
       if (firstErrorIndex !== undefined) {
         setExpandedAttendee(parseInt(firstErrorIndex))
@@ -732,12 +713,8 @@ export default function Checkout() {
 
   const handlePaymentFailed = async (mensaje?: string) => {
     setShowQRModal(false)
-
-    // Detener polling
     const polling = (window as any).paymentPolling
-    if (polling && polling.detener) {
-      polling.detener()
-    }
+    if (polling && polling.detener) polling.detener()
     silentPollingRef.current?.detener()
 
     sessionStorage.removeItem('checkout_state')
@@ -746,7 +723,6 @@ export default function Checkout() {
     sessionStorage.removeItem(PAYMENT_KEY)
     sessionStorage.removeItem(`checkout_terms_${eventId}`)
     localStorage.removeItem('pending_payment')
-    // Liberar asientos cuando el pago falla
     await liberarAsientos()
 
     alert(mensaje || 'El pago falló. Por favor intenta nuevamente.')
@@ -754,12 +730,8 @@ export default function Checkout() {
 
   const handlePaymentExpired = async () => {
     setShowQRModal(false)
-
-    // Detener polling
     const polling = (window as any).paymentPolling
-    if (polling && polling.detener) {
-      polling.detener()
-    }
+    if (polling && polling.detener) polling.detener()
     silentPollingRef.current?.detener()
 
     sessionStorage.removeItem('checkout_state')
@@ -768,20 +740,16 @@ export default function Checkout() {
     sessionStorage.removeItem(PAYMENT_KEY)
     sessionStorage.removeItem(`checkout_terms_${eventId}`)
     localStorage.removeItem('pending_payment')
-    // Liberar asientos cuando el tiempo expira
     await liberarAsientos()
 
     alert('El tiempo para el pago ha expirado. Por favor selecciona tus asientos nuevamente.')
     navigate(-1)
   }
 
-  // Wrapper para QRPaymentModal que no acepta parámetros
   const handleModalPaymentSuccess = () => {
-    // El polling maneja la actualización del estado
     setShowQRModal(false)
   }
 
-  // Reanudar QR guardado sin generar uno nuevo
   const handleResumeQR = () => {
     if (!resumeQRData) return
     setCurrentQRData({
@@ -797,7 +765,6 @@ export default function Checkout() {
     setPaymentStatus('PENDIENTE')
     setShowQRModal(true)
 
-    // Reanudar polling
     const existingPolling = (window as any).paymentPolling
     if (existingPolling?.detener) existingPolling.detener()
 
@@ -925,10 +892,25 @@ export default function Checkout() {
             <form onSubmit={handleSubmit}>
 
               <div className="mb-4 sm:mb-6">
-                <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-6 flex items-center">
+                <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4 flex items-center">
                   <Users className="mr-2 text-primary" size={20} />
                   Datos de los asistentes
                 </h2>
+
+                <div className="mb-4 sm:mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
+                  <Info size={20} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-blue-800 mb-1">
+                      ¿Para qué se usan estos datos?
+                    </p>
+                    <p className="text-xs sm:text-sm text-blue-700 leading-relaxed">
+                      Los datos que ingresados a continuación — <strong>nombre, apellido e inmobiliaria a la que perteneces</strong> —
+                      serán utilizados para <strong>generacion de su certificado </strong> al evento.
+                      Asegúrate de escribirlos correctamente tal como deseas que aparezcan en el documento.
+                    </p>
+                  </div>
+                </div>
+
                 <div className="space-y-3 sm:space-y-4">
                   {seats.map((seat: CheckoutSeat, index: number) => {
                     const isCompleted = completedAttendees.has(index)
@@ -969,80 +951,186 @@ export default function Checkout() {
                             <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2 border-t">
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3">
 
-                                <Input label="Nombre" name="nombre" value={attendee.nombre}
-                                  onChange={(e) => handleAttendeeChange(index, e)}
-                                  error={errors[`${index}_nombre`]} placeholder="Tu nombre" required />
-
-                                <Input label="Apellido" name="apellido" value={attendee.apellido}
-                                  onChange={(e) => handleAttendeeChange(index, e)}
-                                  error={errors[`${index}_apellido`]} placeholder="Tu apellido" required />
-
-                                <Input label="Email (opcional)" name="email" type="email" value={attendee.email}
-                                  onChange={(e) => handleAttendeeChange(index, e)}
-                                  error={errors[`${index}_email`]} placeholder="tu@email.com" />
-
-                                <Input label="Teléfono" name="telefono" type="tel" value={attendee.telefono}
-                                  onChange={(e) => handleAttendeeChange(index, e)}
-                                  error={errors[`${index}_telefono`]} placeholder="Tu número de teléfono" required />
-
-                                <Input label="Documento de identidad (opcional)" name="documento" value={attendee.documento}
-                                  onChange={(e) => handleAttendeeChange(index, e)}
-                                  error={errors[`${index}_documento`]} placeholder="Número de documento" />
+                                <div>
+                                  <label className="block text-sm font-semibold mb-1.5">
+                                    Nombre <span className="text-red-500">*</span>
+                                  </label>
+                                  <Input
+                                    name="nombre"
+                                    value={attendee.nombre}
+                                    onChange={(e) => handleAttendeeChange(index, e)}
+                                    error={errors[`${index}_nombre`]}
+                                    placeholder="Tu nombre"
+                                    required
+                                  />
+                                </div>
 
                                 <div>
                                   <label className="block text-sm font-semibold mb-1.5">
-                                    Oficina Alfa <span className="text-red-500">*</span>
+                                    Apellido <span className="text-red-500">*</span>
                                   </label>
-                                  <select
-                                    name="oficina"
-                                    value={attendee.oficina}
+                                  <Input
+                                    name="apellido"
+                                    value={attendee.apellido}
                                     onChange={(e) => handleAttendeeChange(index, e)}
-                                    disabled={attendee.otraOficina}
-                                    className={`w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm transition-all ${
-                                      errors[`${index}_oficina`] ? 'border-red-500' : 'border-gray-300'
-                                    } ${attendee.otraOficina ? 'bg-gray-100 cursor-not-allowed opacity-50' : ''}`}
-                                    required={!attendee.otraOficina}
-                                  >
-                                    <option value="">Selecciona tu oficina Alfa</option>
-                                    {oficinas.map((o) => (
-                                      <option key={o.codigo} value={o.codigo}>
-                                        {o.codigo} - {o.nombre}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  {errors[`${index}_oficina`] && (
-                                    <p className="mt-1 text-xs text-red-500">{errors[`${index}_oficina`]}</p>
+                                    error={errors[`${index}_apellido`]}
+                                    placeholder="Tu apellido"
+                                    required
+                                  />
+                                </div>
+
+                                <Input
+                                  label="Email (opcional)"
+                                  name="email"
+                                  type="email"
+                                  value={attendee.email}
+                                  onChange={(e) => handleAttendeeChange(index, e)}
+                                  error={errors[`${index}_email`]}
+                                  placeholder="tu@email.com"
+                                />
+
+                                <div>
+                                  <label className="block text-sm font-semibold mb-1.5">
+                                    Teléfono <span className="text-red-500">*</span>
+                                  </label>
+                                  <Input
+                                    name="telefono"
+                                    type="tel"
+                                    value={attendee.telefono}
+                                    onChange={(e) => handleAttendeeChange(index, e)}
+                                    error={errors[`${index}_telefono`]}
+                                    placeholder="Tu número de teléfono"
+                                    required
+                                  />
+                                </div>
+
+                                <Input
+                                  label="Documento de identidad (opcional)"
+                                  name="documento"
+                                  value={attendee.documento}
+                                  onChange={(e) => handleAttendeeChange(index, e)}
+                                  error={errors[`${index}_documento`]}
+                                  placeholder="Número de documento"
+                                />
+
+                                <div className="sm:col-span-2">
+                                  <label className="block text-sm font-semibold mb-2">
+                                    Inmobiliaria / Oficina Alfa <span className="text-red-500">*</span>
+                                  </label>
+
+                                  <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                                    <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${
+                                      !attendee.esExterno && !attendee.otraOficina
+                                        ? 'border-primary bg-primary/5 text-primary font-semibold'
+                                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                                    }`}>
+                                      <input
+                                        type="radio"
+                                        name={`tipoOficina_${index}`}
+                                        checked={!attendee.esExterno && !attendee.otraOficina}
+                                        onChange={() => {
+                                          setAttendees(prev => {
+                                            const newAttendees = [...prev]
+                                            newAttendees[index] = { ...newAttendees[index], esExterno: false, otraOficina: false, otraOficinaNombre: '' }
+                                            return newAttendees
+                                          })
+                                        }}
+                                        className="accent-primary"
+                                      />
+                                      🏢 Oficina Alfa listada
+                                    </label>
+
+                                    <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${
+                                      attendee.otraOficina && !attendee.esExterno
+                                        ? 'border-primary bg-primary/5 text-primary font-semibold'
+                                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                                    }`}>
+                                      <input
+                                        type="radio"
+                                        name={`tipoOficina_${index}`}
+                                        checked={attendee.otraOficina && !attendee.esExterno}
+                                        onChange={() => {
+                                          setAttendees(prev => {
+                                            const newAttendees = [...prev]
+                                            newAttendees[index] = { ...newAttendees[index], esExterno: false, otraOficina: true, oficina: '' }
+                                            return newAttendees
+                                          })
+                                        }}
+                                        className="accent-primary"
+                                      />
+                                      🔍 Otra oficina Alfa
+                                    </label>
+
+                                    <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${
+                                      attendee.esExterno
+                                        ? 'border-orange-400 bg-orange-50 text-orange-700 font-semibold'
+                                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                                    }`}>
+                                      <input
+                                        type="radio"
+                                        name={`tipoOficina_${index}`}
+                                        checked={attendee.esExterno}
+                                        onChange={() => {
+                                          setAttendees(prev => {
+                                            const newAttendees = [...prev]
+                                            newAttendees[index] = { ...newAttendees[index], esExterno: true, otraOficina: false, oficina: '', otraOficinaNombre: '' }
+                                            return newAttendees
+                                          })
+                                        }}
+                                        className="accent-orange-500"
+                                      />
+                                      👤 Soy externo (no soy de Alfa)
+                                    </label>
+                                  </div>
+
+                                  {!attendee.esExterno && !attendee.otraOficina && (
+                                    <div>
+                                      <select
+                                        name="oficina"
+                                        value={attendee.oficina}
+                                        onChange={(e) => handleAttendeeChange(index, e)}
+                                        className={`w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm transition-all ${
+                                          errors[`${index}_oficina`] ? 'border-red-500' : 'border-gray-300'
+                                        }`}
+                                        required
+                                      >
+                                        <option value="">Selecciona tu oficina Alfa</option>
+                                        {oficinas.map((o) => (
+                                          <option key={o.codigo} value={o.codigo}>
+                                            {o.codigo} - {o.nombre}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      {errors[`${index}_oficina`] && (
+                                        <p className="mt-1 text-xs text-red-500">{errors[`${index}_oficina`]}</p>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {attendee.otraOficina && !attendee.esExterno && (
+                                    <div>
+                                      <Input
+                                        name="otraOficinaNombre"
+                                        value={attendee.otraOficinaNombre}
+                                        onChange={(e) => handleAttendeeChange(index, e)}
+                                        error={errors[`${index}_otraOficinaNombre`]}
+                                        placeholder="Escribe el nombre de tu oficina Alfa"
+                                        required
+                                      />
+                                    </div>
+                                  )}
+
+                                  {attendee.esExterno && (
+                                    <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                                      <span className="text-orange-500 text-base flex-shrink-0">ℹ️</span>
+                                      <p className="text-xs sm:text-sm text-orange-700">
+                                        Tu certificado indicará que eres un <strong>participante externo</strong>.
+                                        Si en realidad perteneces a alguna oficina Alfa, selecciona la opción correspondiente arriba.
+                                      </p>
+                                    </div>
                                   )}
                                 </div>
 
-                                <div className="flex items-center sm:mt-6">
-                                  <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      name="otraOficina"
-                                      checked={attendee.otraOficina}
-                                      onChange={(e) => handleAttendeeChange(index, e)}
-                                      className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                                    />
-                                    <span className="text-sm text-gray-700">
-                                      Pertenezco a otra oficina Alfa (no listada)
-                                    </span>
-                                  </label>
-                                </div>
-
-                                {attendee.otraOficina && (
-                                  <div className="sm:col-span-2">
-                                    <Input
-                                      label="Nombre de tu oficina Alfa"
-                                      name="otraOficinaNombre"
-                                      value={attendee.otraOficinaNombre}
-                                      onChange={(e) => handleAttendeeChange(index, e)}
-                                      error={errors[`${index}_otraOficinaNombre`]}
-                                      placeholder="Ej: Alfa Central"
-                                      required
-                                    />
-                                  </div>
-                                )}
                               </div>
 
                               <div className="mt-4">
@@ -1068,7 +1156,6 @@ export default function Checkout() {
                 </div>
                 <CardContent className="p-4 sm:p-6">
                   {paymentData.medioPago === 'qr' ? (
-                    /* --- Método ya seleccionado --- */
                     <div className="flex items-center gap-4 p-4 rounded-xl border-2 border-green-400 bg-green-50">
                       <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
                         <QrCode className="w-6 h-6 text-white" />
@@ -1090,7 +1177,6 @@ export default function Checkout() {
                       </button>
                     </div>
                   ) : (
-                    /* --- Sin selección --- */
                     <div>
                       <button
                         type="button"
@@ -1217,11 +1303,6 @@ export default function Checkout() {
                     <span className="text-primary">Bs {totalPrice.toFixed(2)}</span>
                   </div>
                 </div>
-
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-sm text-green-800 font-semibold mb-1">🔒 Compra segura</p>
-                  <p className="text-xs text-green-700">Tus datos están protegidos con encriptación SSL de 256 bits</p>
-                </div>
               </CardContent>
             </Card>
           </div>
@@ -1247,7 +1328,6 @@ export default function Checkout() {
         selected={paymentData.medioPago}
       />
 
-      {/* Modal de confirmación antes de generar QR */}
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -1314,19 +1394,14 @@ export default function Checkout() {
         </div>
       )}
 
-      {/* Modal: Pago ya completado (detectado al volver al checkout) */}
       {showPaidModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-            {/* Barra verde superior */}
             <div className="h-2 bg-gradient-to-r from-green-400 to-emerald-500" />
-
             <div className="p-8 text-center">
-              {/* Ícono animado */}
               <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
                 <CheckCircle2 size={44} className="text-green-500" />
               </div>
-
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
                 ¡Pago confirmado!
               </h2>
@@ -1338,13 +1413,11 @@ export default function Checkout() {
                   {event.title || event.titulo}
                 </p>
               )}
-
               <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-6">
                 <p className="text-green-800 text-sm font-medium">
                   Tus entradas están disponibles en Mis Compras
                 </p>
               </div>
-
               <button
                 onClick={() => navigate('/mis-compras')}
                 className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
