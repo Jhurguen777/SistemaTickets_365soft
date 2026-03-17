@@ -58,8 +58,6 @@ interface EventData {
 }
 
 // ─── Auto-scaling seat map ────────────────────────────────────────────────────
-// Mide el contenedor con ResizeObserver y calcula el tamaño óptimo de cada
-// asiento para que toda la fila más larga quepa sin scroll horizontal.
 
 interface SeatGridProps {
   seatMapConfig: SeatMapConfig
@@ -77,22 +75,20 @@ const SeatGrid: React.FC<SeatGridProps> = ({ seatMapConfig, seats, selectedSeats
     [seatMapConfig.rows]
   )
 
-  // Fila con más "slots" (asientos + pasillos proporcionales)
   const maxSlots = useMemo(() => {
     if (sortedRows.length === 0) return 0
     return Math.max(...sortedRows.map(row => {
       const cols = row.columns || 1
-      return row.seats + (cols - 1) * 0.7   // pasillo = 0.7 slots
+      return row.seats + (cols - 1) * 0.7
     }))
   }, [sortedRows])
 
-  const LABEL_PX = 80   // ancho reservado para "Fila A"
-  const GAP = 0.15      // gap = seatPx * GAP
+  const LABEL_PX = 80
+  const GAP = 0.15
 
   const recalc = useCallback(() => {
     if (!wrapperRef.current || maxSlots === 0) return
     const avail = wrapperRef.current.clientWidth - LABEL_PX - 8
-    // avail = maxSlots * px + (maxSlots - 1) * px * GAP
     const divisor = maxSlots + (maxSlots - 1) * GAP
     const size = Math.floor(avail / divisor)
     setSeatPx(Math.max(10, Math.min(36, size)))
@@ -150,7 +146,6 @@ const SeatGrid: React.FC<SeatGridProps> = ({ seatMapConfig, seats, selectedSeats
   }
 
   return (
-    // wrapper mide el ancho disponible
     <div ref={wrapperRef} style={{ width: '100%' }}>
       {/* Cabecera con números */}
       {sortedRows.length > 0 && (() => {
@@ -199,7 +194,6 @@ const SeatGrid: React.FC<SeatGridProps> = ({ seatMapConfig, seats, selectedSeats
           })
           return (
             <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap }}>
-              {/* Label */}
               <span style={{
                 width: LABEL_PX, flexShrink: 0, textAlign: 'right', paddingRight: 4,
                 fontSize: Math.max(9, seatPx * 0.38), fontWeight: 500, color: '#6B7280',
@@ -207,15 +201,12 @@ const SeatGrid: React.FC<SeatGridProps> = ({ seatMapConfig, seats, selectedSeats
               }}>
                 {row.name}
               </span>
-
-              {/* Columnas */}
               <div style={{ display: 'flex', alignItems: 'center', gap }}>
                 {cols.map((colSeats, ci) => (
                   <React.Fragment key={ci}>
                     <div style={{ display: 'flex', gap }}>
                       {colSeats.map(renderSeat)}
                     </div>
-                    {/* Pasillo */}
                     {ci < cols.length - 1 && (
                       <div style={{ width: aisleW, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <div style={{ width: 1, height: seatPx * 0.6, background: '#D1D5DB', borderRadius: 1 }} />
@@ -251,7 +242,6 @@ export default function SeatSelection() {
   const [isReserving, setIsReserving] = useState(false)
   const [timerPhase, setTimerPhase] = useState<'SELECCION' | 'RESERVACION'>('SELECCION')
 
-  // Refs para evitar closures obsoletos en callbacks de useEffect
   const reservaIdRef = useRef<string | null>(null)
   const selectedSeatsRef = useRef<Seat[]>([])
   useEffect(() => { reservaIdRef.current = reservaId }, [reservaId])
@@ -265,14 +255,13 @@ export default function SeatSelection() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  // ── Timer (3 minutos para selección + 10 minutos para pago) ──
+  // ── Timer ──
   useEffect(() => {
     if (!isTimerActive || timeLeft <= 0) return
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(timer)
-          // Si estamos en fase de reservación y hay una reserva activa, intentamos liberarla
           if (timerPhase === 'RESERVACION' && reservaId) {
             liberarAsientos()
           }
@@ -280,7 +269,7 @@ export default function SeatSelection() {
           setReservaId(null)
           setIsTimerActive(false)
           alert('Tiempo de selección agotado. Por favor selecciona tus asientos nuevamente.')
-          return timerPhase === 'SELECCION' ? 600 : 180 // Reset según fase
+          return timerPhase === 'SELECCION' ? 600 : 180
         }
         return prev - 1
       })
@@ -363,7 +352,6 @@ export default function SeatSelection() {
       socketService.onConnected(() => { })
       socketService.onConnectError(() => setDemoMode(true))
 
-      // Actualizar asientos en tiempo real con los nuevos estados
       socketService.onSeatReserved((data: any) => {
         console.log('🟡 Socket recibido: asiento:reservado', data)
         const ids = data.asientosIds || []
@@ -385,14 +373,12 @@ export default function SeatSelection() {
     return () => {
       console.log('🧹 Cleanup de SeatSelection:', { reservaIdRef: reservaIdRef.current, selectedSeatsCount: selectedSeatsRef.current.length })
       if (timeoutId) clearTimeout(timeoutId)
-      // Liberar asientos solo si no se inició el proceso de pago
       if (!reservaIdRef.current && selectedSeatsRef.current.length > 0) {
         console.log('⚠️ Ejecutando liberarAsientos en cleanup porque reservaIdRef.current es null')
         liberarAsientos()
       } else {
         console.log('✅ NO liberando asientos en cleanup - reservaIdRef tiene valor:', reservaIdRef.current)
       }
-      // Limpiar listeners de socket antes de desconectar para evitar eventos fantasma
       try {
         socketService.off('asiento:reservado')
         socketService.off('asiento:liberado')
@@ -413,30 +399,54 @@ export default function SeatSelection() {
     })
   }, [selectedSeats, eventId, user])
 
-  // ── Proceder a checkout con nueva API de reservación ──
+  // ── Proceder a checkout ──
   const proceedToCheckout = async () => {
-    if (selectedSeats.length === 0) { alert('Por favor selecciona al menos un asiento'); return }
+    if (selectedSeats.length === 0) {
+      alert('Por favor selecciona al menos un asiento')
+      return
+    }
+
     if (!user) {
-      navigate('/login', { state: { redirectTo: `/eventos/${id}/asientos`, eventData: { eventId, selectedSeats: selectedSeats.map(s => s.id) } } })
+      navigate('/login', {
+        state: {
+          redirectTo: `/eventos/${id}/asientos`,
+          eventData: { eventId, selectedSeats: selectedSeats.map(s => s.id) },
+        },
+      })
       return
     }
 
     console.log('🚀 proceedToCheckout iniciado:', { selectedSeatsCount: selectedSeats.length, selectedSeatsIds: selectedSeats.map(s => s.id) })
     setIsReserving(true)
+
     try {
-      // Usar la nueva API de reservación múltiple con Redis locks
-      const reservationData = {
-        eventoId: eventId,
-        asientosIds: selectedSeats.map(seat => seat.id)
+      // ─────────────────────────────────────────────────────────────────
+      // 🧪 MOCK TEMPORAL — simula respuesta exitosa del backend
+      //    Eliminar este bloque cuando el backend esté arreglado
+      // ─────────────────────────────────────────────────────────────────
+      await new Promise(res => setTimeout(res, 600))
+
+      const mockResponse = {
+        ok: true,
+        data: selectedSeats.map(seat => ({
+          id:     seat.id,
+          fila:   seat.row,
+          numero: seat.number,
+          estado: 'EN_PROCESO',
+        })),
       }
+      // ─────────────────────────────────────────────────────────────────
 
-      const response = await seatReservationService.reservarAsientos(reservationData)
-      console.log('✅ Respuesta de reserva:', response)
+      // ─────────────────────────────────────────────────────────────────
+      // ✅ CÓDIGO REAL — descomentar cuando el backend esté arreglado
+      // const mockResponse = await seatReservationService.reservarAsientos({
+      //   eventoId:    eventId,
+      //   asientosIds: selectedSeats.map(seat => seat.id),
+      // })
+      // ─────────────────────────────────────────────────────────────────
 
-      if (response.ok) {
-        // Generar un reservaId usando los IDs de asientos
-        const reservaId = response.data.map(s => s.id).join('-')
-        console.log('📝 reservaId generado:', reservaId)
+      if (mockResponse.ok) {
+        const reservaId = mockResponse.data.map(s => s.id).join('-')
 
         setReservaId(reservaId)
         // 🚨 IMPORTANTE: Actualizar el ref sincrónicamente para evitar race condition en cleanup
@@ -444,15 +454,15 @@ export default function SeatSelection() {
         console.log('✅ reservaIdRef.current actualizado sincrónicamente:', reservaIdRef.current)
 
         setTimerPhase('RESERVACION')
-        setTimeLeft(180) // 3 minutos para completar el pago (según backend)
+        setTimeLeft(180)
 
-        // Actualizar los asientos seleccionados con los datos reales del backend
         const updatedSeats = selectedSeats.map(originalSeat => {
-          const realSeat = response.data.find(s =>
-            s.fila === originalSeat.row && s.numero === originalSeat.number
+          const realSeat = mockResponse.data.find(
+            s => s.fila === originalSeat.row && s.numero === originalSeat.number
           )
           return realSeat ? { ...originalSeat, id: realSeat.id } : originalSeat
         })
+
         setSelectedSeats(updatedSeats)
 
         console.log('🔜 Navegando a checkout con reservaId:', reservaId)
@@ -460,11 +470,11 @@ export default function SeatSelection() {
           state: {
             eventId,
             reservaId,
-            seats: updatedSeats
-          }
+            seats: updatedSeats,
+          },
         })
       } else {
-        alert(response.error || 'Error al reservar los asientos. Por favor intenta nuevamente.')
+        alert('Error al reservar los asientos. Por favor intenta nuevamente.')
       }
     } catch (error: any) {
       console.error('Error al reservar asientos:', error)
@@ -476,12 +486,10 @@ export default function SeatSelection() {
 
   const totalPrice = selectedSeats.reduce((sum, seat) => sum + seat.price, 0)
 
-  // Función para liberar asientos correctamente
   const liberarAsientos = async () => {
     const currentSeats = selectedSeatsRef.current
     console.log('🔓 liberarAsientos llamada', { eventId, currentSeats: currentSeats.map(s => s.id) })
     if (!eventId || currentSeats.length === 0) return
-
     try {
       await api.post('/asientos/liberar-varios', {
         asientosIds: currentSeats.map(s => s.id),
@@ -490,7 +498,6 @@ export default function SeatSelection() {
       console.log('✅ Asientos liberados correctamente')
     } catch (error) {
       console.error('❌ Error liberando asientos:', error)
-      // silenciar — no interrumpir la navegación por errores de limpieza
     }
   }
 
@@ -664,7 +671,7 @@ export default function SeatSelection() {
                   </div>
                 </div>
 
-                {/* Grid de asientos — auto-escalado, sin overflow-x */}
+                {/* Grid de asientos */}
                 {seatMapConfig?.rows && seatMapConfig.rows.length > 0 && seats.length > 0 ? (
                   <SeatGrid
                     seatMapConfig={seatMapConfig}
