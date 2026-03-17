@@ -9,6 +9,7 @@ import { paymentServiceV2 } from '@/services/paymentServiceV2'
 import api from '@/services/api'
 import QRPaymentModal from '@/components/modals/QRPaymentModal'
 import QRSelectModal from '@/components/modals/QRSelectModal'
+import CertificateInfoModal from '@/components/modals/CertificateInfoModal'
 
 interface CheckoutSeat { id: string; row: string; number: number; price: number }
 
@@ -95,12 +96,10 @@ export default function Checkout() {
 
   const [event, setEvent] = useState<any>(null)
 
-  // ── Claves de sessionStorage ────────────────────────────────────────────────
-  const FORM_KEY      = `checkout_form_${eventId}`
-  const COMPLETE_KEY  = `checkout_completed_${eventId}`
-  const PAYMENT_KEY   = `checkout_payment_${eventId}`
+  const FORM_KEY     = `checkout_form_${eventId}`
+  const COMPLETE_KEY = `checkout_completed_${eventId}`
+  const PAYMENT_KEY  = `checkout_payment_${eventId}`
 
-  // Restaurar asistentes guardados o iniciar vacíos
   const [attendees, setAttendees] = useState<FormData[]>(() => {
     try {
       const saved = sessionStorage.getItem(FORM_KEY)
@@ -165,27 +164,29 @@ export default function Checkout() {
     } catch { return null }
   })
 
-  const [showPaidModal, setShowPaidModal] = useState(false)
-  const [errors, setErrors] = useState<FormErrors>({})
-  const [processing, setProcessing] = useState(false)
-  const [termsAccepted, setTermsAccepted] = useState<boolean>(() => {
-    try {
-      return sessionStorage.getItem(`checkout_terms_${eventId}`) === 'true'
-    } catch { return false }
+  const [showPaidModal, setShowPaidModal]           = useState(false)
+  const [errors, setErrors]                         = useState<FormErrors>({})
+  const [processing, setProcessing]                 = useState(false)
+  const [termsAccepted, setTermsAccepted]           = useState<boolean>(() => {
+    try { return sessionStorage.getItem(`checkout_terms_${eventId}`) === 'true' }
+    catch { return false }
   })
-  const [showQRModal, setShowQRModal] = useState(false)
-  const [showQRSelectModal, setShowQRSelectModal] = useState(false)
-  const [currentQRData, setCurrentQRData] = useState<any>(null)
-  const [currentPurchaseId, setCurrentPurchaseId] = useState<string>('')
-  const [paymentStatus, setPaymentStatus] = useState<'PENDIENTE' | 'PROCESANDO' | 'PAGADO' | 'FALLIDO' | 'EXPIRADO'>('PENDIENTE')
+  const [showQRModal, setShowQRModal]               = useState(false)
+  const [showQRSelectModal, setShowQRSelectModal]   = useState(false)
+  const [currentQRData, setCurrentQRData]           = useState<any>(null)
+  const [currentPurchaseId, setCurrentPurchaseId]   = useState<string>('')
+  const [paymentStatus, setPaymentStatus]           = useState<'PENDIENTE' | 'PROCESANDO' | 'PAGADO' | 'FALLIDO' | 'EXPIRADO'>('PENDIENTE')
+  const [asientosLiberados, setAsientosLiberados]   = useState(false)
+  const [showMobileSummary, setShowMobileSummary]   = useState(false)
+  const [showConfirmModal, setShowConfirmModal]     = useState(false)
+  const [resumeTimeLeft, setResumeTimeLeft]         = useState(0)
 
-  const [_isExpired, _setIsExpired] = useState(false)
-  const [asientosLiberados, setAsientosLiberados] = useState(false)
-  const paymentProcessedRef = useRef(false)
-  const silentPollingRef = useRef<{ iniciar: () => void; detener: () => void } | null>(null)
-  const [showMobileSummary, setShowMobileSummary] = useState(false)
-  const [showConfirmModal, setShowConfirmModal] = useState(false)
-  const [resumeTimeLeft, setResumeTimeLeft] = useState(0)
+  // ── Modal certificado — se muestra automáticamente al entrar ──
+  const [showCertModal, setShowCertModal] = useState(true)
+  // ─────────────────────────────────────────────────────────────
+
+  const paymentProcessedRef  = useRef(false)
+  const silentPollingRef     = useRef<{ iniciar: () => void; detener: () => void } | null>(null)
 
   const oficinas = [
     { codigo: '2526', nombre: 'ALFA FORZA' }, { codigo: '2527', nombre: 'ALFA DIAMOND' },
@@ -209,54 +210,29 @@ export default function Checkout() {
     { codigo: '2606', nombre: 'ALFA CITY' }
   ]
 
+  // ── Liberar asientos ───────────────────────────────────────────────────────
   const liberarAsientos = async () => {
     if (isGeneralMode) return
     if (!reservaId || !eventId) return
-    if (asientosLiberados) {
-      console.log('⚠️ Asientos ya liberados, evitando duplicación')
-      return
-    }
+    if (asientosLiberados) return
     try {
       await api.post('/asientos/liberar-varios', {
         asientosIds: seats.map((s: CheckoutSeat) => s.id),
         eventoId: eventId
       })
       setAsientosLiberados(true)
-      console.log('✅ Asientos liberados al salir del checkout')
     } catch (error) {
       console.error('⚠️ Error liberando asientos:', error)
     }
   }
 
-  // Guardar asistentes en sessionStorage cada vez que cambian
-  useEffect(() => {
-    if (eventId && attendees.length > 0) {
-      sessionStorage.setItem(FORM_KEY, JSON.stringify(attendees))
-    }
-  }, [attendees])
+  // ── Persistencia en sessionStorage ────────────────────────────────────────
+  useEffect(() => { if (eventId && attendees.length > 0) sessionStorage.setItem(FORM_KEY, JSON.stringify(attendees)) }, [attendees])
+  useEffect(() => { if (eventId) sessionStorage.setItem(COMPLETE_KEY, JSON.stringify([...completedAttendees])) }, [completedAttendees])
+  useEffect(() => { if (eventId) sessionStorage.setItem(PAYMENT_KEY, JSON.stringify(paymentData)) }, [paymentData])
+  useEffect(() => { if (eventId) sessionStorage.setItem(`checkout_terms_${eventId}`, String(termsAccepted)) }, [termsAccepted])
 
-  // Guardar asistentes completados
-  useEffect(() => {
-    if (eventId) {
-      sessionStorage.setItem(COMPLETE_KEY, JSON.stringify([...completedAttendees]))
-    }
-  }, [completedAttendees])
-
-  // Guardar método de pago
-  useEffect(() => {
-    if (eventId) {
-      sessionStorage.setItem(PAYMENT_KEY, JSON.stringify(paymentData))
-    }
-  }, [paymentData])
-
-  // Guardar estado del checkbox de términos
-  useEffect(() => {
-    if (eventId) {
-      sessionStorage.setItem(`checkout_terms_${eventId}`, String(termsAccepted))
-    }
-  }, [termsAccepted])
-
-  // Countdown timer para la tarjeta de QR pendiente
+  // ── Countdown del QR pendiente ─────────────────────────────────────────────
   useEffect(() => {
     if (!resumeQRData) return
     const update = () => {
@@ -268,6 +244,7 @@ export default function Checkout() {
     return () => clearInterval(id)
   }, [resumeQRData])
 
+  // ── Verificar pago pendiente al montar ────────────────────────────────────
   useEffect(() => {
     if (!eventId) return
     let silentPolling: { iniciar: () => void; detener: () => void } | null = null
@@ -280,14 +257,10 @@ export default function Checkout() {
         if (data.eventId !== eventId) return
 
         const expiry = new Date(data.fechaVencimiento).getTime()
-        if (Date.now() > expiry) {
-          localStorage.removeItem('pending_payment')
-          return
-        }
+        if (Date.now() > expiry) { localStorage.removeItem('pending_payment'); return }
 
         try {
           const resultado = await paymentServiceV2.verificarPago(data.qrPagoId)
-
           if (resultado.estado === 'PAGADO') {
             localStorage.removeItem('pending_payment')
             sessionStorage.removeItem(FORM_KEY)
@@ -299,14 +272,11 @@ export default function Checkout() {
             setShowPaidModal(true)
             return
           }
-
           if (resultado.estado === 'FALLIDO' || resultado.estado === 'EXPIRADO') {
             localStorage.removeItem('pending_payment')
             return
           }
-        } catch {
-          // Error de red: igual mostrar el QR guardado
-        }
+        } catch { /* Error de red: mostrar QR guardado igual */ }
 
         setResumeQRData(data)
 
@@ -337,10 +307,7 @@ export default function Checkout() {
     }
 
     checkPendingPayment()
-
-    return () => {
-      silentPollingRef.current?.detener()
-    }
+    return () => { silentPollingRef.current?.detener() }
   }, [eventId])
 
   useEffect(() => {
@@ -358,6 +325,7 @@ export default function Checkout() {
     }
   }, [])
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
   const totalPrice = seats.reduce((sum: number, seat: CheckoutSeat) => sum + seat.price, 0)
 
   const formatTimeLeft = (seconds: number): string => {
@@ -387,6 +355,7 @@ export default function Checkout() {
     }
   }
 
+  // ── Validación ─────────────────────────────────────────────────────────────
   const validateAttendeeField = (attendeeIndex: number, name: string, value: string): string | null => {
     const trimmedValue = value.trim()
     const attendee = attendees[attendeeIndex]
@@ -408,9 +377,8 @@ export default function Checkout() {
       case 'oficina': {
         if (attendee?.esExterno) return null
         if (attendee?.otraOficina) {
-          if (!attendee.otraOficinaNombre || attendee.otraOficinaNombre.trim().length < 3) {
+          if (!attendee.otraOficinaNombre || attendee.otraOficinaNombre.trim().length < 3)
             return 'Debes ingresar el nombre de tu oficina Alfa'
-          }
         } else if (!value) {
           return 'Debes seleccionar una oficina Alfa'
         }
@@ -467,12 +435,6 @@ export default function Checkout() {
     }
   }
 
-  const _handlePaymentChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setPaymentData((prev) => ({ ...prev, [name]: value }))
-    if (errors[name]) setErrors((prev) => { const n = { ...prev }; delete n[name]; return n })
-  }
-
   const validatePayment = (): boolean => {
     const newErrors: FormErrors = {}
     if (!paymentData.medioPago) newErrors['medioPago'] = 'Debes seleccionar un medio de pago'
@@ -480,12 +442,11 @@ export default function Checkout() {
     return Object.keys(newErrors).length === 0
   }
 
+  // ── Cancelar ───────────────────────────────────────────────────────────────
   const handleCancel = async () => {
     if (confirm('¿Estás seguro de cancelar la compra? Los asientos seleccionados serán liberados.')) {
       const polling = (window as any).paymentPolling
-      if (polling && polling.detener) {
-        polling.detener()
-      }
+      if (polling?.detener) polling.detener()
 
       sessionStorage.removeItem('checkout_state')
       sessionStorage.removeItem(FORM_KEY)
@@ -499,6 +460,7 @@ export default function Checkout() {
     }
   }
 
+  // ── Submit (muestra modal de confirmación) ─────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -510,10 +472,7 @@ export default function Checkout() {
       Object.keys(attendee).forEach((key) => {
         const val = attendee[key as keyof FormData]
         const error = validateAttendeeField(i, key, String(val))
-        if (error) {
-          newErrors[`${i}_${key}`] = error
-          allAttendeesValid = false
-        }
+        if (error) { newErrors[`${i}_${key}`] = error; allAttendeesValid = false }
       })
     }
 
@@ -521,21 +480,13 @@ export default function Checkout() {
 
     if (!allAttendeesValid) {
       const firstErrorIndex = Object.keys(newErrors)[0]?.split('_')[0]
-      if (firstErrorIndex !== undefined) {
-        setExpandedAttendee(parseInt(firstErrorIndex))
-      }
+      if (firstErrorIndex !== undefined) setExpandedAttendee(parseInt(firstErrorIndex))
       alert('Por favor completa los datos de todos los asistentes antes de continuar')
       return
     }
 
-    if (!validatePayment()) {
-      alert('Por favor selecciona un método de pago antes de continuar')
-      return
-    }
-    if (!termsAccepted) {
-      alert('Debes aceptar los términos y condiciones para continuar')
-      return
-    }
+    if (!validatePayment()) { alert('Por favor selecciona un método de pago antes de continuar'); return }
+    if (!termsAccepted) { alert('Debes aceptar los términos y condiciones para continuar'); return }
     if (!event) { alert('Error al cargar los datos del evento'); return }
     if (!isGeneralMode && !reservaId) { alert('No hay reserva activa. Por favor selecciona tus asientos nuevamente.'); return }
     if (paymentData.medioPago !== 'qr') { alert('Actualmente solo aceptamos pagos con QR'); return }
@@ -543,6 +494,7 @@ export default function Checkout() {
     setShowConfirmModal(true)
   }
 
+  // ── Confirmar y pagar ──────────────────────────────────────────────────────
   const handleConfirmAndPay = async () => {
     setShowConfirmModal(false)
     setProcessing(true)
@@ -580,22 +532,18 @@ export default function Checkout() {
         throw new Error(pagoResponse.error || 'Error al iniciar el pago')
       }
 
-      const qrPagoId = pagoResponse.qrPago.id
+      const qrPagoId    = pagoResponse.qrPago.id
       const qrImageData = pagoResponse.qrPago.imagenQr
 
       setCurrentQRData({
-        qrData: qrImageData,
-        qrUrl: qrImageData,
-        imagenQr: qrImageData,
-        moneda: pagoResponse.qrPago.moneda,
-        monto: pagoResponse.qrPago.monto,
-        tiempoExpiracion: pagoResponse.qrPago.fechaVencimiento,
-        compraId: qrPagoId
+        qrData: qrImageData, qrUrl: qrImageData, imagenQr: qrImageData,
+        moneda: pagoResponse.qrPago.moneda, monto: pagoResponse.qrPago.monto,
+        tiempoExpiracion: pagoResponse.qrPago.fechaVencimiento, compraId: qrPagoId
       })
       setCurrentPurchaseId(qrPagoId)
       setShowQRModal(true)
 
-      const pendingPayloadToSave = {
+      const pendingPayload = {
         qrPagoId,
         imagenQr:         qrImageData,
         monto:            pagoResponse.qrPago.monto,
@@ -605,9 +553,10 @@ export default function Checkout() {
         eventId,
         createdAt:        new Date().toISOString()
       }
-      localStorage.setItem('pending_payment', JSON.stringify(pendingPayloadToSave))
-      setResumeQRData(pendingPayloadToSave)
+      localStorage.setItem('pending_payment', JSON.stringify(pendingPayload))
+      setResumeQRData(pendingPayload)
 
+      // Auto-limpiar al vencer
       const msHastaVencimiento = new Date(pagoResponse.qrPago.fechaVencimiento).getTime() - Date.now()
       if (msHastaVencimiento > 0) {
         setTimeout(() => {
@@ -615,9 +564,7 @@ export default function Checkout() {
           if (current) {
             try {
               const parsed = JSON.parse(current)
-              if (parsed.qrPagoId === qrPagoId) {
-                localStorage.removeItem('pending_payment')
-              }
+              if (parsed.qrPagoId === qrPagoId) localStorage.removeItem('pending_payment')
             } catch { localStorage.removeItem('pending_payment') }
           }
         }, msHastaVencimiento)
@@ -627,13 +574,9 @@ export default function Checkout() {
         qrPagoId,
         (resultado) => {
           setPaymentStatus(resultado.estado)
-          if (resultado.estado === 'PAGADO') {
-            handlePaymentSuccess(reservaId!, resultado.datos?.transaccionId)
-          } else if (resultado.estado === 'FALLIDO') {
-            handlePaymentFailed(resultado.datos?.mensaje)
-          } else if (resultado.estado === 'EXPIRADO') {
-            handlePaymentExpired()
-          }
+          if (resultado.estado === 'PAGADO')   handlePaymentSuccess(reservaId!, resultado.datos?.transaccionId)
+          else if (resultado.estado === 'FALLIDO')  handlePaymentFailed(resultado.datos?.mensaje)
+          else if (resultado.estado === 'EXPIRADO') handlePaymentExpired()
         }
       )
       polling.iniciar()
@@ -652,6 +595,7 @@ export default function Checkout() {
     }
   }
 
+  // ── Pago exitoso ───────────────────────────────────────────────────────────
   const handlePaymentSuccess = async (_compraId: string, _transaccionId?: string) => {
     if (paymentProcessedRef.current) return
     paymentProcessedRef.current = true
@@ -693,9 +637,11 @@ export default function Checkout() {
                 asiento: c.asiento
                   ? `${c.asiento.fila ?? ''}${c.asiento.numero ?? ''}`
                   : c.numeroBoleto ? `N°${c.numeroBoleto}` : 'General',
-                sector: c.asiento ? (c.asiento.fila?.toLowerCase() === 'general' ? 'General' : `Fila ${c.asiento.fila}`) : 'General',
-                ci: c.documentoAsistente ?? '',
-                email: c.emailAsistente ?? '',
+                sector: c.asiento
+                  ? (c.asiento.fila?.toLowerCase() === 'general' ? 'General' : `Fila ${c.asiento.fila}`)
+                  : 'General',
+                ci:     c.documentoAsistente ?? '',
+                email:  c.emailAsistente ?? '',
                 qrCode: c.qrCode,
               })),
               total: eventCompras.reduce((sum: number, c: any) => sum + c.monto, 0),
@@ -711,10 +657,11 @@ export default function Checkout() {
     navigate('/mis-compras', { replace: true })
   }
 
+  // ── Pago fallido ───────────────────────────────────────────────────────────
   const handlePaymentFailed = async (mensaje?: string) => {
     setShowQRModal(false)
     const polling = (window as any).paymentPolling
-    if (polling && polling.detener) polling.detener()
+    if (polling?.detener) polling.detener()
     silentPollingRef.current?.detener()
 
     sessionStorage.removeItem('checkout_state')
@@ -723,15 +670,16 @@ export default function Checkout() {
     sessionStorage.removeItem(PAYMENT_KEY)
     sessionStorage.removeItem(`checkout_terms_${eventId}`)
     localStorage.removeItem('pending_payment')
-    await liberarAsientos()
 
+    await liberarAsientos()
     alert(mensaje || 'El pago falló. Por favor intenta nuevamente.')
   }
 
+  // ── Pago expirado ──────────────────────────────────────────────────────────
   const handlePaymentExpired = async () => {
     setShowQRModal(false)
     const polling = (window as any).paymentPolling
-    if (polling && polling.detener) polling.detener()
+    if (polling?.detener) polling.detener()
     silentPollingRef.current?.detener()
 
     sessionStorage.removeItem('checkout_state')
@@ -740,26 +688,21 @@ export default function Checkout() {
     sessionStorage.removeItem(PAYMENT_KEY)
     sessionStorage.removeItem(`checkout_terms_${eventId}`)
     localStorage.removeItem('pending_payment')
-    await liberarAsientos()
 
+    await liberarAsientos()
     alert('El tiempo para el pago ha expirado. Por favor selecciona tus asientos nuevamente.')
     navigate(-1)
   }
 
-  const handleModalPaymentSuccess = () => {
-    setShowQRModal(false)
-  }
+  const handleModalPaymentSuccess = () => setShowQRModal(false)
 
+  // ── Reanudar QR pendiente ──────────────────────────────────────────────────
   const handleResumeQR = () => {
     if (!resumeQRData) return
     setCurrentQRData({
-      qrData:          resumeQRData.imagenQr,
-      qrUrl:           resumeQRData.imagenQr,
-      imagenQr:        resumeQRData.imagenQr,
-      moneda:          resumeQRData.moneda,
-      monto:           resumeQRData.monto,
-      tiempoExpiracion: resumeQRData.fechaVencimiento,
-      compraId:        resumeQRData.qrPagoId
+      qrData: resumeQRData.imagenQr, qrUrl: resumeQRData.imagenQr, imagenQr: resumeQRData.imagenQr,
+      moneda: resumeQRData.moneda, monto: resumeQRData.monto,
+      tiempoExpiracion: resumeQRData.fechaVencimiento, compraId: resumeQRData.qrPagoId
     })
     setCurrentPurchaseId(resumeQRData.qrPagoId)
     setPaymentStatus('PENDIENTE')
@@ -772,19 +715,16 @@ export default function Checkout() {
       resumeQRData.qrPagoId,
       (resultado) => {
         setPaymentStatus(resultado.estado)
-        if (resultado.estado === 'PAGADO') {
-          handlePaymentSuccess(reservaId!, resultado.datos?.transaccionId)
-        } else if (resultado.estado === 'FALLIDO') {
-          handlePaymentFailed(resultado.datos?.mensaje)
-        } else if (resultado.estado === 'EXPIRADO') {
-          handlePaymentExpired()
-        }
+        if (resultado.estado === 'PAGADO')   handlePaymentSuccess(reservaId!, resultado.datos?.transaccionId)
+        else if (resultado.estado === 'FALLIDO')  handlePaymentFailed(resultado.datos?.mensaje)
+        else if (resultado.estado === 'EXPIRADO') handlePaymentExpired()
       }
     )
     polling.iniciar()
     ;(window as any).paymentPolling = polling
   }
 
+  // ── Guard: sin asientos ────────────────────────────────────────────────────
   if (!seats || seats.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
@@ -798,8 +738,17 @@ export default function Checkout() {
     )
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
+
+      {/* ── Popup informativo de certificado ── */}
+      <CertificateInfoModal
+        isOpen={showCertModal}
+        onConfirm={() => setShowCertModal(false)}
+      />
+
+      {/* ── Header ── */}
       <div className="bg-primary text-white py-4 sm:py-6">
         <div className="container mx-auto px-3 sm:px-4">
           <div className="flex items-center gap-2 mb-2 sm:mb-4">
@@ -831,6 +780,7 @@ export default function Checkout() {
         </div>
       </div>
 
+      {/* ── Resumen móvil ── */}
       {showMobileSummary && (
         <div className="sm:hidden bg-white border-b px-4 py-4 shadow-sm">
           {event && <p className="font-semibold text-sm mb-2">{event.title}</p>}
@@ -851,18 +801,15 @@ export default function Checkout() {
 
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
 
-        {/* Stepper */}
+        {/* ── Stepper ── */}
         <div className="flex items-center justify-center mb-6">
           {[{ label: 'Datos', step: 1 }, { label: 'Pago', step: 2 }, { label: 'QR', step: 3 }].map(({ label, step }, i) => {
-            const done = step < currentStep
+            const done   = step < currentStep
             const active = step === currentStep
             return (
               <React.Fragment key={step}>
                 {i > 0 && (
-                  <div
-                    className="h-0.5 mx-2"
-                    style={{ width: '3rem', background: done ? '#22c55e' : '#e5e7eb' }}
-                  />
+                  <div className="h-0.5 mx-2" style={{ width: '3rem', background: done ? '#22c55e' : '#e5e7eb' }} />
                 )}
                 <div className="flex flex-col items-center">
                   <div
@@ -874,10 +821,7 @@ export default function Checkout() {
                   >
                     {done ? <Check size={14} /> : step}
                   </div>
-                  <span
-                    className="text-xs mt-1 font-semibold"
-                    style={{ color: done ? '#16a34a' : active ? '#233C7A' : '#9ca3af' }}
-                  >
+                  <span className="text-xs mt-1 font-semibold" style={{ color: done ? '#16a34a' : active ? '#233C7A' : '#9ca3af' }}>
                     {label}
                   </span>
                 </div>
@@ -888,6 +832,7 @@ export default function Checkout() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-8">
 
+          {/* ── Formulario ── */}
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit}>
 
@@ -897,30 +842,27 @@ export default function Checkout() {
                   Datos de los asistentes
                 </h2>
 
+                {/* Banner informativo */}
                 <div className="mb-4 sm:mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
                   <Info size={20} className="text-blue-500 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-blue-800 mb-1">
-                      ¿Para qué se usan estos datos?
-                    </p>
+                    <p className="text-sm font-semibold text-blue-800 mb-1">¿Para qué se usan estos datos?</p>
                     <p className="text-xs sm:text-sm text-blue-700 leading-relaxed">
-                      Los datos que ingresados a continuación — <strong>nombre, apellido e inmobiliaria a la que perteneces</strong> —
-                      serán utilizados para <strong>generacion de su certificado </strong> al evento.
+                      Los datos ingresados a continuación — <strong>nombre, apellido e inmobiliaria</strong> —
+                      serán utilizados para la <strong>generación de su certificado</strong>.
                       Asegúrate de escribirlos correctamente tal como deseas que aparezcan en el documento.
                     </p>
                   </div>
                 </div>
 
+                {/* Tarjetas de asistentes */}
                 <div className="space-y-3 sm:space-y-4">
                   {seats.map((seat: CheckoutSeat, index: number) => {
                     const isCompleted = completedAttendees.has(index)
-                    const isExpanded = expandedAttendee === index
-                    const attendee = attendees[index]
+                    const isExpanded  = expandedAttendee === index
+                    const attendee    = attendees[index]
                     return (
-                      <Card
-                        key={seat.id}
-                        className={`transition-all duration-300 ${isCompleted ? 'border-green-500 bg-green-50' : ''}`}
-                      >
+                      <Card key={seat.id} className={`transition-all duration-300 ${isCompleted ? 'border-green-500 bg-green-50' : ''}`}>
                         <CardContent className="p-0">
                           <button
                             type="button"
@@ -936,15 +878,10 @@ export default function Checkout() {
                                 <p className="font-semibold text-sm sm:text-base">
                                   Asistente {index + 1}{isCompleted && ' - Completado'}
                                 </p>
-                                <p className="text-xs text-gray-500">
-                                  {seatLabel(seat, index)}
-                                </p>
+                                <p className="text-xs text-gray-500">{seatLabel(seat, index)}</p>
                               </div>
                             </div>
-                            <ChevronDown
-                              size={16}
-                              className={`transition-transform duration-300 flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
-                            />
+                            <ChevronDown size={16} className={`transition-transform duration-300 flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
                           </button>
 
                           <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
@@ -952,172 +889,66 @@ export default function Checkout() {
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3">
 
                                 <div>
-                                  <label className="block text-sm font-semibold mb-1.5">
-                                    Nombre <span className="text-red-500">*</span>
-                                  </label>
-                                  <Input
-                                    name="nombre"
-                                    value={attendee.nombre}
-                                    onChange={(e) => handleAttendeeChange(index, e)}
-                                    error={errors[`${index}_nombre`]}
-                                    placeholder="Tu nombre"
-                                    required
-                                  />
+                                  <label className="block text-sm font-semibold mb-1.5">Nombre <span className="text-red-500">*</span></label>
+                                  <Input name="nombre" value={attendee.nombre} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_nombre`]} placeholder="Tu nombre" required />
                                 </div>
 
                                 <div>
-                                  <label className="block text-sm font-semibold mb-1.5">
-                                    Apellido <span className="text-red-500">*</span>
-                                  </label>
-                                  <Input
-                                    name="apellido"
-                                    value={attendee.apellido}
-                                    onChange={(e) => handleAttendeeChange(index, e)}
-                                    error={errors[`${index}_apellido`]}
-                                    placeholder="Tu apellido"
-                                    required
-                                  />
+                                  <label className="block text-sm font-semibold mb-1.5">Apellido <span className="text-red-500">*</span></label>
+                                  <Input name="apellido" value={attendee.apellido} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_apellido`]} placeholder="Tu apellido" required />
                                 </div>
 
-                                <Input
-                                  label="Email (opcional)"
-                                  name="email"
-                                  type="email"
-                                  value={attendee.email}
-                                  onChange={(e) => handleAttendeeChange(index, e)}
-                                  error={errors[`${index}_email`]}
-                                  placeholder="tu@email.com"
-                                />
+                                <Input label="Email (opcional)" name="email" type="email" value={attendee.email} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_email`]} placeholder="tu@email.com" />
 
                                 <div>
-                                  <label className="block text-sm font-semibold mb-1.5">
-                                    Teléfono <span className="text-red-500">*</span>
-                                  </label>
-                                  <Input
-                                    name="telefono"
-                                    type="tel"
-                                    value={attendee.telefono}
-                                    onChange={(e) => handleAttendeeChange(index, e)}
-                                    error={errors[`${index}_telefono`]}
-                                    placeholder="Tu número de teléfono"
-                                    required
-                                  />
+                                  <label className="block text-sm font-semibold mb-1.5">Teléfono <span className="text-red-500">*</span></label>
+                                  <Input name="telefono" type="tel" value={attendee.telefono} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_telefono`]} placeholder="Tu número de teléfono" required />
                                 </div>
 
-                                <Input
-                                  label="Documento de identidad (opcional)"
-                                  name="documento"
-                                  value={attendee.documento}
-                                  onChange={(e) => handleAttendeeChange(index, e)}
-                                  error={errors[`${index}_documento`]}
-                                  placeholder="Número de documento"
-                                />
+                                <Input label="Documento de identidad (opcional)" name="documento" value={attendee.documento} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_documento`]} placeholder="Número de documento" />
 
+                                {/* Inmobiliaria */}
                                 <div className="sm:col-span-2">
                                   <label className="block text-sm font-semibold mb-2">
                                     Inmobiliaria / Oficina Alfa <span className="text-red-500">*</span>
                                   </label>
-
                                   <div className="flex flex-col sm:flex-row gap-2 mb-3">
-                                    <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${
-                                      !attendee.esExterno && !attendee.otraOficina
-                                        ? 'border-primary bg-primary/5 text-primary font-semibold'
-                                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                                    }`}>
-                                      <input
-                                        type="radio"
-                                        name={`tipoOficina_${index}`}
-                                        checked={!attendee.esExterno && !attendee.otraOficina}
-                                        onChange={() => {
-                                          setAttendees(prev => {
-                                            const newAttendees = [...prev]
-                                            newAttendees[index] = { ...newAttendees[index], esExterno: false, otraOficina: false, otraOficinaNombre: '' }
-                                            return newAttendees
-                                          })
-                                        }}
-                                        className="accent-primary"
-                                      />
+                                    {/* Oficina listada */}
+                                    <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${!attendee.esExterno && !attendee.otraOficina ? 'border-primary bg-primary/5 text-primary font-semibold' : 'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
+                                      <input type="radio" name={`tipoOficina_${index}`} checked={!attendee.esExterno && !attendee.otraOficina}
+                                        onChange={() => setAttendees(prev => { const n = [...prev]; n[index] = { ...n[index], esExterno: false, otraOficina: false, otraOficinaNombre: '' }; return n })}
+                                        className="accent-primary" />
                                       🏢 Oficina Alfa listada
                                     </label>
-
-                                    <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${
-                                      attendee.otraOficina && !attendee.esExterno
-                                        ? 'border-primary bg-primary/5 text-primary font-semibold'
-                                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                                    }`}>
-                                      <input
-                                        type="radio"
-                                        name={`tipoOficina_${index}`}
-                                        checked={attendee.otraOficina && !attendee.esExterno}
-                                        onChange={() => {
-                                          setAttendees(prev => {
-                                            const newAttendees = [...prev]
-                                            newAttendees[index] = { ...newAttendees[index], esExterno: false, otraOficina: true, oficina: '' }
-                                            return newAttendees
-                                          })
-                                        }}
-                                        className="accent-primary"
-                                      />
+                                    {/* Otra oficina */}
+                                    <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${attendee.otraOficina && !attendee.esExterno ? 'border-primary bg-primary/5 text-primary font-semibold' : 'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
+                                      <input type="radio" name={`tipoOficina_${index}`} checked={attendee.otraOficina && !attendee.esExterno}
+                                        onChange={() => setAttendees(prev => { const n = [...prev]; n[index] = { ...n[index], esExterno: false, otraOficina: true, oficina: '' }; return n })}
+                                        className="accent-primary" />
                                       🔍 Otra oficina Alfa
                                     </label>
-
-                                    <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${
-                                      attendee.esExterno
-                                        ? 'border-orange-400 bg-orange-50 text-orange-700 font-semibold'
-                                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                                    }`}>
-                                      <input
-                                        type="radio"
-                                        name={`tipoOficina_${index}`}
-                                        checked={attendee.esExterno}
-                                        onChange={() => {
-                                          setAttendees(prev => {
-                                            const newAttendees = [...prev]
-                                            newAttendees[index] = { ...newAttendees[index], esExterno: true, otraOficina: false, oficina: '', otraOficinaNombre: '' }
-                                            return newAttendees
-                                          })
-                                        }}
-                                        className="accent-orange-500"
-                                      />
-                                      👤 Soy externo (no soy de Alfa)
+                                    {/* Externo */}
+                                    <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${attendee.esExterno ? 'border-orange-400 bg-orange-50 text-orange-700 font-semibold' : 'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
+                                      <input type="radio" name={`tipoOficina_${index}`} checked={attendee.esExterno}
+                                        onChange={() => setAttendees(prev => { const n = [...prev]; n[index] = { ...n[index], esExterno: true, otraOficina: false, oficina: '', otraOficinaNombre: '' }; return n })}
+                                        className="accent-orange-500" />
+                                      👤 Soy externo
                                     </label>
                                   </div>
 
                                   {!attendee.esExterno && !attendee.otraOficina && (
                                     <div>
-                                      <select
-                                        name="oficina"
-                                        value={attendee.oficina}
-                                        onChange={(e) => handleAttendeeChange(index, e)}
-                                        className={`w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm transition-all ${
-                                          errors[`${index}_oficina`] ? 'border-red-500' : 'border-gray-300'
-                                        }`}
-                                        required
-                                      >
+                                      <select name="oficina" value={attendee.oficina} onChange={(e) => handleAttendeeChange(index, e)}
+                                        className={`w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm transition-all ${errors[`${index}_oficina`] ? 'border-red-500' : 'border-gray-300'}`} required>
                                         <option value="">Selecciona tu oficina Alfa</option>
-                                        {oficinas.map((o) => (
-                                          <option key={o.codigo} value={o.codigo}>
-                                            {o.codigo} - {o.nombre}
-                                          </option>
-                                        ))}
+                                        {oficinas.map((o) => <option key={o.codigo} value={o.codigo}>{o.codigo} - {o.nombre}</option>)}
                                       </select>
-                                      {errors[`${index}_oficina`] && (
-                                        <p className="mt-1 text-xs text-red-500">{errors[`${index}_oficina`]}</p>
-                                      )}
+                                      {errors[`${index}_oficina`] && <p className="mt-1 text-xs text-red-500">{errors[`${index}_oficina`]}</p>}
                                     </div>
                                   )}
 
                                   {attendee.otraOficina && !attendee.esExterno && (
-                                    <div>
-                                      <Input
-                                        name="otraOficinaNombre"
-                                        value={attendee.otraOficinaNombre}
-                                        onChange={(e) => handleAttendeeChange(index, e)}
-                                        error={errors[`${index}_otraOficinaNombre`]}
-                                        placeholder="Escribe el nombre de tu oficina Alfa"
-                                        required
-                                      />
-                                    </div>
+                                    <Input name="otraOficinaNombre" value={attendee.otraOficinaNombre} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_otraOficinaNombre`]} placeholder="Escribe el nombre de tu oficina Alfa" required />
                                   )}
 
                                   {attendee.esExterno && (
@@ -1125,17 +956,15 @@ export default function Checkout() {
                                       <span className="text-orange-500 text-base flex-shrink-0">ℹ️</span>
                                       <p className="text-xs sm:text-sm text-orange-700">
                                         Tu certificado indicará que eres un <strong>participante externo</strong>.
-                                        Si en realidad perteneces a alguna oficina Alfa, selecciona la opción correspondiente arriba.
                                       </p>
                                     </div>
                                   )}
                                 </div>
 
                               </div>
-
                               <div className="mt-4">
                                 <Button type="button" onClick={() => handleSaveAttendee(index)} className="w-full sm:w-auto">
-                                  {isCompleted ? 'Actualizar' : 'Guardar y continuar'}
+                                  {completedAttendees.has(index) ? 'Actualizar' : 'Guardar y continuar'}
                                 </Button>
                               </div>
                             </div>
@@ -1147,6 +976,7 @@ export default function Checkout() {
                 </div>
               </div>
 
+              {/* ── Método de pago ── */}
               <Card className="mb-4 sm:mb-6 overflow-hidden border-primary/20 shadow-lg ring-1 ring-primary/5">
                 <div className="bg-primary/5 px-4 sm:px-6 py-4 border-b border-primary/10">
                   <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2">
@@ -1168,49 +998,38 @@ export default function Checkout() {
                         <p className="font-bold text-sm text-gray-900">Pago QR - Banco MC4</p>
                         <p className="text-xs text-gray-500">Banca Móvil · Transacción segura</p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowQRSelectModal(true)}
-                        className="text-xs text-primary font-bold border border-primary/30 px-3 py-1.5 rounded-lg hover:bg-primary/5 transition-colors flex-shrink-0"
-                      >
+                      <button type="button" onClick={() => setShowQRSelectModal(true)}
+                        className="text-xs text-primary font-bold border border-primary/30 px-3 py-1.5 rounded-lg hover:bg-primary/5 transition-colors flex-shrink-0">
                         Cambiar
                       </button>
                     </div>
                   ) : (
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => setShowQRSelectModal(true)}
-                        className="w-full flex items-center justify-between gap-4 p-4 sm:p-5 rounded-xl border-2 border-primary bg-primary/5 hover:bg-primary/10 transition-all active:scale-[.98]"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
-                            <QrCode className="w-6 h-6 text-white" />
-                          </div>
-                          <div className="text-left">
-                            <p className="text-base font-extrabold text-primary">Seleccionar método de pago</p>
-                            <p className="text-xs text-gray-500 mt-0.5">Toca aquí para elegir cómo pagar</p>
-                          </div>
+                    <button type="button" onClick={() => setShowQRSelectModal(true)}
+                      className="w-full flex items-center justify-between gap-4 p-4 sm:p-5 rounded-xl border-2 border-primary bg-primary/5 hover:bg-primary/10 transition-all active:scale-[.98]">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
+                          <QrCode className="w-6 h-6 text-white" />
                         </div>
-                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                          <ChevronDown className="w-4 h-4 text-white -rotate-90" />
+                        <div className="text-left">
+                          <p className="text-base font-extrabold text-primary">Seleccionar método de pago</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Toca aquí para elegir cómo pagar</p>
                         </div>
-                      </button>
-                    </div>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                        <ChevronDown className="w-4 h-4 text-white -rotate-90" />
+                      </div>
+                    </button>
                   )}
                   {errors.medioPago && <p className="mt-3 text-sm text-destructive font-semibold">{errors.medioPago}</p>}
                 </CardContent>
               </Card>
 
+              {/* ── Términos ── */}
               <Card className="mb-4 sm:mb-6">
                 <CardContent className="p-4 sm:p-6">
                   <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={termsAccepted}
-                      onChange={(e) => setTermsAccepted(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 sm:w-5 sm:h-5 text-primary border-gray-300 rounded focus:ring-primary flex-shrink-0"
-                    />
+                    <input type="checkbox" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 sm:w-5 sm:h-5 text-primary border-gray-300 rounded focus:ring-primary flex-shrink-0" />
                     <span className="text-xs sm:text-sm text-gray-700">
                       Acepto los{' '}
                       <button type="button" className="text-primary hover:underline font-semibold">términos y condiciones</button>
@@ -1222,6 +1041,7 @@ export default function Checkout() {
                 </CardContent>
               </Card>
 
+              {/* ── Botón principal ── */}
               {resumeQRData ? (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs text-gray-500 px-1">
@@ -1231,48 +1051,35 @@ export default function Checkout() {
                       {formatTimeLeft(resumeTimeLeft)}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleResumeQR}
+                  <button type="button" onClick={handleResumeQR}
                     className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-white text-sm transition-all hover:brightness-110 active:scale-[.98] shadow-md"
-                    style={{ background: '#F97316' }}
-                  >
+                    style={{ background: '#F97316' }}>
                     <QrCode size={18} />
                     Ver QR de pago
                   </button>
                 </div>
               ) : (
-                <Button
-                  type="submit"
-                  size="lg"
-                  disabled={
-                    processing ||
-                    !termsAccepted ||
-                    !paymentData.medioPago ||
-                    completedAttendees.size < seats.length
-                  }
-                  className="w-full text-sm sm:text-base"
-                >
+                <Button type="submit" size="lg"
+                  disabled={processing || !termsAccepted || !paymentData.medioPago || completedAttendees.size < seats.length}
+                  className="w-full text-sm sm:text-base">
                   {processing ? 'Procesando...' : 'Generar QR'}
                 </Button>
               )}
             </form>
           </div>
 
+          {/* ── Resumen desktop ── */}
           <div className="hidden sm:block lg:col-span-1">
             <Card className="sticky top-24">
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-6">Resumen del pedido</h3>
-
                 <div className="mb-6 pb-6 border-b">
                   {event ? (
                     <>
                       <p className="font-semibold text-lg">{event.title}</p>
                       <p className="text-sm text-gray-600">General</p>
                       <p className="text-sm text-gray-600">
-                        {event.date && new Date(event.date).toLocaleDateString('es-ES', {
-                          year: 'numeric', month: 'long', day: 'numeric'
-                        })} - {event.time || '20:00'}
+                        {event.date && new Date(event.date).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })} - {event.time || '20:00'}
                       </p>
                     </>
                   ) : (
@@ -1282,7 +1089,6 @@ export default function Checkout() {
                     </>
                   )}
                 </div>
-
                 <div className="mb-6 pb-6 border-b">
                   <h4 className="font-semibold mb-3">Asientos seleccionados:</h4>
                   <div className="space-y-2">
@@ -1294,7 +1100,6 @@ export default function Checkout() {
                     ))}
                   </div>
                 </div>
-
                 <div className="space-y-3 mb-6">
                   <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>Bs {totalPrice.toFixed(2)}</span></div>
                   <div className="flex justify-between text-gray-600"><span>Tarifa de servicio</span><span>Bs 0.00</span></div>
@@ -1309,6 +1114,7 @@ export default function Checkout() {
         </div>
       </div>
 
+      {/* ── Modales ── */}
       <QRPaymentModal
         isOpen={showQRModal}
         onClose={() => setShowQRModal(false)}
@@ -1322,12 +1128,11 @@ export default function Checkout() {
       <QRSelectModal
         isOpen={showQRSelectModal}
         onClose={() => setShowQRSelectModal(false)}
-        onSelect={(method) => {
-          setPaymentData(prev => ({ ...prev, medioPago: method }))
-        }}
+        onSelect={(method) => setPaymentData(prev => ({ ...prev, medioPago: method }))}
         selected={paymentData.medioPago}
       />
 
+      {/* Modal confirmar compra */}
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -1353,9 +1158,7 @@ export default function Checkout() {
                   {seats.map((seat: CheckoutSeat, index: number) => (
                     <div key={seat.id} className="flex justify-between items-start bg-gray-50 rounded-lg px-3 py-2 text-sm">
                       <div>
-                        <p className="font-semibold text-gray-900">
-                          {attendees[index]?.nombre} {attendees[index]?.apellido}
-                        </p>
+                        <p className="font-semibold text-gray-900">{attendees[index]?.nombre} {attendees[index]?.apellido}</p>
                         <p className="text-xs text-gray-500">{seatLabel(seat, index)}</p>
                       </div>
                       <span className="font-semibold text-gray-700 flex-shrink-0 ml-2">Bs {seat.price.toFixed(2)}</span>
@@ -1373,20 +1176,15 @@ export default function Checkout() {
               </div>
             </div>
             <div className="px-6 py-4 border-t flex gap-3">
-              <button
-                onClick={() => setShowConfirmModal(false)}
-                className="flex-1 py-3 rounded-xl font-semibold border-2 text-gray-700 hover:bg-gray-50 transition-colors"
-                style={{ borderColor: '#e5e7eb' }}
-              >
+              <button onClick={() => setShowConfirmModal(false)}
+                className="flex-1 py-3 rounded-xl font-semibold border-2 text-gray-700 hover:bg-gray-50 transition-colors" style={{ borderColor: '#e5e7eb' }}>
                 Cancelar
               </button>
-              <button
-                onClick={handleConfirmAndPay}
+              <button onClick={handleConfirmAndPay}
                 className="flex-1 py-3 rounded-xl font-semibold text-white transition-colors"
                 style={{ background: '#233C7A' }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#1a2d5a')}
-                onMouseLeave={e => (e.currentTarget.style.background = '#233C7A')}
-              >
+                onMouseLeave={e => (e.currentTarget.style.background = '#233C7A')}>
                 Confirmar y pagar
               </button>
             </div>
@@ -1394,6 +1192,7 @@ export default function Checkout() {
         </div>
       )}
 
+      {/* Modal pago confirmado */}
       {showPaidModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
@@ -1402,32 +1201,17 @@ export default function Checkout() {
               <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
                 <CheckCircle2 size={44} className="text-green-500" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                ¡Pago confirmado!
-              </h2>
-              <p className="text-gray-500 text-sm mb-2">
-                Tu pago fue procesado exitosamente.
-              </p>
-              {event && (
-                <p className="text-primary font-semibold text-sm mb-6">
-                  {event.title || event.titulo}
-                </p>
-              )}
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Pago confirmado!</h2>
+              <p className="text-gray-500 text-sm mb-2">Tu pago fue procesado exitosamente.</p>
+              {event && <p className="text-primary font-semibold text-sm mb-6">{event.title || event.titulo}</p>}
               <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-6">
-                <p className="text-green-800 text-sm font-medium">
-                  Tus entradas están disponibles en Mis Compras
-                </p>
+                <p className="text-green-800 text-sm font-medium">Tus entradas están disponibles en Mis Compras</p>
               </div>
-              <button
-                onClick={() => navigate('/mis-compras')}
-                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
-              >
+              <button onClick={() => navigate('/mis-compras')}
+                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2">
                 Ver mis entradas
               </button>
-              <button
-                onClick={() => navigate('/')}
-                className="w-full mt-3 text-sm text-gray-500 hover:text-gray-700 py-2 transition-colors"
-              >
+              <button onClick={() => navigate('/')} className="w-full mt-3 text-sm text-gray-500 hover:text-gray-700 py-2 transition-colors">
                 Volver al inicio
               </button>
             </div>

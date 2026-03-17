@@ -7,6 +7,15 @@ import { Card, CardContent } from '@/components/ui/Card'
 import adminService from '@/services/adminService'
 import { convertImageFileToWebP, isValidImageFile, isValidImageSize } from '@/utils/imageConverter'
 
+// ─────────────────────────────────────────────────────────────
+// Imágenes hardcodeadas por breakpoint — edita solo estas rutas
+// ─────────────────────────────────────────────────────────────
+const RESPONSIVE_IMAGES = {
+  mobile:  '/assets/Alfa 2026 - Mastermind 4.5.png',   // < 640px
+  tablet:  '/assets/Alfa 2026 - Mastermind 9.16.png',  // 640–1023px
+  desktop: '/assets/Alfa 2026 - Mastermind 16.9.png',  // ≥ 1024px
+}
+
 export default function EventForm() {
   const navigate = useNavigate()
   const { id } = useParams()
@@ -29,6 +38,7 @@ export default function EventForm() {
     modo: 'ASIENTOS' as 'ASIENTOS' | 'CANTIDAD',
   })
 
+  // Solo imágenes subidas por el usuario (NO incluye la responsiva hardcodeada)
   const [images, setImages] = useState<string[]>([])
   const [mainImageIndex, setMainImageIndex] = useState<number>(0)
   const [loading, setLoading] = useState(false)
@@ -45,10 +55,11 @@ export default function EventForm() {
         const event = events.find((e: any) => e.id === id)
         if (event) {
           const formatDate = (d: Date | string) => new Date(d).toISOString().split('T')[0]
-          const eventImages: string[] = []
-          if (event.image) eventImages.push(event.image)
-          if (event.gallery?.length) eventImages.push(...event.gallery)
-          setImages(eventImages)
+          // Solo guardamos imágenes del usuario (no la hardcodeada)
+          const userImages: string[] = []
+          if (event.image) userImages.push(event.image)
+          if (event.gallery?.length) userImages.push(...event.gallery)
+          setImages(userImages)
           setMainImageIndex(0)
           const e = event as any
           const modoGuardado = e.modo || 'ASIENTOS'
@@ -96,7 +107,8 @@ export default function EventForm() {
 
     setLoading(true)
     try {
-      const mainImage = images.length > 0 ? images[mainImageIndex] : formData.image
+      // La imagen principal es la primera del usuario, o la hardcodeada de fallback
+      const mainImage = images.length > 0 ? images[mainImageIndex] : RESPONSIVE_IMAGES.desktop
       const finalFormData = {
         title: formData.title, description: formData.description,
         longDescription: formData.longDescription, location: formData.location,
@@ -135,8 +147,7 @@ export default function EventForm() {
         })
         newImages.push(base64)
       }
-      if (images.length === 0 && newImages.length > 0) setMainImageIndex(0)
-      setImages([...images, ...newImages])
+      setImages(prev => [...prev, ...newImages])
     } catch { alert('Error al procesar las imágenes.') }
     finally { setUploadingImage(false); e.target.value = '' }
   }
@@ -214,7 +225,7 @@ export default function EventForm() {
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <h3 className="text-base sm:text-lg font-semibold text-gray-900">Imágenes del Evento</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">La primera imagen será la principal</p>
+                  <p className="text-xs text-gray-500 mt-0.5">La primera imagen será la principal · Doble clic para cambiar principal</p>
                 </div>
                 <div>
                   <input type="file" id="imagesUpload" accept="image/*" multiple onChange={handleImagesUpload} className="hidden" disabled={uploadingImage} />
@@ -224,24 +235,70 @@ export default function EventForm() {
                   </label>
                 </div>
               </div>
+
               {images.length === 0 ? (
-                <label htmlFor="imagesUpload" className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center block cursor-pointer hover:border-primary transition-colors">
-                  <ImageIcon size={40} className="text-gray-400 mx-auto mb-3" />
-                  <p className="text-gray-700 font-medium text-sm mb-1">Sin imágenes subidas</p>
-                  <p className="text-gray-500 text-xs">PNG, JPG, WebP · máx 5MB c/u</p>
+                /*
+                 * Sin imágenes subidas → mostrar la responsiva hardcodeada como preview.
+                 * Usa <picture> para cambiar automáticamente según el tamaño de pantalla:
+                 *   < 640px  → 4:5   (/assets/Alfa 2026 - Mastermind 4.5.png)
+                 *   640-1023 → 9:16  (/assets/Alfa 2026 - Mastermind 9.16.png)
+                 *   ≥ 1024px → 16:9  (/assets/Alfa 2026 - Mastermind 16.9.png)
+                 */
+                <label htmlFor="imagesUpload" className="block cursor-pointer group">
+                  <div className="relative rounded-xl overflow-hidden border-2 border-dashed border-gray-300 group-hover:border-primary transition-colors">
+                    <picture>
+                      <source media="(min-width: 1024px)" srcSet={RESPONSIVE_IMAGES.desktop} />
+                      <source media="(min-width: 640px)"  srcSet={RESPONSIVE_IMAGES.tablet} />
+                      <img
+                        src={RESPONSIVE_IMAGES.mobile}
+                        alt="Banner del evento (predeterminado)"
+                        className="w-full object-cover"
+                        style={{ maxHeight: '340px' }}
+                      />
+                    </picture>
+                    {/* Overlay con instrucción de subir */}
+                    <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Upload size={32} className="text-white mb-2" />
+                      <p className="text-white font-semibold text-sm">Haz clic para subir tu imagen</p>
+                      <p className="text-white/70 text-xs mt-1">PNG, JPG, WebP · máx 5MB</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2 text-center">
+                    Imagen predeterminada · Sube tu propia imagen para reemplazarla
+                  </p>
                 </label>
               ) : (
+                /* Con imágenes subidas → mostrar grid normal */
                 <div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-4">
                     {images.map((img, idx) => (
-                      <div key={idx} onDoubleClick={() => setMainImageIndex(idx)} className={`relative group cursor-pointer rounded-lg overflow-hidden border-4 transition-all aspect-square ${idx === mainImageIndex ? 'border-primary shadow-lg ring-2 ring-primary ring-offset-1' : 'border-gray-200'}`} title="Doble clic para principal">
+                      <div
+                        key={idx}
+                        onDoubleClick={() => setMainImageIndex(idx)}
+                        title="Doble clic para hacer principal"
+                        className={`relative group cursor-pointer rounded-lg overflow-hidden border-4 transition-all aspect-square
+                          ${idx === mainImageIndex
+                            ? 'border-primary shadow-lg ring-2 ring-primary ring-offset-1'
+                            : 'border-gray-200 hover:border-gray-400'
+                          }`}
+                      >
                         <img src={img} alt={`Imagen ${idx + 1}`} className="w-full h-full object-cover" />
-                        {idx === mainImageIndex && <div className="absolute top-1 left-1 bg-primary text-white px-1.5 py-0.5 rounded text-xs font-bold">✓</div>}
-                        <button type="button" onClick={e => { e.stopPropagation(); handleRemoveImage(idx) }} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity z-10"><X size={12} /></button>
+                        {idx === mainImageIndex && (
+                          <div className="absolute top-1 left-1 bg-primary text-white px-1.5 py-0.5 rounded text-xs font-bold leading-none">✓</div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); handleRemoveImage(idx) }}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        >
+                          <X size={12} />
+                        </button>
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">{images.length} imagen(es) · Principal: #{mainImageIndex + 1}</p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {images.length} imagen(es) · Principal: #{mainImageIndex + 1}
+                  </p>
                 </div>
               )}
             </div>
