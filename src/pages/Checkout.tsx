@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Users, ChevronDown, Check, X, QrCode, CheckCircle2, Clock } from 'lucide-react'
+import { ArrowLeft, Users, ChevronDown, Check, X, QrCode, CheckCircle2, Clock, Wallet } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -8,6 +8,7 @@ import adminService from '@/services/adminService'
 import { paymentServiceV2 } from '@/services/paymentServiceV2'
 import api from '@/services/api'
 import QRPaymentModal from '@/components/modals/QRPaymentModal'
+import CashPaymentModal from '@/components/modals/CashPaymentModal'
 import QRSelectModal from '@/components/modals/QRSelectModal'
 
 interface CheckoutSeat { id: string; row: string; number: number; price: number }
@@ -86,15 +87,60 @@ export default function Checkout() {
 
   // Si esta reserva ya fue pagada (usuario volvió atrás), redirigir a Mis Compras
   useEffect(() => {
-    if (reservaId && localStorage.getItem(`compra_completada_${reservaId}`)) {
-      navigate('/mis-compras', { replace: true })
-      return
+    const checkPendingPurchases = async () => {
+      if (reservaId && localStorage.getItem(`compra_completada_${reservaId}`)) {
+        navigate('/mis-compras', { replace: true })
+        return
+      }
+
+      // Si no hay datos del checkout (sessionStorage limpiado por pago completado), redirigir
+      if (!reservaId && !eventId && !seats?.length) {
+        navigate('/', { replace: true })
+        return
+      }
+
+      // Verificar si hay compras PENDIENTES de este evento
+      // SOLO para modo CANTIDAD (general), NO para modo ASIENTOS específicos
+      if (eventId && isGeneralMode) {
+        try {
+          const res = await api.get('/compras/mis-compras', { params: { limit: 100 } })
+          const compras: any[] = res.data.data ?? []
+
+          // Filtrar compras pendientes de este evento
+          const comprasPendientes = compras.filter((c: any) =>
+            c.eventoId === eventId &&
+            c.estadoPago === 'PENDIENTE_APROBACION'
+          )
+
+          if (comprasPendientes.length > 0) {
+            // Hay compras pendientes → limpiar sessionStorage para que el formulario aparezca vacío
+            sessionStorage.removeItem(FORM_KEY)
+            sessionStorage.removeItem(COMPLETE_KEY)
+            sessionStorage.removeItem(PAYMENT_KEY)
+            sessionStorage.removeItem(`checkout_terms_${eventId}`)
+
+            // Reiniciar estados del formulario
+            setAttendees(seats.map(() => ({
+              nombre: '', apellido: '', email: '', telefono: '',
+              documento: '', oficina: '', otraOficina: false, otraOficinaNombre: ''
+            })))
+            setCompletedAttendees(new Set<number>())
+            setExpandedAttendee(0)
+            setPaymentData({ medioPago: '' })
+            setTermsAccepted(false)
+
+            // Mostrar modal
+            setPendingPurchasesCount(Math.min(comprasPendientes.length, 5)) // Máximo 5 indicadores
+            setShowPendingPurchasesModal(true)
+          }
+        } catch (error) {
+          console.error('Error verificando compras pendientes:', error)
+        }
+      }
     }
-    // Si no hay datos del checkout (sessionStorage limpiado por pago completado), redirigir
-    if (!reservaId && !eventId && !seats?.length) {
-      navigate('/', { replace: true })
-    }
-  }, [reservaId])
+
+    checkPendingPurchases()
+  }, [reservaId, eventId, isGeneralMode])
 
   const [event, setEvent] = useState<any>(null)
 
@@ -181,9 +227,11 @@ export default function Checkout() {
     } catch { return false }
   })
   const [showQRModal, setShowQRModal] = useState(false)
+  const [showCashPaymentModal, setShowCashPaymentModal] = useState(false)
   const [showQRSelectModal, setShowQRSelectModal] = useState(false)
   const [currentQRData, setCurrentQRData] = useState<any>(null)
   const [currentPurchaseId, setCurrentPurchaseId] = useState<string>('')
+  const [cashPaymentCompraId, setCashPaymentCompraId] = useState<string>('')
   const [paymentStatus, setPaymentStatus] = useState<'PENDIENTE' | 'PROCESANDO' | 'PAGADO' | 'FALLIDO' | 'EXPIRADO'>('PENDIENTE')
 
   const [_isExpired, _setIsExpired] = useState(false)
@@ -193,6 +241,8 @@ export default function Checkout() {
   const [showMobileSummary, setShowMobileSummary] = useState(false)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [resumeTimeLeft, setResumeTimeLeft] = useState(0)
+  const [showPendingPurchasesModal, setShowPendingPurchasesModal] = useState(false)
+  const [pendingPurchasesCount, setPendingPurchasesCount] = useState(0)
 
   const oficinas = [
     { codigo: '2526', nombre: 'ALFA FORZA' }, { codigo: '2527', nombre: 'ALFA DIAMOND' },
@@ -557,15 +607,23 @@ export default function Checkout() {
     }
     if (!event) { alert('Error al cargar los datos del evento'); return }
     if (!isGeneralMode && !reservaId) { alert('No hay reserva activa. Por favor selecciona tus asientos nuevamente.'); return }
-    if (paymentData.medioPago !== 'qr') { alert('Actualmente solo aceptamos pagos con QR'); return }
 
-    setShowConfirmModal(true)
+    if (paymentData.medioPago === 'cash') {
+      // Para pago en efectivo, necesitamos crear la compra primero para obtener el ID
+      setShowConfirmModal(true)
+    } else if (paymentData.medioPago === 'qr') {
+      setShowConfirmModal(true)
+    } else {
+      alert('Por favor selecciona un método de pago');
+      return
+    }
   }
 
   const handleConfirmAndPay = async () => {
     setShowConfirmModal(false)
     setProcessing(true)
     setPaymentStatus('PENDIENTE')
+
     try {
       const asistentesBase = seats.map((_seat: CheckoutSeat, index: number) => {
         const a = attendees[index]
@@ -579,6 +637,7 @@ export default function Checkout() {
         }
       })
 
+      // Crear la compra (sin QR de pago, solo los datos)
       const pagoResponse = isGeneralMode
         ? await paymentServiceV2.crearCompraGeneral({
             eventoId: eventId,
@@ -595,68 +654,65 @@ export default function Checkout() {
             medioPago: paymentData.medioPago,
           })
 
-      if (!pagoResponse.success || !pagoResponse.qrPago) {
+      if (!pagoResponse.success || !pagoResponse.compras || pagoResponse.compras.length === 0) {
         throw new Error(pagoResponse.error || 'Error al iniciar el pago')
       }
 
-      const qrPagoId = pagoResponse.qrPago.id
-      const qrImageData = pagoResponse.qrPago.imagenQr
+      // Para pagos con efectivo con múltiples tickets, necesitamos guardar TODOS los IDs
+      const todasLasComprasIds = pagoResponse.compras.map((c: any) => c.id)
+      const primeraCompraId = pagoResponse.compras[0].id
+      const montoTotal = pagoResponse.qrPago?.monto || pagoResponse.compras.reduce((sum: number, c: any) => sum + c.monto, 0)
 
-      setCurrentQRData({
-        qrData: qrImageData,
-        qrUrl: qrImageData,
-        imagenQr: qrImageData,
-        moneda: pagoResponse.qrPago.moneda,
-        monto: pagoResponse.qrPago.monto,
-        tiempoExpiracion: pagoResponse.qrPago.fechaVencimiento,
-        compraId: qrPagoId
-      })
-      setCurrentPurchaseId(qrPagoId)
-      setShowQRModal(true)
+      if (paymentData.medioPago === 'cash') {
+        // Pago en efectivo: Guardar TODOS los IDs de compra y mostrar modal de subida
+        setCashPaymentCompraId(todasLasComprasIds.join(',')) // Guardar todos los IDs separados por coma
+        setShowCashPaymentModal(true)
+        setProcessing(false)
+      } else if (paymentData.medioPago === 'qr') {
+        // Pago con QR: Seguir el flujo actual
+        const qrPagoId = pagoResponse.qrPago.id
+        const qrImageData = pagoResponse.qrPago.imagenQr
 
-      const pendingPayloadToSave = {
-        qrPagoId,
-        imagenQr:         qrImageData,
-        monto:            pagoResponse.qrPago.monto,
-        moneda:           pagoResponse.qrPago.moneda,
-        fechaVencimiento: pagoResponse.qrPago.fechaVencimiento,
-        eventTitle:       event?.title ?? event?.titulo ?? '',
-        eventId,
-        createdAt:        new Date().toISOString()
-      }
-      localStorage.setItem('pending_payment', JSON.stringify(pendingPayloadToSave))
-      setResumeQRData(pendingPayloadToSave)
+        setCurrentQRData({
+          qrData: qrImageData,
+          qrUrl: qrImageData,
+          imagenQr: qrImageData,
+          moneda: pagoResponse.qrPago.moneda,
+          monto: pagoResponse.qrPago.monto,
+          tiempoExpiracion: pagoResponse.qrPago.fechaVencimiento,
+          compraId: qrPagoId
+        })
+        setCurrentPurchaseId(qrPagoId)
+        setShowQRModal(true)
 
-      const msHastaVencimiento = new Date(pagoResponse.qrPago.fechaVencimiento).getTime() - Date.now()
-      if (msHastaVencimiento > 0) {
-        setTimeout(() => {
-          const current = localStorage.getItem('pending_payment')
-          if (current) {
-            try {
-              const parsed = JSON.parse(current)
-              if (parsed.qrPagoId === qrPagoId) {
-                localStorage.removeItem('pending_payment')
-              }
-            } catch { localStorage.removeItem('pending_payment') }
-          }
-        }, msHastaVencimiento)
-      }
-
-      const polling = paymentServiceV2.iniciarPollingPago(
-        qrPagoId,
-        (resultado) => {
-          setPaymentStatus(resultado.estado)
-          if (resultado.estado === 'PAGADO') {
-            handlePaymentSuccess(reservaId!, resultado.datos?.transaccionId)
-          } else if (resultado.estado === 'FALLIDO') {
-            handlePaymentFailed(resultado.datos?.mensaje)
-          } else if (resultado.estado === 'EXPIRADO') {
-            handlePaymentExpired()
-          }
+        const pendingPayloadToSave = {
+          qrPagoId,
+          imagenQr:         qrImageData,
+          monto:            pagoResponse.qrPago.monto,
+          moneda:           pagoResponse.qrPago.moneda,
+          fechaVencimiento: pagoResponse.qrPago.fechaVencimiento,
+          eventTitle:       event?.title ?? event?.titulo ?? '',
+          eventId,
+          createdAt:        new Date().toISOString()
         }
-      )
-      polling.iniciar()
-      ;(window as any).paymentPolling = polling
+        localStorage.setItem('pending_payment', JSON.stringify(pendingPayloadToSave))
+        setResumeQRData(pendingPayloadToSave)
+
+        const msHastaVencimiento = new Date(pagoResponse.qrPago.fechaVencimiento).getTime() - Date.now()
+        if (msHastaVencimiento > 0) {
+          setTimeout(() => {
+            const current = localStorage.getItem('pending_payment')
+            if (current) {
+              try {
+                const parsed = JSON.parse(current)
+                if (parsed.qrPagoId === qrPagoId) {
+                  localStorage.removeItem('pending_payment')
+                }
+              } catch { localStorage.removeItem('pending_payment') }
+            }
+          }, msHastaVencimiento)
+        }
+      }
     } catch (error: any) {
       console.error('Error en el proceso de pago:', error)
       if (error.status === 409) {
@@ -1238,6 +1294,20 @@ export default function Checkout() {
         paymentStatus={paymentStatus}
       />
 
+      <CashPaymentModal
+        isOpen={showCashPaymentModal}
+        onClose={() => setShowCashPaymentModal(false)}
+        compraId={cashPaymentCompraId}
+        monto={totalPrice}
+        moneda="BOB"
+        eventId={eventId}
+        onSubmitSuccess={() => {
+          setShowCashPaymentModal(false)
+          // Redirigir a Mis Compras con filtro Pendiente
+          navigate('/mis-compras?estado=PENDIENTE')
+        }}
+      />
+
       <QRSelectModal
         isOpen={showQRSelectModal}
         onClose={() => setShowQRSelectModal(false)}
@@ -1357,6 +1427,64 @@ export default function Checkout() {
               >
                 Volver al inicio
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Compras pendientes detectadas */}
+      {showPendingPurchasesModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center">
+                  <Clock size={24} className="text-yellow-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Tienes compras pendientes
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Aún tienes {pendingPurchasesCount} compra{pendingPurchasesCount > 1 ? 's' : ''} esperando aprobación del administrador
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+                <p className="text-sm font-medium text-yellow-800 mb-2">
+                  ⚠️ No puedes realizar nuevas compras de este evento hasta que se aprueben tus comprobantes de pago pendientes.
+                </p>
+                <p className="text-sm text-yellow-700">
+                  Por favor espera a que el administrador revise y apruebe tu pago. Una vez aprobado, podrás comprar más entradas.
+                </p>
+              </div>
+
+              {/* Indicadores visibles de compras pendientes */}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+                <p className="text-sm font-medium text-gray-700 mb-3">Compras pendientes de este evento:</p>
+                <div className="flex gap-2 flex-wrap">
+                  {Array.from({ length: pendingPurchasesCount }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="w-8 h-8 rounded-full bg-yellow-400 border-2 border-yellow-500 flex items-center justify-center"
+                    >
+                      <span className="text-white font-bold text-sm">{i + 1}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    navigate('/mis-compras?estado=PENDIENTE')
+                  }}
+                  className="w-full px-4 py-3 rounded-xl font-medium text-white bg-primary hover:bg-primary/90 transition-all"
+                >
+                  Ver mis compras pendientes
+                </button>
+              </div>
             </div>
           </div>
         </div>

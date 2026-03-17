@@ -28,7 +28,7 @@ export interface UserPurchase {
   }>
   cantidad: number
   monto: number
-  estadoPago: 'PAGADO' | 'PENDIENTE' | 'REEMBOLSADO' | 'FALLIDO'
+  estadoPago: 'PAGADO' | 'PENDIENTE_APROBACION' | 'RECHAZADO' | 'FALLIDO'
   qrCode: string
   certificadoUrl?: string
   createdAt: string
@@ -59,7 +59,7 @@ export const getUserPurchases = async (
 ): Promise<UserPurchase[]> => {
   try {
     const res = await api.get('/compras/mis-compras', { params: { limit: 100 } })
-    const compras: any[] = (res.data.data ?? []).filter((c: any) => c.estadoPago === 'PAGADO')
+    const compras: any[] = res.data.data ?? []
 
     // Agrupar por eventoId
     const grouped = new Map<string, any[]>()
