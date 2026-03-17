@@ -10,6 +10,7 @@ import purchasesService from '@/services/purchasesService'
 import { paymentServiceV2 } from '@/services/paymentServiceV2'
 import api from '@/services/api'
 import QRPaymentModal from '@/components/modals/QRPaymentModal'
+import CertificateInfoModal from '@/components/modals/Certificateinfomodal'  // ← NUEVO
 
 interface CheckoutSeat { id: string; row: string; number: number; price: number }
 
@@ -84,6 +85,10 @@ export default function Checkout() {
   const [isExpired, setIsExpired] = useState(false)
   const [asientosLiberados, setAsientosLiberados] = useState(false)
   const [showMobileSummary, setShowMobileSummary] = useState(false)
+
+  // ── Modal certificado: se muestra al entrar al checkout ──────
+  const [showCertModal, setShowCertModal] = useState(true)
+  // ────────────────────────────────────────────────────────────
 
   const oficinas = [
     { codigo: '2526', nombre: 'ALFA FORZA' }, { codigo: '2527', nombre: 'ALFA DIAMOND' },
@@ -226,7 +231,6 @@ export default function Checkout() {
       const updated: FormData = { ...newAttendees[attendeeIndex], [name]: value }
       if (name === 'otraOficina' && value === true) updated.oficina = ''
       if (name === 'otraOficina' && value === false) updated.otraOficinaNombre = ''
-      // Si marca como externo, limpiar campos de oficina
       if (name === 'esExterno' && value === true) {
         updated.oficina = ''
         updated.otraOficina = false
@@ -361,8 +365,6 @@ export default function Checkout() {
       )
 
       polling.iniciar()
-
-      // Guardar el polling en el componente para poder detenerlo
       ;(window as any).paymentPolling = polling
     } catch (error: any) {
       console.error('Error en el proceso de pago:', error)
@@ -375,15 +377,11 @@ export default function Checkout() {
 
   const handlePaymentSuccess = (_compraId: string, _transaccionId?: string) => {
     setShowQRModal(false)
-    // Detener polling
     const polling = (window as any).paymentPolling
     if (polling && polling.detener) {
       polling.detener()
     }
-
-    // NO liberar los asientos - el backend ya los marcó como VENDIDO
     setAsientosLiberados(true)
-
     const purchase = purchasesService.createPurchase({
       eventoId: eventId,
       eventoTitulo: event.title,
@@ -410,38 +408,26 @@ export default function Checkout() {
 
   const handlePaymentFailed = async (mensaje?: string) => {
     setShowQRModal(false)
-
-    // Detener polling
     const polling = (window as any).paymentPolling
     if (polling && polling.detener) {
       polling.detener()
     }
-
-    // Liberar asientos cuando el pago falla
     await liberarAsientos()
-
     alert(mensaje || 'El pago falló. Por favor intenta nuevamente.')
   }
 
   const handlePaymentExpired = async () => {
     setShowQRModal(false)
-
-    // Detener polling
     const polling = (window as any).paymentPolling
     if (polling && polling.detener) {
       polling.detener()
     }
-
-    // Liberar asientos cuando el tiempo expira
     await liberarAsientos()
-
     alert('El tiempo para el pago ha expirado. Por favor selecciona tus asientos nuevamente.')
     navigate(-1)
   }
 
-  // Wrapper para QRPaymentModal que no acepta parámetros
   const handleModalPaymentSuccess = () => {
-    // El polling maneja la actualización del estado
     setShowQRModal(false)
   }
 
@@ -460,6 +446,13 @@ export default function Checkout() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+
+      {/* ── Popup informativo de certificado ── */}
+      <CertificateInfoModal
+        isOpen={showCertModal}
+        onConfirm={() => setShowCertModal(false)}
+      />
+
       <div className="bg-primary text-white py-4 sm:py-6">
         <div className="container mx-auto px-3 sm:px-4">
           <div className="flex items-center gap-2 mb-2 sm:mb-4">
@@ -649,9 +642,7 @@ export default function Checkout() {
                                     Inmobiliaria / Oficina Alfa <span className="text-red-500">*</span>
                                   </label>
 
-                                  {/* Opciones de pertenencia */}
                                   <div className="flex flex-col sm:flex-row gap-2 mb-3">
-                                    {/* Opción: Pertenece a una oficina Alfa listada */}
                                     <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${
                                       !attendee.esExterno && !attendee.otraOficina
                                         ? 'border-primary bg-primary/5 text-primary font-semibold'
@@ -673,29 +664,6 @@ export default function Checkout() {
                                       🏢 Oficina Alfa listada
                                     </label>
 
-                                    {/* Opción: Pertenece a otra oficina Alfa no listada */}
-                                    <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${
-                                      attendee.otraOficina && !attendee.esExterno
-                                        ? 'border-primary bg-primary/5 text-primary font-semibold'
-                                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                                    }`}>
-                                      <input
-                                        type="radio"
-                                        name={`tipoOficina_${index}`}
-                                        checked={attendee.otraOficina && !attendee.esExterno}
-                                        onChange={() => {
-                                          setAttendees(prev => {
-                                            const newAttendees = [...prev]
-                                            newAttendees[index] = { ...newAttendees[index], esExterno: false, otraOficina: true, oficina: '' }
-                                            return newAttendees
-                                          })
-                                        }}
-                                        className="accent-primary"
-                                      />
-                                      🔍 Otra oficina Alfa
-                                    </label>
-
-                                    {/* Opción: Persona externa (no pertenece a Alfa) */}
                                     <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${
                                       attendee.esExterno
                                         ? 'border-orange-400 bg-orange-50 text-orange-700 font-semibold'
@@ -718,7 +686,6 @@ export default function Checkout() {
                                     </label>
                                   </div>
 
-                                  {/* Selector de oficina listada */}
                                   {!attendee.esExterno && !attendee.otraOficina && (
                                     <div>
                                       <select
@@ -743,7 +710,6 @@ export default function Checkout() {
                                     </div>
                                   )}
 
-                                  {/* Campo de texto para otra oficina Alfa */}
                                   {attendee.otraOficina && !attendee.esExterno && (
                                     <div>
                                       <Input
@@ -757,7 +723,6 @@ export default function Checkout() {
                                     </div>
                                   )}
 
-                                  {/* Aviso para persona externa */}
                                   {attendee.esExterno && (
                                     <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                                       <span className="text-orange-500 text-base flex-shrink-0">ℹ️</span>

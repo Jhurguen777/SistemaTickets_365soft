@@ -5,42 +5,30 @@ import {
   Users,
   Ticket,
   Download,
-  Calendar,
   BarChart3,
   PieChart,
   FileText,
   CheckCircle,
-  XCircle
+  XCircle,
+  RefreshCw
 } from 'lucide-react'
 import adminService from '@/services/adminService'
-import { FinancialReport, AttendanceReport, SalesByPeriod, SectorStats } from '@/types/admin'
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Cell,
-  PieChart as RechartsPieChart,
-  Pie
-} from 'recharts'
-
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6']
+import api from '@/services/api'
+import { FinancialReport, AttendanceReport, SectorStats } from '@/types/admin'
 
 export default function Reports() {
   const [activeTab, setActiveTab] = useState<'ventas' | 'financiero' | 'asistencia'>('ventas')
   const [financialReport, setFinancialReport] = useState<FinancialReport | null>(null)
-  const [salesByPeriod, setSalesByPeriod] = useState<SalesByPeriod[]>([])
-  const [sectorStats, setSectorStats] = useState<SectorStats[]>([])
   const [attendanceReport, setAttendanceReport] = useState<AttendanceReport | null>(null)
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month'>('week')
   const [loading, setLoading] = useState(true)
   const [events, setEvents] = useState<any[]>([])
+  const [selectedEventId, setSelectedEventId] = useState<string>('')
+
+  // Datos calculados desde el backend
+  const [ventasPorPeriodo, setVentasPorPeriodo] = useState<{ periodo: string; ventas: number; ingresos: number }[]>([])
+  const [sectorStats, setSectorStats] = useState<SectorStats[]>([])
+  const [rawCompras, setRawCompras] = useState<any[]>([])
 
   useEffect(() => {
     loadData()
@@ -49,27 +37,236 @@ export default function Reports() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [financial, sales, sector, eventsData] = await Promise.all([
-        adminService.getFinancialReport(),
-        adminService.getSalesByPeriod(selectedPeriod),
-        adminService.getSectorStats(),
-        adminService.getEvents()
-      ])
-      setFinancialReport(financial)
-      setSalesByPeriod(sales)
-      setSectorStats(sector)
+
+      // 1. Cargar eventos desde el backend
+      const eventsData = await adminService.getEvents()
       setEvents(eventsData)
 
-      // Cargar reporte de asistencia del primer evento si existe
+      // 2. Cargar todas las compras desde el backend
+      const comprasRes = await api.get('/compras', { params: { limit: 1000 } })
+      const compras: any[] = comprasRes.data?.data?.compras
+        ?? comprasRes.data?.data
+        ?? comprasRes.data
+        ?? []
+      setRawCompras(compras)
+
+      // 3. Calcular ventas por período desde compras reales
+      calcularVentasPorPeriodo(compras, selectedPeriod)
+
+      // 4. Calcular stats por sector desde compras reales
+      calcularSectorStats(compras, eventsData)
+
+      // 5. Calcular reporte financiero desde datos reales
+      calcularFinancialReport(compras, eventsData)
+
+      // 6. Cargar asistencia del primer evento
       if (eventsData.length > 0) {
-        const attendance = await adminService.getAttendanceReport(eventsData[0].id)
-        setAttendanceReport(attendance)
+        const firstId = eventsData[0].id
+        setSelectedEventId(firstId)
+        await cargarAsistencia(firstId, compras)
       }
     } catch (error) {
       console.error('Error loading reports:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const calcularVentasPorPeriodo = (compras: any[], period: 'week' | 'month') => {
+    const pagadas = compras.filter(c => c.estadoPago === 'PAGADO' || c.estado === 'PAGADO')
+
+    if (period === 'week') {
+      // Agrupar por día de la semana (últimos 7 días)
+      const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+      const hoy = new Date()
+      const resultado: { periodo: string; ventas: number; ingresos: number }[] = []
+
+      for (let i = 6; i >= 0; i--) {
+        const fecha = new Date(hoy)
+        fecha.setDate(hoy.getDate() - i)
+        const diaLabel = dias[fecha.getDay()]
+        const fechaStr = fecha.toISOString().split('T')[0]
+
+        const comprasDia = pagadas.filter(c => {
+          const f = (c.createdAt || c.fechaCompra || '').split('T')[0]
+          return f === fechaStr
+        })
+
+        resultado.push({
+          periodo: diaLabel,
+          ventas: comprasDia.length,
+          ingresos: comprasDia.reduce((sum, c) => sum + (c.monto || 0), 0)
+        })
+      }
+      setVentasPorPeriodo(resultado)
+    } else {
+      // Agrupar por mes (últimos 6 meses)
+      const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+      const hoy = new Date()
+      const resultado: { periodo: string; ventas: number; ingresos: number }[] = []
+
+      for (let i = 5; i >= 0; i--) {
+        const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1)
+        const mes = fecha.getMonth()
+        const anio = fecha.getFullYear()
+
+        const comprasMes = pagadas.filter(c => {
+          const f = new Date(c.createdAt || c.fechaCompra || '')
+          return f.getMonth() === mes && f.getFullYear() === anio
+        })
+
+        resultado.push({
+          periodo: meses[mes],
+          ventas: comprasMes.length,
+          ingresos: comprasMes.reduce((sum, c) => sum + (c.monto || 0), 0)
+        })
+      }
+      setVentasPorPeriodo(resultado)
+    }
+  }
+
+  const calcularSectorStats = (compras: any[], eventsData: any[]) => {
+    const pagadas = compras.filter(c => c.estadoPago === 'PAGADO' || c.estado === 'PAGADO')
+
+    // Recopilar todos los sectores únicos
+    const sectoresMap: Record<string, { ventas: number; ingresos: number }> = {}
+
+    pagadas.forEach(c => {
+      const sectorNombre = c.asiento?.sector?.nombre
+        || c.sector?.nombre
+        || c.sectorNombre
+        || 'General'
+
+      if (!sectoresMap[sectorNombre]) {
+        sectoresMap[sectorNombre] = { ventas: 0, ingresos: 0 }
+      }
+      sectoresMap[sectorNombre].ventas += 1
+      sectoresMap[sectorNombre].ingresos += c.monto || 0
+    })
+
+    // Si no hay info de sector en compras, usar sectores de eventos
+    if (Object.keys(sectoresMap).length === 0) {
+      eventsData.forEach(evt => {
+        evt.sectors?.forEach((s: any) => {
+          const vendidos = evt.totalTicketsSold || 0
+          const pct = s.total > 0 ? s.total / (evt.capacity || 1) : 0
+          sectoresMap[s.name] = {
+            ventas: Math.round(vendidos * pct),
+            ingresos: Math.round(vendidos * pct) * s.price
+          }
+        })
+      })
+    }
+
+    const totalVentas = Object.values(sectoresMap).reduce((sum, s) => sum + s.ventas, 0)
+
+    const stats: SectorStats[] = Object.entries(sectoresMap).map(([name, data]) => ({
+      name,
+      ventas: data.ventas,
+      ingresos: data.ingresos,
+      porcentaje: totalVentas > 0 ? (data.ventas / totalVentas) * 100 : 0
+    }))
+
+    setSectorStats(stats)
+  }
+
+  const calcularFinancialReport = (compras: any[], eventsData: any[]) => {
+    const pagadas = compras.filter(c => c.estadoPago === 'PAGADO' || c.estado === 'PAGADO')
+
+    const totalRecaudado = pagadas.reduce((sum, c) => sum + (c.monto || 0), 0)
+    const promedioTicket = pagadas.length > 0 ? totalRecaudado / pagadas.length : 0
+
+    // Agrupar por evento
+    const porEventoMap: Record<string, { title: string; total: number; vendidos: number }> = {}
+
+    pagadas.forEach(c => {
+      const eId = c.eventoId || c.evento?.id
+      const eTitle = c.evento?.titulo || eventsData.find(e => e.id === eId)?.title || 'Sin nombre'
+      if (!porEventoMap[eId]) porEventoMap[eId] = { title: eTitle, total: 0, vendidos: 0 }
+      porEventoMap[eId].total += c.monto || 0
+      porEventoMap[eId].vendidos += 1
+    })
+
+    // Complementar con eventos que quizás no tienen compras en el período
+    eventsData.forEach(evt => {
+      if (!porEventoMap[evt.id]) {
+        porEventoMap[evt.id] = {
+          title: evt.title,
+          total: evt.totalSales || 0,
+          vendidos: evt.totalTicketsSold || 0
+        }
+      }
+    })
+
+    const porEvento = Object.entries(porEventoMap).map(([eventId, data]) => ({
+      eventId,
+      eventTitle: data.title,
+      totalRecaudado: data.total,
+      totalVendidos: data.vendidos,
+      sectors: []
+    }))
+
+    const totalCapacidad = eventsData.reduce((sum, e) => sum + (e.capacity || 0), 0)
+    const totalVendidos = pagadas.length
+    const ocupacionPromedio = totalCapacidad > 0 ? (totalVendidos / totalCapacidad) * 100 : 0
+
+    const eventoTop = porEvento.reduce((max, e) => e.totalVendidos > max.totalVendidos ? e : max,
+      porEvento[0] || { eventTitle: '-', totalVendidos: 0 })
+    const eventoMin = porEvento.reduce((min, e) => e.totalVendidos < min.totalVendidos ? e : min,
+      porEvento[0] || { eventTitle: '-', totalVendidos: 0 })
+
+    setFinancialReport({
+      totalRecaudado,
+      porEvento,
+      promedioTicket,
+      ocupacionPromedio,
+      eventoMasVendido: { title: eventoTop?.eventTitle || '-', ventas: eventoTop?.totalVendidos || 0 },
+      eventoMenosVendido: { title: eventoMin?.eventTitle || '-', ventas: eventoMin?.totalVendidos || 0 }
+    })
+  }
+
+  const cargarAsistencia = async (eventId: string, compras?: any[]) => {
+    try {
+      // Intentar endpoint de asistencia real primero
+      const res = await api.get(`/asistencia/evento/${eventId}`)
+      const data = res.data?.data
+      if (data) {
+        setAttendanceReport(data)
+        return
+      }
+    } catch {
+      // fallback: calcular desde compras
+    }
+
+    const allCompras = compras || rawCompras
+    const comprasEvento = allCompras.filter(c =>
+      (c.eventoId || c.evento?.id) === eventId &&
+      (c.estadoPago === 'PAGADO' || c.estado === 'PAGADO')
+    )
+
+    const confirmados = comprasEvento.length
+    const asistieron = comprasEvento.filter(c =>
+      c.asistencia === 'ASISTIO' || c.checkIn === true || c.horaCheckIn
+    ).length
+    const noShows = comprasEvento.filter(c => c.asistencia === 'NO_SHOW').length
+    const tasaAsistencia = confirmados > 0 ? (asistieron / confirmados) * 100 : 0
+
+    const evt = events.find(e => e.id === eventId)
+
+    setAttendanceReport({
+      eventId,
+      eventTitle: evt?.title || 'Evento',
+      confirmados,
+      asistieron,
+      noShows,
+      tasaAsistencia,
+      asistentes: comprasEvento
+        .filter(c => c.asistencia === 'ASISTIO' || c.horaCheckIn)
+        .map(c => c.asistente?.nombre || c.nombre || `Asistente #${c.id?.slice(-4)}`),
+      noShowsList: comprasEvento
+        .filter(c => c.asistencia === 'NO_SHOW')
+        .map(c => c.asistente?.nombre || c.nombre || `Asistente #${c.id?.slice(-4)}`)
+    })
   }
 
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
@@ -79,7 +276,7 @@ export default function Reports() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     )
   }
@@ -90,9 +287,16 @@ export default function Reports() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">Reportes</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Análisis detallado de ventas y métricas</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Datos en tiempo real desde el backend</p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={loadData}
+            className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <RefreshCw size={16} />
+            Actualizar
+          </button>
           <button
             onClick={() => handleExport('pdf')}
             className="flex items-center gap-2 px-3 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
@@ -113,152 +317,150 @@ export default function Reports() {
       {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-gray-700">
         <nav className="flex gap-8">
-          <button
-            onClick={() => setActiveTab('ventas')}
-            className={`py-3 px-1 border-b-2 font-medium text-xs tracking-wide transition-colors ${
-              activeTab === 'ventas'
-                ? 'border-gray-900 text-gray-900 dark:text-white'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
-            }`}
-          >
-            REPORTE DE VENTAS
-          </button>
-          <button
-            onClick={() => setActiveTab('financiero')}
-            className={`py-3 px-1 border-b-2 font-medium text-xs tracking-wide transition-colors ${
-              activeTab === 'financiero'
-                ? 'border-gray-900 text-gray-900 dark:text-white'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
-            }`}
-          >
-            REPORTE FINANCIERO
-          </button>
-          <button
-            onClick={() => setActiveTab('asistencia')}
-            className={`py-3 px-1 border-b-2 font-medium text-xs tracking-wide transition-colors ${
-              activeTab === 'asistencia'
-                ? 'border-gray-900 text-gray-900 dark:text-white'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
-            }`}
-          >
-            REPORTE DE ASISTENCIA
-          </button>
+          {(['ventas', 'financiero', 'asistencia'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`py-3 px-1 border-b-2 font-medium text-xs tracking-wide transition-colors ${
+                activeTab === tab
+                  ? 'border-gray-900 text-gray-900 dark:text-white'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700'
+              }`}
+            >
+              {tab === 'ventas' ? 'REPORTE DE VENTAS' : tab === 'financiero' ? 'REPORTE FINANCIERO' : 'REPORTE DE ASISTENCIA'}
+            </button>
+          ))}
         </nav>
       </div>
 
-      {/* Reporte de Ventas */}
+      {/* ── REPORTE DE VENTAS ── */}
       {activeTab === 'ventas' && (
         <div className="space-y-6">
-          {/* Period Selector */}
           <div className="flex items-center gap-4">
             <label className="text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide">Período:</label>
             <select
               value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value as 'week' | 'month')}
-              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 bg-white dark:bg-gray-800"
+              onChange={e => {
+                const p = e.target.value as 'week' | 'month'
+                setSelectedPeriod(p)
+                calcularVentasPorPeriodo(rawCompras, p)
+              }}
+              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 bg-white dark:bg-gray-800"
             >
               <option value="week">Última Semana</option>
               <option value="month">Último Mes</option>
             </select>
           </div>
 
-          {/* Distribución por Sector */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Detalles por Sector</h3>
-            <div className="space-y-4">
-              {sectorStats.map((sector) => (
-                <div key={sector.name} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-gray-900 dark:text-white text-sm">{sector.name}</h4>
-                    <span className="text-xs text-gray-600 dark:text-gray-300">{sector.porcentaje.toFixed(1)}%</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Ventas</p>
-                      <p className="font-medium text-gray-900 dark:text-white">{sector.ventas} entradas</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Ingresos</p>
-                      <p className="font-medium text-gray-900 dark:text-white">Bs {sector.ingresos.toLocaleString()}</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 w-full bg-gray-100 rounded-full h-2">
-                    <div
-                      className="bg-gray-900 h-2 rounded-full transition-all"
-                      style={{ width: `${sector.porcentaje}%` }}
-                    ></div>
-                  </div>
-                </div>
-              ))}
+          {/* Resumen período */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Total Ventas', value: ventasPorPeriodo.reduce((s, v) => s + v.ventas, 0), suffix: ' tickets' },
+              { label: 'Total Ingresos', value: ventasPorPeriodo.reduce((s, v) => s + v.ingresos, 0), prefix: 'Bs ' },
+              { label: 'Mejor Día', value: ventasPorPeriodo.reduce((max, v) => v.ventas > max.ventas ? v : max, ventasPorPeriodo[0] || { periodo: '-', ventas: 0, ingresos: 0 }).periodo, isText: true },
+              { label: 'Pico Ingresos', value: Math.max(...ventasPorPeriodo.map(v => v.ingresos), 0), prefix: 'Bs ' },
+            ].map((kpi, i) => (
+              <div key={i} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{kpi.label}</p>
+                <p className="text-xl font-semibold text-gray-900 dark:text-white">
+                  {kpi.isText ? kpi.value : `${kpi.prefix ?? ''}${Number(kpi.value).toLocaleString()}${kpi.suffix ?? ''}`}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabla ventas por período */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
+                Ventas por {selectedPeriod === 'week' ? 'Día' : 'Mes'}
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50 dark:bg-gray-700">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Período</th>
+                    <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Tickets</th>
+                    <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Ingresos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ventasPorPeriodo.map((row, i) => (
+                    <tr key={i} className="border-b border-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <td className="py-3 px-4 font-medium text-gray-900 dark:text-white text-sm">{row.periodo}</td>
+                      <td className="py-3 px-4 text-right text-sm text-gray-600 dark:text-gray-300">{row.ventas}</td>
+                      <td className="py-3 px-4 text-right text-sm font-medium text-gray-900 dark:text-white">Bs {row.ingresos.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  {ventasPorPeriodo.length === 0 && (
+                    <tr><td colSpan={3} className="py-8 text-center text-sm text-gray-400">Sin datos de ventas para este período</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
+
+          {/* Distribución por Sector */}
+          {sectorStats.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Detalles por Sector</h3>
+              <div className="space-y-4">
+                {sectorStats.map(sector => (
+                  <div key={sector.name} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900 dark:text-white text-sm">{sector.name}</h4>
+                      <span className="text-xs text-gray-600 dark:text-gray-300">{sector.porcentaje.toFixed(1)}%</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Ventas</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{sector.ventas} entradas</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Ingresos</p>
+                        <p className="font-medium text-gray-900 dark:text-white">Bs {sector.ingresos.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 w-full bg-gray-100 rounded-full h-2">
+                      <div className="bg-gray-900 h-2 rounded-full transition-all" style={{ width: `${sector.porcentaje}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Reporte Financiero */}
+      {/* ── REPORTE FINANCIERO ── */}
       {activeTab === 'financiero' && financialReport && (
         <div className="space-y-6">
-          {/* KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Recaudado</p>
-                  <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
-                    Bs {financialReport.totalRecaudado.toLocaleString()}
-                  </p>
+            {[
+              { label: 'Total Recaudado', value: `Bs ${financialReport.totalRecaudado.toLocaleString()}`, icon: DollarSign },
+              { label: 'Promedio Ticket', value: `Bs ${financialReport.promedioTicket.toFixed(2)}`, icon: Ticket },
+              { label: 'Ocupación Promedio', value: `${financialReport.ocupacionPromedio.toFixed(1)}%`, icon: BarChart3 },
+              { label: 'Mejor Evento', value: financialReport.eventoMasVendido.title, sub: `${financialReport.eventoMasVendido.ventas} ventas`, icon: TrendingUp },
+            ].map((kpi, i) => {
+              const Icon = kpi.icon
+              return (
+                <div key={i} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{kpi.label}</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white mt-1 truncate">{kpi.value}</p>
+                      {kpi.sub && <p className="text-xs text-gray-500 dark:text-gray-400">{kpi.sub}</p>}
+                    </div>
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 ml-3">
+                      <Icon className="text-gray-600 dark:text-gray-300" size={20} />
+                    </div>
+                  </div>
                 </div>
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <DollarSign className="text-gray-600 dark:text-gray-300" size={20} />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Promedio Ticket</p>
-                  <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
-                    Bs {financialReport.promedioTicket.toFixed(2).toLocaleString()}
-                  </p>
-                </div>
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Ticket className="text-gray-600 dark:text-gray-300" size={20} />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Ocupación Promedio</p>
-                  <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
-                    {financialReport.ocupacionPromedio.toFixed(1)}%
-                  </p>
-                </div>
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="text-gray-600 dark:text-gray-300" size={20} />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Mejor Evento</p>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white mt-1 truncate">
-                    {financialReport.eventoMasVendido.title}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{financialReport.eventoMasVendido.ventas} ventas</p>
-                </div>
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="text-gray-600 dark:text-gray-300" size={20} />
-                </div>
-              </div>
-            </div>
+              )
+            })}
           </div>
 
-          {/* Tabla Detallada */}
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">Detalle por Evento</h3>
@@ -273,15 +475,16 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody>
-                  {financialReport.porEvento.map((evento) => (
+                  {financialReport.porEvento.map(evento => (
                     <tr key={evento.eventId} className="border-b border-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                       <td className="py-3 px-4 font-medium text-gray-900 dark:text-white text-sm">{evento.eventTitle}</td>
-                      <td className="py-3 px-4 text-right">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">Bs {evento.totalRecaudado.toLocaleString()}</p>
-                      </td>
+                      <td className="py-3 px-4 text-right text-sm font-medium text-gray-900 dark:text-white">Bs {evento.totalRecaudado.toLocaleString()}</td>
                       <td className="py-3 px-4 text-right text-sm text-gray-600 dark:text-gray-300">{evento.totalVendidos}</td>
                     </tr>
                   ))}
+                  {financialReport.porEvento.length === 0 && (
+                    <tr><td colSpan={3} className="py-8 text-center text-sm text-gray-400">Sin datos financieros</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -289,93 +492,57 @@ export default function Reports() {
         </div>
       )}
 
-      {/* Reporte de Asistencia */}
+      {/* ── REPORTE DE ASISTENCIA ── */}
       {activeTab === 'asistencia' && (
         <div className="space-y-6">
-          {/* Selector de Evento */}
           <div className="flex items-center gap-4">
             <label className="text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide">Evento:</label>
             <select
-              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 bg-white dark:bg-gray-800"
-              onChange={async (e) => {
-                const attendance = await adminService.getAttendanceReport(e.target.value)
-                setAttendanceReport(attendance)
+              value={selectedEventId}
+              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 bg-white dark:bg-gray-800"
+              onChange={async e => {
+                setSelectedEventId(e.target.value)
+                await cargarAsistencia(e.target.value)
               }}
             >
-              {events.map((event) => (
-                <option key={event.id} value={event.id}>
-                  {event.title}
-                </option>
+              {events.map(event => (
+                <option key={event.id} value={event.id}>{event.title}</option>
               ))}
             </select>
           </div>
 
           {attendanceReport && (
             <>
-              {/* KPIs de Asistencia */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Confirmados</p>
-                      <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
-                        {attendanceReport.confirmados}
-                      </p>
+                {[
+                  { label: 'Confirmados', value: attendanceReport.confirmados, icon: Users },
+                  { label: 'Asistieron', value: attendanceReport.asistieron, icon: CheckCircle },
+                  { label: 'No Shows', value: attendanceReport.noShows, icon: XCircle },
+                  { label: 'Tasa Asistencia', value: `${attendanceReport.tasaAsistencia.toFixed(1)}%`, icon: PieChart },
+                ].map((kpi, i) => {
+                  const Icon = kpi.icon
+                  return (
+                    <div key={i} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{kpi.label}</p>
+                          <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">{kpi.value}</p>
+                        </div>
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                          <Icon className="text-gray-600 dark:text-gray-300" size={20} />
+                        </div>
+                      </div>
                     </div>
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <Users className="text-gray-600 dark:text-gray-300" size={20} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Asistieron</p>
-                      <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
-                        {attendanceReport.asistieron}
-                      </p>
-                    </div>
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <CheckCircle className="text-gray-600 dark:text-gray-300" size={20} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">No Shows</p>
-                      <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
-                        {attendanceReport.noShows}
-                      </p>
-                    </div>
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <XCircle className="text-gray-600 dark:text-gray-300" size={20} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Tasa Asistencia</p>
-                      <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
-                        {attendanceReport.tasaAsistencia.toFixed(1)}%
-                      </p>
-                    </div>
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <PieChart className="text-gray-600 dark:text-gray-300" size={20} />
-                    </div>
-                  </div>
-                </div>
+                  )
+                })}
               </div>
 
-              {/* Lista de No Shows */}
               {attendanceReport.noShowsList.length > 0 && (
                 <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
                   <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">No Shows (Confirmaron pero no asistieron)</h3>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
+                      No Shows ({attendanceReport.noShowsList.length})
+                    </h3>
                   </div>
                   <div className="p-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -387,6 +554,12 @@ export default function Reports() {
                       ))}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {attendanceReport.confirmados === 0 && (
+                <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center">
+                  <p className="text-sm text-gray-500">No hay compras registradas para este evento aún.</p>
                 </div>
               )}
             </>
