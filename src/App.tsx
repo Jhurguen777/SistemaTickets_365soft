@@ -36,6 +36,7 @@ import Settings from './pages/admin/Settings'
 import AccessManagement from './pages/admin/AccessManagement'
 import Attendance from './pages/admin/Attendance'
 import CertificateTemplates from './pages/admin/CertificateTemplates'
+import PaymentVerificationsPage from './pages/admin/PaymentVerificationsPage'
 
 type ModalType = 'login' | 'howToBuy' | 'faq' | 'storeLocations' | 'terms' | 'privacy' | 'paymentMethods' | null
 
@@ -93,6 +94,7 @@ function App() {
             <Route path="usuarios" element={<UsersList />} />
             <Route path="asistencia/registrar" element={<Attendance />} />
             <Route path="asistencia/plantillas" element={<CertificateTemplates />} />
+            <Route path="verificar-pagos" element={<PaymentVerificationsPage />} />
             <Route path="reportes" element={<Reports />} />
             <Route path="accesos" element={<AccessManagement />} />
             <Route path="configuracion" element={<Settings />} />

@@ -17,7 +17,8 @@ import {
   ClipboardCheck,
   FileText,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  CheckCircle
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 
@@ -44,6 +45,7 @@ const navItems: NavItem[] = [
       { label: 'Plantillas de Certificado', path: '/admin/asistencia/plantillas', icon: FileText }
     ]
   },
+  { label: 'Verificar Pagos', path: '/admin/verificar-pagos', icon: CheckCircle },
   { label: 'Reportes', path: '/admin/reportes', icon: DollarSign }
 ]
 

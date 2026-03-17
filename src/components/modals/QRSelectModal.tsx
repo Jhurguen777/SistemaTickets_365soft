@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
-import { QrCode, CheckCircle2 } from 'lucide-react'
+import { QrCode, CheckCircle2, Wallet } from 'lucide-react'
 
 interface QRSelectModalProps {
   isOpen: boolean
@@ -25,6 +25,9 @@ const QRSelectModal: React.FC<QRSelectModalProps> = ({ isOpen, onClose, onSelect
 
   const active = localSelected === 'qr'
 
+  const activeQr = localSelected === 'qr'
+  const activeCash = localSelected === 'cash'
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="¿Cómo deseas pagar?" size="sm">
       <div className="pt-1 pb-2">
@@ -36,21 +39,21 @@ const QRSelectModal: React.FC<QRSelectModalProps> = ({ isOpen, onClose, onSelect
           type="button"
           onClick={() => setLocalSelected('qr')}
           className={`w-full flex items-center gap-4 p-5 rounded-2xl border-2 transition-all mb-4 ${
-            active
+            activeQr
               ? 'border-primary bg-primary/5 shadow-sm'
               : 'border-gray-200 hover:border-primary/40 active:bg-gray-50'
           }`}
         >
           {/* Ícono grande */}
           <div className={`w-16 h-16 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-md transition-colors ${
-            active ? 'bg-primary' : 'bg-primary'
+            activeQr ? 'bg-primary' : 'bg-primary'
           }`}>
             <QrCode className="w-8 h-8 text-white" />
           </div>
 
           {/* Texto */}
           <div className="flex-1 text-left">
-            <p className={`font-extrabold text-lg leading-tight ${active ? 'text-primary' : 'text-gray-800'}`}>
+            <p className={`font-extrabold text-lg leading-tight ${activeQr ? 'text-primary' : 'text-gray-800'}`}>
               Pago con QR
             </p>
             <p className="text-sm text-gray-500 mt-1 leading-snug">
@@ -60,9 +63,44 @@ const QRSelectModal: React.FC<QRSelectModalProps> = ({ isOpen, onClose, onSelect
 
           {/* Indicador de selección */}
           <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${
-            active ? 'border-primary bg-primary' : 'border-gray-300 bg-white'
+            activeQr ? 'border-primary bg-primary' : 'border-gray-300 bg-white'
           }`}>
-            {active && <CheckCircle2 className="w-5 h-5 text-white" fill="white" strokeWidth={0} />}
+            {activeQr && <CheckCircle2 className="w-5 h-5 text-white" fill="white" strokeWidth={0} />}
+          </div>
+        </button>
+
+        {/* Opción Efectivo con Comprobante */}
+        <button
+          type="button"
+          onClick={() => setLocalSelected('cash')}
+          className={`w-full flex items-center gap-4 p-5 rounded-2xl border-2 transition-all mb-4 ${
+            activeCash
+              ? 'border-primary bg-primary/5 shadow-sm'
+              : 'border-gray-200 hover:border-primary/40 active:bg-gray-50'
+          }`}
+        >
+          {/* Ícono grande */}
+          <div className={`w-16 h-16 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-md transition-colors ${
+            activeCash ? 'bg-orange-500' : 'bg-orange-500'
+          }`}>
+            <Wallet className="w-8 h-8 text-white" />
+          </div>
+
+          {/* Texto */}
+          <div className="flex-1 text-left">
+            <p className={`font-extrabold text-lg leading-tight ${activeCash ? 'text-orange-600' : 'text-gray-800'}`}>
+              Efectivo (Comprobante)
+            </p>
+            <p className="text-sm text-gray-500 mt-1 leading-snug">
+              Sube una foto de tu comprobante de pago (transferencia/deposito). Requiere aprobación manual.
+            </p>
+          </div>
+
+          {/* Indicador de selección */}
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${
+            activeCash ? 'border-orange-500 bg-orange-500' : 'border-gray-300 bg-white'
+          }`}>
+            {activeCash && <CheckCircle2 className="w-5 h-5 text-white" fill="white" strokeWidth={0} />}
           </div>
         </button>
 
@@ -73,7 +111,7 @@ const QRSelectModal: React.FC<QRSelectModalProps> = ({ isOpen, onClose, onSelect
           </Button>
           <Button
             onClick={handleAccept}
-            disabled={!active}
+            disabled={!activeQr && !activeCash}
             className="flex-1 py-3 text-base font-bold"
           >
             Confirmar

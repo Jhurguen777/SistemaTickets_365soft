@@ -11,7 +11,9 @@ services:
         VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://localhost:3000}
     container_name: tickets_frontend_dev
     restart: unless-stopped
+    # Exponer puerto de Vite para desarrollo y nginx para producción
     ports:
+      - "5173:5173"
       - "8080:80"
     # VOLUMES PARA HOT RELOAD - Monta el código local en el contenedor
     volumes:
@@ -22,7 +24,3 @@ services:
       - /app/node_modules  # Evita sobrescribir node_modules con versión vacía
     # Comando para desarrollo con hot reload
     command: npm run dev -- --host 0.0.0.0 --port 5173
-    # Exponer puerto de Vite además del de nginx (para dev)
-    ports:
-      - "5173:5173"
-      - "8080:80"

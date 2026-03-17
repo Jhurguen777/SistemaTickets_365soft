@@ -8,8 +8,9 @@ import adminService from '@/services/adminService'
 import { paymentServiceV2 } from '@/services/paymentServiceV2'
 import api from '@/services/api'
 import QRPaymentModal from '@/components/modals/QRPaymentModal'
+import CashPaymentModal from '@/components/modals/CashPaymentModal'
 import QRSelectModal from '@/components/modals/QRSelectModal'
-import CertificateInfoModal from '@/components/modals/CertificateInfoModal'
+import CertificateInfoModal from '@/components/modals/CertificateInfomodal'
 
 interface CheckoutSeat { id: string; row: string; number: number; price: number }
 
@@ -84,18 +85,6 @@ export default function Checkout() {
     }
   }, [])
 
-  useEffect(() => {
-    if (reservaId && localStorage.getItem(`compra_completada_${reservaId}`)) {
-      navigate('/mis-compras', { replace: true })
-      return
-    }
-    if (!reservaId && !eventId && !seats?.length) {
-      navigate('/', { replace: true })
-    }
-  }, [reservaId])
-
-  const [event, setEvent] = useState<any>(null)
-
   const FORM_KEY     = `checkout_form_${eventId}`
   const COMPLETE_KEY = `checkout_completed_${eventId}`
   const PAYMENT_KEY  = `checkout_payment_${eventId}`
@@ -164,29 +153,33 @@ export default function Checkout() {
     } catch { return null }
   })
 
-  const [showPaidModal, setShowPaidModal]           = useState(false)
-  const [errors, setErrors]                         = useState<FormErrors>({})
-  const [processing, setProcessing]                 = useState(false)
-  const [termsAccepted, setTermsAccepted]           = useState<boolean>(() => {
+  const [event, setEvent] = useState<any>(null)
+  const [showPaidModal, setShowPaidModal]                   = useState(false)
+  const [errors, setErrors]                                 = useState<FormErrors>({})
+  const [processing, setProcessing]                         = useState(false)
+  const [termsAccepted, setTermsAccepted]                   = useState<boolean>(() => {
     try { return sessionStorage.getItem(`checkout_terms_${eventId}`) === 'true' }
     catch { return false }
   })
-  const [showQRModal, setShowQRModal]               = useState(false)
-  const [showQRSelectModal, setShowQRSelectModal]   = useState(false)
-  const [currentQRData, setCurrentQRData]           = useState<any>(null)
-  const [currentPurchaseId, setCurrentPurchaseId]   = useState<string>('')
-  const [paymentStatus, setPaymentStatus]           = useState<'PENDIENTE' | 'PROCESANDO' | 'PAGADO' | 'FALLIDO' | 'EXPIRADO'>('PENDIENTE')
-  const [asientosLiberados, setAsientosLiberados]   = useState(false)
-  const [showMobileSummary, setShowMobileSummary]   = useState(false)
-  const [showConfirmModal, setShowConfirmModal]     = useState(false)
-  const [resumeTimeLeft, setResumeTimeLeft]         = useState(0)
+  const [showQRModal, setShowQRModal]                       = useState(false)
+  const [showCashPaymentModal, setShowCashPaymentModal]     = useState(false)
+  const [showQRSelectModal, setShowQRSelectModal]           = useState(false)
+  const [currentQRData, setCurrentQRData]                   = useState<any>(null)
+  const [currentPurchaseId, setCurrentPurchaseId]           = useState<string>('')
+  const [cashPaymentCompraId, setCashPaymentCompraId]       = useState<string>('')
+  const [paymentStatus, setPaymentStatus]                   = useState<'PENDIENTE' | 'PROCESANDO' | 'PAGADO' | 'FALLIDO' | 'EXPIRADO'>('PENDIENTE')
+  const [asientosLiberados, setAsientosLiberados]           = useState(false)
+  const [showMobileSummary, setShowMobileSummary]           = useState(false)
+  const [showConfirmModal, setShowConfirmModal]             = useState(false)
+  const [resumeTimeLeft, setResumeTimeLeft]                 = useState(0)
+  const [showPendingPurchasesModal, setShowPendingPurchasesModal] = useState(false)
+  const [pendingPurchasesCount, setPendingPurchasesCount]   = useState(0)
 
-  // ── Modal certificado — se muestra automáticamente al entrar ──
+  // ── Modal certificado ──
   const [showCertModal, setShowCertModal] = useState(true)
-  // ─────────────────────────────────────────────────────────────
 
-  const paymentProcessedRef  = useRef(false)
-  const silentPollingRef     = useRef<{ iniciar: () => void; detener: () => void } | null>(null)
+  const paymentProcessedRef = useRef(false)
+  const silentPollingRef    = useRef<{ iniciar: () => void; detener: () => void } | null>(null)
 
   const oficinas = [
     { codigo: '2526', nombre: 'ALFA FORZA' }, { codigo: '2527', nombre: 'ALFA DIAMOND' },
@@ -226,13 +219,57 @@ export default function Checkout() {
     }
   }
 
-  // ── Persistencia en sessionStorage ────────────────────────────────────────
+  // ── Persistencia sessionStorage ────────────────────────────────────────────
   useEffect(() => { if (eventId && attendees.length > 0) sessionStorage.setItem(FORM_KEY, JSON.stringify(attendees)) }, [attendees])
   useEffect(() => { if (eventId) sessionStorage.setItem(COMPLETE_KEY, JSON.stringify([...completedAttendees])) }, [completedAttendees])
   useEffect(() => { if (eventId) sessionStorage.setItem(PAYMENT_KEY, JSON.stringify(paymentData)) }, [paymentData])
   useEffect(() => { if (eventId) sessionStorage.setItem(`checkout_terms_${eventId}`, String(termsAccepted)) }, [termsAccepted])
 
-  // ── Countdown del QR pendiente ─────────────────────────────────────────────
+  // ── Verificar compras pendientes + redirección ─────────────────────────────
+  useEffect(() => {
+    const checkPendingPurchases = async () => {
+      if (reservaId && localStorage.getItem(`compra_completada_${reservaId}`)) {
+        navigate('/mis-compras', { replace: true })
+        return
+      }
+      if (!reservaId && !eventId && !seats?.length) {
+        navigate('/', { replace: true })
+        return
+      }
+      // Solo para modo CANTIDAD (general)
+      if (eventId && isGeneralMode) {
+        try {
+          const res = await api.get('/compras/mis-compras', { params: { limit: 100 } })
+          const compras: any[] = res.data.data ?? []
+          const comprasPendientes = compras.filter((c: any) =>
+            c.eventoId === eventId &&
+            c.estadoPago === 'PENDIENTE_APROBACION'
+          )
+          if (comprasPendientes.length > 0) {
+            sessionStorage.removeItem(FORM_KEY)
+            sessionStorage.removeItem(COMPLETE_KEY)
+            sessionStorage.removeItem(PAYMENT_KEY)
+            sessionStorage.removeItem(`checkout_terms_${eventId}`)
+            setAttendees(seats.map(() => ({
+              nombre: '', apellido: '', email: '', telefono: '',
+              documento: '', oficina: '', otraOficina: false, otraOficinaNombre: '', esExterno: false
+            })))
+            setCompletedAttendees(new Set<number>())
+            setExpandedAttendee(0)
+            setPaymentData({ medioPago: '' })
+            setTermsAccepted(false)
+            setPendingPurchasesCount(Math.min(comprasPendientes.length, 5))
+            setShowPendingPurchasesModal(true)
+          }
+        } catch (error) {
+          console.error('Error verificando compras pendientes:', error)
+        }
+      }
+    }
+    checkPendingPurchases()
+  }, [reservaId, eventId, isGeneralMode])
+
+  // ── Countdown QR pendiente ─────────────────────────────────────────────────
   useEffect(() => {
     if (!resumeQRData) return
     const update = () => {
@@ -255,7 +292,6 @@ export default function Checkout() {
         if (!raw) return
         const data = JSON.parse(raw)
         if (data.eventId !== eventId) return
-
         const expiry = new Date(data.fechaVencimiento).getTime()
         if (Date.now() > expiry) { localStorage.removeItem('pending_payment'); return }
 
@@ -276,10 +312,9 @@ export default function Checkout() {
             localStorage.removeItem('pending_payment')
             return
           }
-        } catch { /* Error de red: mostrar QR guardado igual */ }
+        } catch { /* mostrar QR guardado */ }
 
         setResumeQRData(data)
-
         silentPolling = paymentServiceV2.iniciarPollingPago(
           data.qrPagoId,
           (resultado) => {
@@ -415,9 +450,7 @@ export default function Checkout() {
       if (name === 'otraOficina' && value === true) updated.oficina = ''
       if (name === 'otraOficina' && value === false) updated.otraOficinaNombre = ''
       if (name === 'esExterno' && value === true) {
-        updated.oficina = ''
-        updated.otraOficina = false
-        updated.otraOficinaNombre = ''
+        updated.oficina = ''; updated.otraOficina = false; updated.otraOficinaNombre = ''
       }
       newAttendees[attendeeIndex] = updated
       return newAttendees
@@ -447,23 +480,20 @@ export default function Checkout() {
     if (confirm('¿Estás seguro de cancelar la compra? Los asientos seleccionados serán liberados.')) {
       const polling = (window as any).paymentPolling
       if (polling?.detener) polling.detener()
-
       sessionStorage.removeItem('checkout_state')
       sessionStorage.removeItem(FORM_KEY)
       sessionStorage.removeItem(COMPLETE_KEY)
       sessionStorage.removeItem(PAYMENT_KEY)
       sessionStorage.removeItem(`checkout_terms_${eventId}`)
       localStorage.removeItem('pending_payment')
-
       await liberarAsientos()
       navigate(-1)
     }
   }
 
-  // ── Submit (muestra modal de confirmación) ─────────────────────────────────
+  // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
     let allAttendeesValid = true
     const newErrors: FormErrors = {}
 
@@ -477,21 +507,22 @@ export default function Checkout() {
     }
 
     setErrors(newErrors)
-
     if (!allAttendeesValid) {
       const firstErrorIndex = Object.keys(newErrors)[0]?.split('_')[0]
       if (firstErrorIndex !== undefined) setExpandedAttendee(parseInt(firstErrorIndex))
       alert('Por favor completa los datos de todos los asistentes antes de continuar')
       return
     }
-
     if (!validatePayment()) { alert('Por favor selecciona un método de pago antes de continuar'); return }
     if (!termsAccepted) { alert('Debes aceptar los términos y condiciones para continuar'); return }
     if (!event) { alert('Error al cargar los datos del evento'); return }
     if (!isGeneralMode && !reservaId) { alert('No hay reserva activa. Por favor selecciona tus asientos nuevamente.'); return }
-    if (paymentData.medioPago !== 'qr') { alert('Actualmente solo aceptamos pagos con QR'); return }
 
-    setShowConfirmModal(true)
+    if (paymentData.medioPago === 'cash' || paymentData.medioPago === 'qr') {
+      setShowConfirmModal(true)
+    } else {
+      alert('Por favor selecciona un método de pago')
+    }
   }
 
   // ── Confirmar y pagar ──────────────────────────────────────────────────────
@@ -499,15 +530,13 @@ export default function Checkout() {
     setShowConfirmModal(false)
     setProcessing(true)
     setPaymentStatus('PENDIENTE')
+
     try {
       const asistentesBase = seats.map((_seat: CheckoutSeat, index: number) => {
         const a = attendees[index]
         return {
-          nombre: a.nombre,
-          apellido: a.apellido,
-          email: a.email,
-          telefono: a.telefono,
-          documento: a.documento,
+          nombre: a.nombre, apellido: a.apellido, email: a.email,
+          telefono: a.telefono, documento: a.documento,
           oficina: a.otraOficina ? a.otraOficinaNombre : (a.oficina || undefined),
         }
       })
@@ -528,59 +557,71 @@ export default function Checkout() {
             medioPago: paymentData.medioPago,
           })
 
-      if (!pagoResponse.success || !pagoResponse.qrPago) {
+      if (!pagoResponse.success || !pagoResponse.compras || pagoResponse.compras.length === 0) {
         throw new Error(pagoResponse.error || 'Error al iniciar el pago')
       }
 
-      const qrPagoId    = pagoResponse.qrPago.id
-      const qrImageData = pagoResponse.qrPago.imagenQr
+      const todasLasComprasIds = pagoResponse.compras.map((c: any) => c.id)
 
-      setCurrentQRData({
-        qrData: qrImageData, qrUrl: qrImageData, imagenQr: qrImageData,
-        moneda: pagoResponse.qrPago.moneda, monto: pagoResponse.qrPago.monto,
-        tiempoExpiracion: pagoResponse.qrPago.fechaVencimiento, compraId: qrPagoId
-      })
-      setCurrentPurchaseId(qrPagoId)
-      setShowQRModal(true)
+      if (paymentData.medioPago === 'cash') {
+        // Pago en efectivo → modal de comprobante
+        setCashPaymentCompraId(todasLasComprasIds.join(','))
+        setShowCashPaymentModal(true)
+        setProcessing(false)
 
-      const pendingPayload = {
-        qrPagoId,
-        imagenQr:         qrImageData,
-        monto:            pagoResponse.qrPago.monto,
-        moneda:           pagoResponse.qrPago.moneda,
-        fechaVencimiento: pagoResponse.qrPago.fechaVencimiento,
-        eventTitle:       event?.title ?? event?.titulo ?? '',
-        eventId,
-        createdAt:        new Date().toISOString()
-      }
-      localStorage.setItem('pending_payment', JSON.stringify(pendingPayload))
-      setResumeQRData(pendingPayload)
+      } else if (paymentData.medioPago === 'qr') {
+        // Pago con QR → flujo de polling
+        if (!pagoResponse.qrPago) throw new Error('No se recibió QR de pago')
 
-      // Auto-limpiar al vencer
-      const msHastaVencimiento = new Date(pagoResponse.qrPago.fechaVencimiento).getTime() - Date.now()
-      if (msHastaVencimiento > 0) {
-        setTimeout(() => {
-          const current = localStorage.getItem('pending_payment')
-          if (current) {
-            try {
-              const parsed = JSON.parse(current)
-              if (parsed.qrPagoId === qrPagoId) localStorage.removeItem('pending_payment')
-            } catch { localStorage.removeItem('pending_payment') }
-          }
-        }, msHastaVencimiento)
-      }
+        const qrPagoId    = pagoResponse.qrPago.id
+        const qrImageData = pagoResponse.qrPago.imagenQr
 
-      const polling = paymentServiceV2.iniciarPollingPago(
-        qrPagoId,
-        (resultado) => {
-          setPaymentStatus(resultado.estado)
-          if (resultado.estado === 'PAGADO')   handlePaymentSuccess(reservaId!, resultado.datos?.transaccionId)
-          else if (resultado.estado === 'FALLIDO')  handlePaymentFailed(resultado.datos?.mensaje)
-          else if (resultado.estado === 'EXPIRADO') handlePaymentExpired()
+        setCurrentQRData({
+          qrData: qrImageData, qrUrl: qrImageData, imagenQr: qrImageData,
+          moneda: pagoResponse.qrPago.moneda, monto: pagoResponse.qrPago.monto,
+          tiempoExpiracion: pagoResponse.qrPago.fechaVencimiento, compraId: qrPagoId
+        })
+        setCurrentPurchaseId(qrPagoId)
+        setShowQRModal(true)
+
+        const pendingPayload = {
+          qrPagoId,
+          imagenQr:         qrImageData,
+          monto:            pagoResponse.qrPago.monto,
+          moneda:           pagoResponse.qrPago.moneda,
+          fechaVencimiento: pagoResponse.qrPago.fechaVencimiento,
+          eventTitle:       event?.title ?? event?.titulo ?? '',
+          eventId,
+          createdAt:        new Date().toISOString()
         }
-      )
-      polling.iniciar()
-      ;(window as any).paymentPolling = polling
+        localStorage.setItem('pending_payment', JSON.stringify(pendingPayload))
+        setResumeQRData(pendingPayload)
+
+        const msHastaVencimiento = new Date(pagoResponse.qrPago.fechaVencimiento).getTime() - Date.now()
+        if (msHastaVencimiento > 0) {
+          setTimeout(() => {
+            const current = localStorage.getItem('pending_payment')
+            if (current) {
+              try {
+                const parsed = JSON.parse(current)
+                if (parsed.qrPagoId === qrPagoId) localStorage.removeItem('pending_payment')
+              } catch { localStorage.removeItem('pending_payment') }
+            }
+          }, msHastaVencimiento)
+        }
+
+        const polling = paymentServiceV2.iniciarPollingPago(
+          qrPagoId,
+          (resultado) => {
+            setPaymentStatus(resultado.estado)
+            if (resultado.estado === 'PAGADO')        handlePaymentSuccess(reservaId!, resultado.datos?.transaccionId)
+            else if (resultado.estado === 'FALLIDO')  handlePaymentFailed(resultado.datos?.mensaje)
+            else if (resultado.estado === 'EXPIRADO') handlePaymentExpired()
+          }
+        )
+        polling.iniciar()
+        ;(window as any).paymentPolling = polling
+      }
     } catch (error: any) {
       console.error('Error en el proceso de pago:', error)
       if (error.status === 409) {
@@ -624,7 +665,6 @@ export default function Checkout() {
         c.estadoPago === 'PAGADO' &&
         ahora - new Date(c.updatedAt ?? c.createdAt).getTime() < diezMin
       )
-
       if (eventCompras.length > 0) {
         const first = eventCompras[0]
         navigate('/compra-exitosa', {
@@ -653,7 +693,6 @@ export default function Checkout() {
     } catch (err) {
       console.error('Error fetching purchases after payment:', err)
     }
-
     navigate('/mis-compras', { replace: true })
   }
 
@@ -663,14 +702,12 @@ export default function Checkout() {
     const polling = (window as any).paymentPolling
     if (polling?.detener) polling.detener()
     silentPollingRef.current?.detener()
-
     sessionStorage.removeItem('checkout_state')
     sessionStorage.removeItem(FORM_KEY)
     sessionStorage.removeItem(COMPLETE_KEY)
     sessionStorage.removeItem(PAYMENT_KEY)
     sessionStorage.removeItem(`checkout_terms_${eventId}`)
     localStorage.removeItem('pending_payment')
-
     await liberarAsientos()
     alert(mensaje || 'El pago falló. Por favor intenta nuevamente.')
   }
@@ -681,14 +718,12 @@ export default function Checkout() {
     const polling = (window as any).paymentPolling
     if (polling?.detener) polling.detener()
     silentPollingRef.current?.detener()
-
     sessionStorage.removeItem('checkout_state')
     sessionStorage.removeItem(FORM_KEY)
     sessionStorage.removeItem(COMPLETE_KEY)
     sessionStorage.removeItem(PAYMENT_KEY)
     sessionStorage.removeItem(`checkout_terms_${eventId}`)
     localStorage.removeItem('pending_payment')
-
     await liberarAsientos()
     alert('El tiempo para el pago ha expirado. Por favor selecciona tus asientos nuevamente.')
     navigate(-1)
@@ -696,7 +731,7 @@ export default function Checkout() {
 
   const handleModalPaymentSuccess = () => setShowQRModal(false)
 
-  // ── Reanudar QR pendiente ──────────────────────────────────────────────────
+  // ── Reanudar QR ────────────────────────────────────────────────────────────
   const handleResumeQR = () => {
     if (!resumeQRData) return
     setCurrentQRData({
@@ -715,7 +750,7 @@ export default function Checkout() {
       resumeQRData.qrPagoId,
       (resultado) => {
         setPaymentStatus(resultado.estado)
-        if (resultado.estado === 'PAGADO')   handlePaymentSuccess(reservaId!, resultado.datos?.transaccionId)
+        if (resultado.estado === 'PAGADO')        handlePaymentSuccess(reservaId!, resultado.datos?.transaccionId)
         else if (resultado.estado === 'FALLIDO')  handlePaymentFailed(resultado.datos?.mensaje)
         else if (resultado.estado === 'EXPIRADO') handlePaymentExpired()
       }
@@ -724,7 +759,7 @@ export default function Checkout() {
     ;(window as any).paymentPolling = polling
   }
 
-  // ── Guard: sin asientos ────────────────────────────────────────────────────
+  // ── Guard ──────────────────────────────────────────────────────────────────
   if (!seats || seats.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
@@ -742,37 +777,28 @@ export default function Checkout() {
   return (
     <div className="min-h-screen bg-gray-50">
 
-      {/* ── Popup informativo de certificado ── */}
-      <CertificateInfoModal
-        isOpen={showCertModal}
-        onConfirm={() => setShowCertModal(false)}
-      />
+      {/* Modal certificado */}
+      <CertificateInfoModal isOpen={showCertModal} onConfirm={() => setShowCertModal(false)} />
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="bg-primary text-white py-4 sm:py-6">
         <div className="container mx-auto px-3 sm:px-4">
           <div className="flex items-center gap-2 mb-2 sm:mb-4">
-            <button
-              onClick={handleCancel}
-              className="inline-flex items-center px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-200 hover:text-white rounded-lg font-semibold transition-colors text-sm sm:text-base"
-            >
+            <button onClick={handleCancel}
+              className="inline-flex items-center px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-200 hover:text-white rounded-lg font-semibold transition-colors text-sm sm:text-base">
               <X size={14} className="mr-1.5" />
               Cancelar
             </button>
-            <button
-              onClick={() => navigate(-1)}
-              className="inline-flex items-center text-white/80 hover:text-white font-semibold transition-colors text-sm sm:text-base"
-            >
+            <button onClick={() => navigate(-1)}
+              className="inline-flex items-center text-white/80 hover:text-white font-semibold transition-colors text-sm sm:text-base">
               <ArrowLeft size={18} className="mr-1 sm:mr-2" />
               Volver
             </button>
           </div>
           <div className="flex items-center justify-between">
             <h1 className="text-xl sm:text-3xl font-bold">Finalizar compra</h1>
-            <button
-              onClick={() => setShowMobileSummary(!showMobileSummary)}
-              className="sm:hidden flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-lg text-sm font-semibold"
-            >
+            <button onClick={() => setShowMobileSummary(!showMobileSummary)}
+              className="sm:hidden flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-lg text-sm font-semibold">
               <span>Bs {totalPrice.toFixed(2)}</span>
               <ChevronDown size={14} className={`transition-transform ${showMobileSummary ? 'rotate-180' : ''}`} />
             </button>
@@ -780,7 +806,7 @@ export default function Checkout() {
         </div>
       </div>
 
-      {/* ── Resumen móvil ── */}
+      {/* Resumen móvil */}
       {showMobileSummary && (
         <div className="sm:hidden bg-white border-b px-4 py-4 shadow-sm">
           {event && <p className="font-semibold text-sm mb-2">{event.title}</p>}
@@ -801,24 +827,17 @@ export default function Checkout() {
 
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
 
-        {/* ── Stepper ── */}
+        {/* Stepper */}
         <div className="flex items-center justify-center mb-6">
           {[{ label: 'Datos', step: 1 }, { label: 'Pago', step: 2 }, { label: 'QR', step: 3 }].map(({ label, step }, i) => {
             const done   = step < currentStep
             const active = step === currentStep
             return (
               <React.Fragment key={step}>
-                {i > 0 && (
-                  <div className="h-0.5 mx-2" style={{ width: '3rem', background: done ? '#22c55e' : '#e5e7eb' }} />
-                )}
+                {i > 0 && <div className="h-0.5 mx-2" style={{ width: '3rem', background: done ? '#22c55e' : '#e5e7eb' }} />}
                 <div className="flex flex-col items-center">
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all"
-                    style={{
-                      background: done ? '#22c55e' : active ? '#233C7A' : '#e5e7eb',
-                      color: (done || active) ? '#fff' : '#9ca3af'
-                    }}
-                  >
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all"
+                    style={{ background: done ? '#22c55e' : active ? '#233C7A' : '#e5e7eb', color: (done || active) ? '#fff' : '#9ca3af' }}>
                     {done ? <Check size={14} /> : step}
                   </div>
                   <span className="text-xs mt-1 font-semibold" style={{ color: done ? '#16a34a' : active ? '#233C7A' : '#9ca3af' }}>
@@ -831,31 +850,28 @@ export default function Checkout() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-8">
-
-          {/* ── Formulario ── */}
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit}>
 
+              {/* Datos asistentes */}
               <div className="mb-4 sm:mb-6">
                 <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4 flex items-center">
                   <Users className="mr-2 text-primary" size={20} />
                   Datos de los asistentes
                 </h2>
 
-                {/* Banner informativo */}
                 <div className="mb-4 sm:mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
                   <Info size={20} className="text-blue-500 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-semibold text-blue-800 mb-1">¿Para qué se usan estos datos?</p>
                     <p className="text-xs sm:text-sm text-blue-700 leading-relaxed">
-                      Los datos ingresados a continuación — <strong>nombre, apellido e inmobiliaria</strong> —
+                      Los datos ingresados — <strong>nombre, apellido e inmobiliaria</strong> —
                       serán utilizados para la <strong>generación de su certificado</strong>.
-                      Asegúrate de escribirlos correctamente tal como deseas que aparezcan en el documento.
+                      Escríbelos correctamente tal como deseas que aparezcan.
                     </p>
                   </div>
                 </div>
 
-                {/* Tarjetas de asistentes */}
                 <div className="space-y-3 sm:space-y-4">
                   {seats.map((seat: CheckoutSeat, index: number) => {
                     const isCompleted = completedAttendees.has(index)
@@ -864,20 +880,15 @@ export default function Checkout() {
                     return (
                       <Card key={seat.id} className={`transition-all duration-300 ${isCompleted ? 'border-green-500 bg-green-50' : ''}`}>
                         <CardContent className="p-0">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedAttendee(isExpanded ? -1 : index)}
-                            className="w-full px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                          >
+                          <button type="button" onClick={() => setExpandedAttendee(isExpanded ? -1 : index)}
+                            className="w-full px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                             <div className="flex items-center gap-2 sm:gap-3">
                               {isCompleted
                                 ? <div className="w-7 h-7 bg-green-500 text-white rounded-full flex items-center justify-center flex-shrink-0"><Check size={14} /></div>
                                 : <div className="w-7 h-7 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0">{index + 1}</div>
                               }
                               <div className="text-left">
-                                <p className="font-semibold text-sm sm:text-base">
-                                  Asistente {index + 1}{isCompleted && ' - Completado'}
-                                </p>
+                                <p className="font-semibold text-sm sm:text-base">Asistente {index + 1}{isCompleted && ' - Completado'}</p>
                                 <p className="text-xs text-gray-500">{seatLabel(seat, index)}</p>
                               </div>
                             </div>
@@ -887,47 +898,37 @@ export default function Checkout() {
                           <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
                             <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2 border-t">
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3">
-
                                 <div>
                                   <label className="block text-sm font-semibold mb-1.5">Nombre <span className="text-red-500">*</span></label>
                                   <Input name="nombre" value={attendee.nombre} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_nombre`]} placeholder="Tu nombre" required />
                                 </div>
-
                                 <div>
                                   <label className="block text-sm font-semibold mb-1.5">Apellido <span className="text-red-500">*</span></label>
                                   <Input name="apellido" value={attendee.apellido} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_apellido`]} placeholder="Tu apellido" required />
                                 </div>
-
                                 <Input label="Email (opcional)" name="email" type="email" value={attendee.email} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_email`]} placeholder="tu@email.com" />
-
                                 <div>
                                   <label className="block text-sm font-semibold mb-1.5">Teléfono <span className="text-red-500">*</span></label>
                                   <Input name="telefono" type="tel" value={attendee.telefono} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_telefono`]} placeholder="Tu número de teléfono" required />
                                 </div>
-
                                 <Input label="Documento de identidad (opcional)" name="documento" value={attendee.documento} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_documento`]} placeholder="Número de documento" />
 
                                 {/* Inmobiliaria */}
                                 <div className="sm:col-span-2">
-                                  <label className="block text-sm font-semibold mb-2">
-                                    Inmobiliaria / Oficina Alfa <span className="text-red-500">*</span>
-                                  </label>
+                                  <label className="block text-sm font-semibold mb-2">Inmobiliaria / Oficina Alfa <span className="text-red-500">*</span></label>
                                   <div className="flex flex-col sm:flex-row gap-2 mb-3">
-                                    {/* Oficina listada */}
                                     <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${!attendee.esExterno && !attendee.otraOficina ? 'border-primary bg-primary/5 text-primary font-semibold' : 'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
                                       <input type="radio" name={`tipoOficina_${index}`} checked={!attendee.esExterno && !attendee.otraOficina}
                                         onChange={() => setAttendees(prev => { const n = [...prev]; n[index] = { ...n[index], esExterno: false, otraOficina: false, otraOficinaNombre: '' }; return n })}
                                         className="accent-primary" />
                                       🏢 Oficina Alfa listada
                                     </label>
-                                    {/* Otra oficina */}
                                     <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${attendee.otraOficina && !attendee.esExterno ? 'border-primary bg-primary/5 text-primary font-semibold' : 'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
                                       <input type="radio" name={`tipoOficina_${index}`} checked={attendee.otraOficina && !attendee.esExterno}
                                         onChange={() => setAttendees(prev => { const n = [...prev]; n[index] = { ...n[index], esExterno: false, otraOficina: true, oficina: '' }; return n })}
                                         className="accent-primary" />
                                       🔍 Otra oficina Alfa
                                     </label>
-                                    {/* Externo */}
                                     <label className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm flex-1 ${attendee.esExterno ? 'border-orange-400 bg-orange-50 text-orange-700 font-semibold' : 'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
                                       <input type="radio" name={`tipoOficina_${index}`} checked={attendee.esExterno}
                                         onChange={() => setAttendees(prev => { const n = [...prev]; n[index] = { ...n[index], esExterno: true, otraOficina: false, oficina: '', otraOficinaNombre: '' }; return n })}
@@ -946,21 +947,16 @@ export default function Checkout() {
                                       {errors[`${index}_oficina`] && <p className="mt-1 text-xs text-red-500">{errors[`${index}_oficina`]}</p>}
                                     </div>
                                   )}
-
                                   {attendee.otraOficina && !attendee.esExterno && (
                                     <Input name="otraOficinaNombre" value={attendee.otraOficinaNombre} onChange={(e) => handleAttendeeChange(index, e)} error={errors[`${index}_otraOficinaNombre`]} placeholder="Escribe el nombre de tu oficina Alfa" required />
                                   )}
-
                                   {attendee.esExterno && (
                                     <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                                       <span className="text-orange-500 text-base flex-shrink-0">ℹ️</span>
-                                      <p className="text-xs sm:text-sm text-orange-700">
-                                        Tu certificado indicará que eres un <strong>participante externo</strong>.
-                                      </p>
+                                      <p className="text-xs sm:text-sm text-orange-700">Tu certificado indicará que eres un <strong>participante externo</strong>.</p>
                                     </div>
                                   )}
                                 </div>
-
                               </div>
                               <div className="mt-4">
                                 <Button type="button" onClick={() => handleSaveAttendee(index)} className="w-full sm:w-auto">
@@ -976,7 +972,7 @@ export default function Checkout() {
                 </div>
               </div>
 
-              {/* ── Método de pago ── */}
+              {/* Método de pago */}
               <Card className="mb-4 sm:mb-6 overflow-hidden border-primary/20 shadow-lg ring-1 ring-primary/5">
                 <div className="bg-primary/5 px-4 sm:px-6 py-4 border-b border-primary/10">
                   <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2">
@@ -985,7 +981,7 @@ export default function Checkout() {
                   </h2>
                 </div>
                 <CardContent className="p-4 sm:p-6">
-                  {paymentData.medioPago === 'qr' ? (
+                  {paymentData.medioPago ? (
                     <div className="flex items-center gap-4 p-4 rounded-xl border-2 border-green-400 bg-green-50">
                       <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
                         <QrCode className="w-6 h-6 text-white" />
@@ -995,8 +991,12 @@ export default function Checkout() {
                           <CheckCircle2 className="w-4 h-4 text-green-600" />
                           <span className="text-xs font-bold text-green-700 uppercase tracking-wide">Seleccionado</span>
                         </div>
-                        <p className="font-bold text-sm text-gray-900">Pago QR - Banco MC4</p>
-                        <p className="text-xs text-gray-500">Banca Móvil · Transacción segura</p>
+                        <p className="font-bold text-sm text-gray-900">
+                          {paymentData.medioPago === 'qr' ? 'Pago QR - Banco MC4' : 'Pago en Efectivo'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {paymentData.medioPago === 'qr' ? 'Banca Móvil · Transacción segura' : 'Comprobante requerido'}
+                        </p>
                       </div>
                       <button type="button" onClick={() => setShowQRSelectModal(true)}
                         className="text-xs text-primary font-bold border border-primary/30 px-3 py-1.5 rounded-lg hover:bg-primary/5 transition-colors flex-shrink-0">
@@ -1024,7 +1024,7 @@ export default function Checkout() {
                 </CardContent>
               </Card>
 
-              {/* ── Términos ── */}
+              {/* Términos */}
               <Card className="mb-4 sm:mb-6">
                 <CardContent className="p-4 sm:p-6">
                   <label className="flex items-start gap-3 cursor-pointer">
@@ -1041,7 +1041,7 @@ export default function Checkout() {
                 </CardContent>
               </Card>
 
-              {/* ── Botón principal ── */}
+              {/* Botón principal */}
               {resumeQRData ? (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs text-gray-500 px-1">
@@ -1068,7 +1068,7 @@ export default function Checkout() {
             </form>
           </div>
 
-          {/* ── Resumen desktop ── */}
+          {/* Resumen desktop */}
           <div className="hidden sm:block lg:col-span-1">
             <Card className="sticky top-24">
               <CardContent className="p-6">
@@ -1125,6 +1125,19 @@ export default function Checkout() {
         paymentStatus={paymentStatus}
       />
 
+      <CashPaymentModal
+        isOpen={showCashPaymentModal}
+        onClose={() => setShowCashPaymentModal(false)}
+        compraId={cashPaymentCompraId}
+        monto={totalPrice}
+        moneda="BOB"
+        eventId={eventId}
+        onSubmitSuccess={() => {
+          setShowCashPaymentModal(false)
+          navigate('/mis-compras?estado=PENDIENTE')
+        }}
+      />
+
       <QRSelectModal
         isOpen={showQRSelectModal}
         onClose={() => setShowQRSelectModal(false)}
@@ -1138,7 +1151,7 @@ export default function Checkout() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="px-6 py-4" style={{ background: '#233C7A' }}>
               <h2 className="text-white font-bold text-lg">Confirmar compra</h2>
-              <p className="text-xs" style={{ color: '#a8b8d8' }}>Revisa los datos antes de generar el QR</p>
+              <p className="text-xs" style={{ color: '#a8b8d8' }}>Revisa los datos antes de continuar</p>
             </div>
             <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
               {event && (
@@ -1172,7 +1185,7 @@ export default function Checkout() {
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <QrCode size={14} />
-                <span>Pago con QR · Banco MC4</span>
+                <span>{paymentData.medioPago === 'cash' ? 'Pago en Efectivo' : 'Pago con QR · Banco MC4'}</span>
               </div>
             </div>
             <div className="px-6 py-4 border-t flex gap-3">
@@ -1208,11 +1221,55 @@ export default function Checkout() {
                 <p className="text-green-800 text-sm font-medium">Tus entradas están disponibles en Mis Compras</p>
               </div>
               <button onClick={() => navigate('/mis-compras')}
-                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2">
+                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-xl transition-colors">
                 Ver mis entradas
               </button>
               <button onClick={() => navigate('/')} className="w-full mt-3 text-sm text-gray-500 hover:text-gray-700 py-2 transition-colors">
                 Volver al inicio
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal compras pendientes */}
+      {showPendingPurchasesModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center">
+                  <Clock size={24} className="text-yellow-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Tienes compras pendientes</h2>
+                  <p className="text-sm text-gray-500">
+                    Aún tienes {pendingPurchasesCount} compra{pendingPurchasesCount > 1 ? 's' : ''} esperando aprobación
+                  </p>
+                </div>
+              </div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4">
+                <p className="text-sm font-medium text-yellow-800 mb-1">
+                  ⚠️ No puedes realizar nuevas compras hasta que se aprueben tus comprobantes pendientes.
+                </p>
+                <p className="text-sm text-yellow-700">
+                  Espera a que el administrador revise y apruebe tu pago.
+                </p>
+              </div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+                <p className="text-sm font-medium text-gray-700 mb-3">Compras pendientes de este evento:</p>
+                <div className="flex gap-2 flex-wrap">
+                  {Array.from({ length: pendingPurchasesCount }).map((_, i) => (
+                    <div key={i} className="w-8 h-8 rounded-full bg-yellow-400 border-2 border-yellow-500 flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">{i + 1}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/mis-compras?estado=PENDIENTE')}
+                className="w-full px-4 py-3 rounded-xl font-medium text-white bg-primary hover:bg-primary/90 transition-all">
+                Ver mis compras pendientes
               </button>
             </div>
           </div>
