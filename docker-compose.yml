@@ -7,20 +7,11 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api}
-        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://localhost:3000}
+        # Valores tomados del .env (sin defaults hardcodeados)
+        - VITE_API_URL
+        - VITE_SOCKET_URL
     container_name: tickets_frontend_dev
     restart: unless-stopped
-    # Exponer puerto de Vite para desarrollo y nginx para producción
+    # Puertos configurables por .env para evitar conflictos entre proyectos
     ports:
-      - "5173:5173"
-      - "8080:80"
-    # VOLUMES PARA HOT RELOAD - Monta el código local en el contenedor
-    volumes:
-      - ./src:/app/src
-      - ./public:/app/public
-      - ./index.html:/app/index.html
-      - ./package.json:/app/package.json
-      - /app/node_modules  # Evita sobrescribir node_modules con versión vacía
-    # Comando para desarrollo con hot reload
-    command: npm run dev -- --host 0.0.0.0 --port 5173
+      - "${FRONTEND_PORT:-8080}:80"

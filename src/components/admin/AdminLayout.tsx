@@ -26,32 +26,43 @@ interface NavItem {
   label: string
   path?: string
   icon: React.ElementType
+  blockedRoles?: string[]
   children?: {
     label: string
     path: string
     icon?: React.ElementType
+    blockedRoles?: string[]
   }[]
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
-  { label: 'Eventos', path: '/admin/eventos', icon: Calendar },
-  { label: 'Usuarios', path: '/admin/usuarios', icon: Users },
+  { label: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard, blockedRoles: ['GESTOR_EVENTOS'] },
+  { label: 'Eventos', path: '/admin/eventos', icon: Calendar, blockedRoles: ['GESTOR_EVENTOS'] },
+  { label: 'Usuarios', path: '/admin/usuarios', icon: Users, blockedRoles: ['GESTOR_EVENTOS'] },
   {
     label: 'Asistencia',
     icon: ScanLine,
     children: [
       { label: 'Registrar Asistencia', path: '/admin/asistencia/registrar', icon: ClipboardCheck },
-      { label: 'Plantillas de Certificado', path: '/admin/asistencia/plantillas', icon: FileText }
+      { label: 'Plantillas de Certificado', path: '/admin/asistencia/plantillas', icon: FileText, blockedRoles: ['GESTOR_EVENTOS'] }
     ]
   },
   { label: 'Verificar Pagos', path: '/admin/verificar-pagos', icon: CheckCircle },
-  { label: 'Reportes', path: '/admin/reportes', icon: DollarSign }
+  { label: 'Reportes', path: '/admin/reportes', icon: DollarSign, blockedRoles: ['GESTOR_EVENTOS'] },
+  { label: 'Accesos', path: '/admin/accesos', icon: Shield, blockedRoles: ['GESTOR_EVENTOS'] }
 ]
 
 export default function AdminLayout() {
   const location = useLocation()
   const { user, logout } = useAuthStore()
+  const tipoRol = user?.tipoRol
+
+  const visibleNavItems = navItems
+    .filter(item => !tipoRol || !item.blockedRoles?.includes(tipoRol))
+    .map(item => ({
+      ...item,
+      children: item.children?.filter(child => !tipoRol || !child.blockedRoles?.includes(tipoRol))
+    }))
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
@@ -139,7 +150,7 @@ export default function AdminLayout() {
 
         {/* Navigation */}
         <nav className="flex min-h-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-auto px-2 py-2">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive = isItemActive(item)
             const hasChildren = item.children && item.children.length > 0
             const Icon = item.icon
@@ -277,7 +288,7 @@ export default function AdminLayout() {
                 <>
                   <div className="min-w-0 flex-1 text-left">
                     <p className="text-xs font-medium text-gray-900 dark:text-white truncate">{user?.nombre}</p>
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">ADMIN</p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{tipoRol ?? 'ADMIN'}</p>
                   </div>
                   <ChevronUp className={`h-4 w-4 text-gray-400 flex-shrink-0 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
                 </>

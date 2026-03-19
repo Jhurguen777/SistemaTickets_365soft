@@ -32,7 +32,6 @@ cypress/videos/
 
 # ── Docker (overrides locales) ─────────────────────────────────────
 docker-compose.override.yml
-docker-compose.yml
 
 # ── Certificados ───────────────────────────────────────────────────
 *.pem

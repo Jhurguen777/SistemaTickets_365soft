@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Shield,
   UserPlus,
@@ -16,10 +16,11 @@ import {
   CheckCircle,
   XCircle,
   Calendar,
-  X
+  X,
+  AlertTriangle
 } from 'lucide-react'
 import adminService from '@/services/adminService'
-import { Admin, CreateAdminDTO, AuditLog, ActiveSession, AdminRole, AuditAction } from '@/types/admin'
+import { Admin, CreateAdminDTO, AuditLog, ActiveSession, AdminRole, AuditAction, User } from '@/types/admin'
 
 const ROLE_LABELS: Record<AdminRole, string> = {
   SUPER_ADMIN: 'Super Admin',
@@ -55,9 +56,30 @@ export default function AccessManagement() {
     password: '',
     rol: 'GESTOR_EVENTOS'
   })
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null)
+  const [editForm, setEditForm] = useState({ nombre: '', email: '', rol: 'GESTOR_EVENTOS' as AdminRole, estado: 'ACTIVO' as 'ACTIVO' | 'INACTIVO', password: '' })
+  const [showAsignarModal, setShowAsignarModal] = useState(false)
+  const [usuarios, setUsuarios] = useState<User[]>([])
+  const [usuarioSearch, setUsuarioSearch] = useState('')
+  const [selectedUsuario, setSelectedUsuario] = useState<User | null>(null)
+  const [asignarRol, setAsignarRol] = useState<AdminRole>('GESTOR_EVENTOS')
   const [filterAdmin, setFilterAdmin] = useState<string>('todos')
   const [filterAction, setFilterAction] = useState<string>('todos')
   const [searchTerm, setSearchTerm] = useState('')
+  const [toast, setToast] = useState<{ show: boolean; type: 'success' | 'error'; message: string }>({ show: false, type: 'success', message: '' })
+  const [confirm, setConfirm] = useState<{ show: boolean; message: string; onConfirm: () => void } | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showToast = (type: 'success' | 'error', message: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast({ show: true, type, message })
+    toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 4000)
+  }
+
+  const showConfirm = (message: string, onConfirm: () => void) => {
+    setConfirm({ show: true, message, onConfirm })
+  }
 
   useEffect(() => {
     loadData()
@@ -83,7 +105,7 @@ export default function AccessManagement() {
 
   const handleCreateAdmin = async () => {
     if (!newAdmin.nombre || !newAdmin.email || !newAdmin.password) {
-      alert('Por favor completa todos los campos')
+      showToast('error', 'Por favor completa todos los campos')
       return
     }
 
@@ -91,40 +113,87 @@ export default function AccessManagement() {
       await adminService.createAdmin(newAdmin)
       await loadData()
       setShowCreateModal(false)
-      setNewAdmin({
-        nombre: '',
-        email: '',
-        password: '',
-        rol: 'GESTOR_EVENTOS'
-      })
-      alert('Administrador creado exitosamente')
+      setNewAdmin({ nombre: '', email: '', password: '', rol: 'GESTOR_EVENTOS' })
+      showToast('success', 'Administrador creado exitosamente')
     } catch (error: any) {
-      alert(error.message || 'Error al crear administrador')
+      showToast('error', error.message || 'Error al crear administrador')
     }
   }
 
   const handleDeleteAdmin = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este administrador?')) return
+    showConfirm('¿Estás seguro de eliminar este administrador?', async () => {
+      try {
+        await adminService.deleteAdmin(id)
+        await loadData()
+        showToast('success', 'Administrador eliminado')
+      } catch (error: any) {
+        showToast('error', error.message || 'Error al eliminar administrador')
+      }
+    })
+  }
 
+  const handleOpenAsignar = async () => {
     try {
-      await adminService.deleteAdmin(id)
+      const data = await adminService.getUsersList()
+      setUsuarios(data)
+    } catch {
+      setUsuarios([])
+    }
+    setSelectedUsuario(null)
+    setUsuarioSearch('')
+    setAsignarRol('GESTOR_EVENTOS')
+    setShowAsignarModal(true)
+  }
+
+  const handleAsignarRol = async () => {
+    if (!selectedUsuario) {
+      showToast('error', 'Selecciona un usuario')
+      return
+    }
+    try {
+      await adminService.promoverUsuario(selectedUsuario.id, asignarRol)
       await loadData()
-      alert('Administrador eliminado')
+      setShowAsignarModal(false)
+      showToast('success', `Rol asignado a ${selectedUsuario.nombre} exitosamente`)
     } catch (error: any) {
-      alert(error.message || 'Error al eliminar administrador')
+      showToast('error', error.message || 'Error al asignar rol')
+    }
+  }
+
+  const handleOpenEdit = (admin: Admin) => {
+    setEditingAdmin(admin)
+    setEditForm({ nombre: admin.nombre, email: admin.email, rol: admin.rol, estado: admin.estado, password: '' })
+    setShowEditModal(true)
+  }
+
+  const handleUpdateAdmin = async () => {
+    if (!editingAdmin) return
+    try {
+      await adminService.updateAdmin(editingAdmin.id, {
+        nombre: editForm.nombre,
+        email: editForm.email,
+        rol: editForm.rol,
+        estado: editForm.estado,
+        ...(editForm.password ? { password: editForm.password } : {})
+      })
+      await loadData()
+      setShowEditModal(false)
+      setEditingAdmin(null)
+    } catch (error: any) {
+      showToast('error', error.message || 'Error al actualizar administrador')
     }
   }
 
   const handleCloseSession = async (sessionId: string) => {
-    if (!confirm('¿Estás seguro de cerrar esta sesión?')) return
-
-    try {
-      await adminService.closeSession(sessionId)
-      await loadData()
-      alert('Sesión cerrada exitosamente')
-    } catch (error: any) {
-      alert(error.message || 'Error al cerrar sesión')
-    }
+    showConfirm('¿Estás seguro de cerrar esta sesión?', async () => {
+      try {
+        await adminService.closeSession(sessionId)
+        await loadData()
+        showToast('success', 'Sesión cerrada exitosamente')
+      } catch (error: any) {
+        showToast('error', error.message || 'Error al cerrar sesión')
+      }
+    })
   }
 
   const filteredLogs = auditLogs.filter(log => {
@@ -237,8 +306,15 @@ export default function AccessManagement() {
             </div>
           </div>
 
-          {/* Create Admin Button */}
-          <div className="flex justify-end">
+          {/* Buttons */}
+          <div className="flex flex-wrap justify-end gap-3">
+            <button
+              onClick={handleOpenAsignar}
+              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              <Shield size={16} />
+              ASIGNAR ROL A USUARIO EXISTENTE
+            </button>
             <button
               onClick={() => setShowCreateModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
@@ -320,7 +396,7 @@ export default function AccessManagement() {
 
                       <td className="py-4 px-4">
                         <div className="flex items-center justify-center gap-1.5">
-                          <button className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors" title="Editar">
+                          <button onClick={() => handleOpenEdit(admin)} className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors" title="Editar">
                             <Edit size={16} />
                           </button>
                           <button
@@ -390,7 +466,7 @@ export default function AccessManagement() {
 
                 {/* Actions row */}
                 <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
-                  <button className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <button onClick={() => handleOpenEdit(admin)} className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <Edit size={14} /> Editar
                   </button>
                   <button
@@ -466,22 +542,20 @@ export default function AccessManagement() {
                       <div className="flex items-center gap-2 mb-1">
                         <p className="font-medium text-gray-900 dark:text-white text-sm">{log.adminNombre}</p>
                         <span className="text-gray-300 dark:text-gray-600">•</span>
-                        <p className="text-xs text-gray-600 dark:text-gray-300">{ACTION_LABELS[log.accion]}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-300">{ACTION_LABELS[log.accion as AuditAction] ?? log.accion}</p>
                       </div>
                       <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{log.detalles}</p>
                       <div className="flex flex-wrap gap-4 text-xs text-gray-500 dark:text-gray-400">
                         <span className="flex items-center gap-1.5">
                           <Calendar size={12} />
-                          {new Date(log.fecha).toLocaleString('es-ES')}
+                          {new Date(log.createdAt).toLocaleString('es-ES')}
                         </span>
-                        <span className="flex items-center gap-1.5">
-                          <Monitor size={12} />
-                          {log.dispositivo} - {log.navegador}
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <MapPin size={12} />
-                          {log.ip}
-                        </span>
+                        {log.ip && (
+                          <span className="flex items-center gap-1.5">
+                            <MapPin size={12} />
+                            {log.ip}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -517,43 +591,32 @@ export default function AccessManagement() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4">
                       <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-700 dark:text-gray-300 font-semibold text-sm flex-shrink-0">
-                        {session.adminNombre.charAt(0)}
+                        {session.nombre.charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 dark:text-white text-sm mb-0.5">{session.adminNombre}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mb-3">
+                        <p className="font-medium text-gray-900 dark:text-white text-sm mb-0.5">{session.nombre}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mb-1">
                           <Mail size={12} />
-                          {session.adminEmail}
+                          {session.email}
                         </p>
-                        <div className="space-y-1.5 text-xs text-gray-600 dark:text-gray-300">
-                          <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 mb-2">
+                          {ROLE_LABELS[session.tipoRol as AdminRole] ?? session.tipoRol}
+                        </span>
+                        {session.ultimoAcceso && (
+                          <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
                             <Clock size={13} />
-                            <span>
-                              Inicio: {new Date(session.inicioSesion).toLocaleString('es-ES')}
-                            </span>
+                            <span>Último acceso: {new Date(session.ultimoAcceso).toLocaleString('es-ES')}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <MapPin size={13} />
-                            <span>{session.ubicacion}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Monitor size={13} />
-                            <span>{session.dispositivo}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-400 dark:text-gray-500">IP:</span>
-                            <span>{session.ip}</span>
-                          </div>
-                        </div>
+                        )}
                       </div>
                     </div>
 
                     <button
                       onClick={() => handleCloseSession(session.id)}
-                      className="flex items-center gap-2 px-3 py-2 bg-gray-900 dark:bg-gray-700 text-white text-xs font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors flex-shrink-0"
+                      className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors flex-shrink-0"
                     >
                       <LogOut size={14} />
-                      Cerrar Sesión
+                      Suspender Acceso
                     </button>
                   </div>
                 </div>
@@ -566,6 +629,226 @@ export default function AccessManagement() {
                 <p className="text-sm text-gray-500 dark:text-gray-400">No hay sesiones activas</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Asignar Rol a Usuario Existente Modal */}
+      {showAsignarModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Asignar Rol a Usuario Existente</h2>
+              <button onClick={() => setShowAsignarModal(false)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Buscador de usuarios */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Buscar Usuario Registrado</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Nombre o email..."
+                    value={usuarioSearch}
+                    onChange={(e) => { setUsuarioSearch(e.target.value); setSelectedUsuario(null) }}
+                    className="w-full pl-9 pr-4 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-500"
+                  />
+                </div>
+
+                {/* Lista filtrada */}
+                {usuarioSearch.length > 0 && !selectedUsuario && (
+                  <div className="mt-1 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                    {usuarios
+                      .filter(u =>
+                        u.hasPassword !== false &&
+                        !admins.some(a => a.email === u.email) &&
+                        (u.nombre.toLowerCase().includes(usuarioSearch.toLowerCase()) ||
+                        u.email.toLowerCase().includes(usuarioSearch.toLowerCase()))
+                      )
+                      .map(u => (
+                        <button
+                          key={u.id}
+                          onClick={() => { setSelectedUsuario(u); setUsuarioSearch(u.nombre) }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-left border-b border-gray-100 dark:border-gray-700 last:border-0"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-600 flex items-center justify-center text-xs font-semibold text-gray-700 dark:text-gray-300 flex-shrink-0">
+                            {u.nombre.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{u.nombre}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{u.email}</p>
+                          </div>
+                        </button>
+                      ))
+                    }
+                    {usuarios.filter(u =>
+                      u.hasPassword !== false &&
+                      (u.nombre.toLowerCase().includes(usuarioSearch.toLowerCase()) ||
+                      u.email.toLowerCase().includes(usuarioSearch.toLowerCase()))
+                    ).length === 0 && (
+                      <p className="text-center text-xs text-gray-500 dark:text-gray-400 py-4">No se encontraron usuarios disponibles</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Usuario seleccionado */}
+                {selectedUsuario && (
+                  <div className="mt-2 flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary flex-shrink-0">
+                      {selectedUsuario.nombre.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedUsuario.nombre}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{selectedUsuario.email}</p>
+                    </div>
+                    <button onClick={() => { setSelectedUsuario(null); setUsuarioSearch('') }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Selector de rol */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Rol a Asignar</label>
+                <select
+                  value={asignarRol}
+                  onChange={(e) => setAsignarRol(e.target.value as AdminRole)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-500"
+                >
+                  {Object.entries(ROLE_LABELS).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 text-xs text-amber-700 dark:text-amber-300">
+                Las cuentas registradas con Google no se muestran aquí ya que no tienen contraseña para acceder al panel admin. Para darles acceso, usa <span className="font-semibold">"Crear Administrador"</span>.
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex flex-col sm:flex-row justify-end gap-3">
+              <button
+                onClick={() => setShowAsignarModal(false)}
+                className="w-full sm:w-auto px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAsignarRol}
+                disabled={!selectedUsuario}
+                className="w-full sm:w-auto px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Asignar Rol
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Admin Modal */}
+      {showEditModal && editingAdmin && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Editar Administrador</h2>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Nombre Completo</label>
+                <input
+                  type="text"
+                  value={editForm.nombre}
+                  onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Email</label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Rol</label>
+                <select
+                  value={editForm.rol}
+                  onChange={(e) => setEditForm({ ...editForm, rol: e.target.value as AdminRole })}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-500"
+                >
+                  {Object.entries(ROLE_LABELS).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Estado</label>
+                <select
+                  value={editForm.estado}
+                  onChange={(e) => setEditForm({ ...editForm, estado: e.target.value as 'ACTIVO' | 'INACTIVO' })}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-500"
+                >
+                  <option value="ACTIVO">Activo</option>
+                  <option value="INACTIVO">Inactivo</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">
+                  Nueva Contraseña <span className="normal-case font-normal text-gray-400">(dejar en blanco para no cambiar)</span>
+                </label>
+                <input
+                  type="password"
+                  value={editForm.password}
+                  onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-500"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+                <p className="font-medium text-gray-900 dark:text-white text-xs mb-1">Permisos del rol seleccionado:</p>
+                <p className="text-gray-600 dark:text-gray-300 text-xs">
+                  {editForm.rol === 'SUPER_ADMIN' && 'Acceso total a todos los módulos'}
+                  {editForm.rol === 'GESTOR_EVENTOS' && 'Solo Asistencia → Registrar Asistencia'}
+                  {editForm.rol === 'GESTOR_REPORTES' && 'Solo módulo de Reportes (ver, exportar)'}
+                  {editForm.rol === 'GESTOR_ASISTENCIA' && 'Solo módulo de Asistencia (escanear QR, marcar, plantillas)'}
+                  {editForm.rol === 'GESTOR_USUARIOS' && 'Solo módulo de Usuarios (ver, bloquear)'}
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex flex-col sm:flex-row justify-end gap-3">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="w-full sm:w-auto px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleUpdateAdmin}
+                className="w-full sm:w-auto px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
+              >
+                Guardar Cambios
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -663,6 +946,51 @@ export default function AccessManagement() {
                 className="w-full sm:w-auto px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
               >
                 Crear Administrador
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast de notificación */}
+      {toast.show && (
+        <div className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${
+          toast.type === 'success'
+            ? 'bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 text-green-800 dark:text-green-300'
+            : 'bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 text-red-800 dark:text-red-300'
+        }`}>
+          {toast.type === 'success'
+            ? <CheckCircle size={18} className="flex-shrink-0" />
+            : <XCircle size={18} className="flex-shrink-0" />}
+          <span>{toast.message}</span>
+          <button onClick={() => setToast(t => ({ ...t, show: false }))} className="ml-2 opacity-60 hover:opacity-100">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Modal de confirmación */}
+      {confirm?.show && (
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-sm w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={20} className="text-red-600 dark:text-red-400" />
+              </div>
+              <p className="text-sm text-gray-700 dark:text-gray-300">{confirm.message}</p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirm(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { confirm.onConfirm(); setConfirm(null) }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+              >
+                Confirmar
               </button>
             </div>
           </div>

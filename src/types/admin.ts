@@ -156,6 +156,7 @@ export interface User {
   totalCompras: number
   totalGastado: number
   ultimoAcceso?: Date
+  hasPassword?: boolean
   createdAt: Date
 }
 
@@ -267,29 +268,27 @@ export type AuditAction =
   | 'DESBLOQUEAR_USUARIO'
   | 'MARCAR_ASISTENCIA'
   | 'CREAR_ADMIN'
+  | 'MODIFICAR_ADMIN'
+  | 'ELIMINAR_ADMIN'
+  | 'ASIGNAR_ROL'
   | 'MODIFICAR_CONFIG'
 
 export interface AuditLog {
   id: string
   adminId: string
   adminNombre: string
-  accion: AuditAction
+  accion: string
   detalles: string
-  ip: string
-  dispositivo: string
-  navegador: string
-  fecha: Date
+  ip?: string
+  createdAt: Date
 }
 
 export interface ActiveSession {
   id: string
-  adminId: string
-  adminNombre: string
-  adminEmail: string
-  inicioSesion: Date
-  ip: string
-  ubicacion: string
-  dispositivo: string
+  nombre: string
+  email: string
+  tipoRol: string
+  ultimoAcceso: Date | null
 }
 
 export type AsistenciaStatus = 'PENDIENTE' | 'CONFIRMADO' | 'ASISTIO' | 'NO_SHOW'

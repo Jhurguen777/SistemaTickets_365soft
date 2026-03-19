@@ -10,14 +10,29 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { isAuthenticated, isAdmin } = useAuthStore()
   const location = useLocation()
 
-  // Si no está autenticado, redirigir a login
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ redirectTo: location.pathname }} replace />
   }
 
-  // Si está autenticado pero no es admin, redirigir a home
   if (!isAdmin) {
     return <Navigate to="/" replace />
+  }
+
+  return <>{children}</>
+}
+
+// Redirige a /admin/asistencia/registrar si el tipoRol no tiene acceso a la ruta actual
+interface RoleProtectedRouteProps {
+  children: React.ReactNode
+  blockedRoles?: string[]
+}
+
+export const RoleProtectedRoute: React.FC<RoleProtectedRouteProps> = ({ children, blockedRoles = [] }) => {
+  const { user } = useAuthStore()
+  const tipoRol = user?.tipoRol
+
+  if (tipoRol && blockedRoles.includes(tipoRol)) {
+    return <Navigate to="/admin/asistencia/registrar" replace />
   }
 
   return <>{children}</>

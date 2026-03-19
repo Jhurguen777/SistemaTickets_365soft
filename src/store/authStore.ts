@@ -11,6 +11,7 @@ interface User {
   agencia?: string
   isAdmin: boolean
   rol?: string
+  tipoRol?: string
 }
 
 interface RegisterData {
@@ -89,7 +90,8 @@ export const useAuthStore = create<AuthState>()(
             apellido: usuario.apellido,
             agencia: usuario.agencia,
             isAdmin: usuario.isAdmin || false,
-            rol: usuario.rol
+            rol: usuario.rol,
+            tipoRol: usuario.tipoRol
           }
 
           get().setAuth(user, token)
@@ -151,7 +153,8 @@ export const useAuthStore = create<AuthState>()(
             apellido: usuario.apellido,
             agencia: usuario.agencia,
             isAdmin: usuario.isAdmin || false,
-            rol: usuario.rol
+            rol: usuario.rol,
+            tipoRol: usuario.tipoRol
           }
           get().setAuth(user, token)
         } catch {

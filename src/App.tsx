@@ -10,7 +10,7 @@ import StoreLocationsModal from '@/components/modals/StoreLocationsModal'
 import TermsModal from '@/components/modals/TermsModal'
 import PrivacyModal from '@/components/modals/PrivacyModal'
 import PaymentMethodsModal from '@/components/modals/PaymentMethodsModal'
-import ProtectedRoute from '@/components/auth/ProtectedRoute'
+import ProtectedRoute, { RoleProtectedRoute } from '@/components/auth/ProtectedRoute'
 import AdminLayout from '@/components/admin/AdminLayout'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import PendingPaymentBanner from '@/components/PendingPaymentBanner'
@@ -84,20 +84,20 @@ function App() {
               <AdminLayout />
             </ProtectedRoute>
           }>
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="eventos" element={<EventList />} />
-            <Route path="eventos/crear" element={<EventForm />} />
-            <Route path="eventos/:id/editar" element={<EventForm />} />
-            <Route path="eventos/:id/dibujar-mapa" element={<SeatMapEditor />} />
-            <Route path="eventos/:id" element={<AdminEventDetail />} />
-            <Route path="eventos/:id/clientes" element={<EventClientsPage />} />
-            <Route path="usuarios" element={<UsersList />} />
+            <Route path="dashboard" element={<RoleProtectedRoute blockedRoles={['GESTOR_EVENTOS']}><Dashboard /></RoleProtectedRoute>} />
+            <Route path="eventos" element={<RoleProtectedRoute blockedRoles={['GESTOR_EVENTOS']}><EventList /></RoleProtectedRoute>} />
+            <Route path="eventos/crear" element={<RoleProtectedRoute blockedRoles={['GESTOR_EVENTOS']}><EventForm /></RoleProtectedRoute>} />
+            <Route path="eventos/:id/editar" element={<RoleProtectedRoute blockedRoles={['GESTOR_EVENTOS']}><EventForm /></RoleProtectedRoute>} />
+            <Route path="eventos/:id/dibujar-mapa" element={<RoleProtectedRoute blockedRoles={['GESTOR_EVENTOS']}><SeatMapEditor /></RoleProtectedRoute>} />
+            <Route path="eventos/:id" element={<RoleProtectedRoute blockedRoles={['GESTOR_EVENTOS']}><AdminEventDetail /></RoleProtectedRoute>} />
+            <Route path="eventos/:id/clientes" element={<RoleProtectedRoute blockedRoles={['GESTOR_EVENTOS']}><EventClientsPage /></RoleProtectedRoute>} />
+            <Route path="usuarios" element={<RoleProtectedRoute blockedRoles={['GESTOR_EVENTOS']}><UsersList /></RoleProtectedRoute>} />
             <Route path="asistencia/registrar" element={<Attendance />} />
-            <Route path="asistencia/plantillas" element={<CertificateTemplates />} />
-            <Route path="verificar-pagos" element={<PaymentVerificationsPage />} />
-            <Route path="reportes" element={<Reports />} />
-            <Route path="accesos" element={<AccessManagement />} />
-            <Route path="configuracion" element={<Settings />} />
+            <Route path="asistencia/plantillas" element={<RoleProtectedRoute blockedRoles={['GESTOR_EVENTOS']}><CertificateTemplates /></RoleProtectedRoute>} />
+            <Route path="verificar-pagos" element={<RoleProtectedRoute blockedRoles={['GESTOR_EVENTOS']}><PaymentVerificationsPage /></RoleProtectedRoute>} />
+            <Route path="reportes" element={<RoleProtectedRoute blockedRoles={['GESTOR_EVENTOS']}><Reports /></RoleProtectedRoute>} />
+            <Route path="accesos" element={<RoleProtectedRoute blockedRoles={['GESTOR_EVENTOS']}><AccessManagement /></RoleProtectedRoute>} />
+            <Route path="configuracion" element={<RoleProtectedRoute blockedRoles={['GESTOR_EVENTOS']}><Settings /></RoleProtectedRoute>} />
           </Route>
         </Routes>
       </main>

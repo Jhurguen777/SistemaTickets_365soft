@@ -1323,13 +1323,14 @@ export const adminService = {
     }
   },
 
-  updateAdmin: async (id: string, data: Partial<CreateAdminDTO>): Promise<Admin> => {
+  updateAdmin: async (id: string, data: Partial<CreateAdminDTO> & { estado?: 'ACTIVO' | 'INACTIVO' }): Promise<Admin> => {
     try {
       const updateData: any = {}
       if (data.nombre) updateData.nombre = data.nombre
       if (data.email) updateData.email = data.email
       if (data.password) updateData.password = data.password
       if (data.rol) updateData.tipoRol = data.rol
+      if (data.estado) updateData.estado = data.estado
 
       const response = await api.put(`/admin/roles/${id}`, updateData)
 
@@ -1358,31 +1359,67 @@ export const adminService = {
     }
   },
 
+  promoverUsuario: async (usuarioId: string, tipoRol: string): Promise<Admin> => {
+    try {
+      const response = await api.post('/admin/roles/promover-usuario', { usuarioId, tipoRol })
+      const r = response.data.data
+      return {
+        id: r.id,
+        nombre: r.nombre,
+        email: r.email,
+        rol: r.tipoRol,
+        estado: r.estado,
+        createdAt: new Date(r.createdAt)
+      }
+    } catch (error: any) {
+      console.error('Error al promover usuario:', error)
+      throw new Error(error.response?.data?.error || 'Error al asignar rol')
+    }
+  },
+
   getAuditLogs: async (): Promise<AuditLog[]> => {
-    await new Promise(resolve => setTimeout(resolve, 300))
-    return getStoredAuditLogs()
+    try {
+      const response = await api.get('/admin/logs')
+      return response.data.data.map((l: any) => ({
+        id: l.id,
+        adminId: l.adminId,
+        adminNombre: l.adminNombre,
+        accion: l.accion,
+        detalles: l.detalles,
+        ip: l.ip,
+        createdAt: new Date(l.createdAt)
+      }))
+    } catch {
+      return []
+    }
   },
 
   getAuditLogsByAdmin: async (adminId: string): Promise<AuditLog[]> => {
-    await new Promise(resolve => setTimeout(resolve, 200))
-    const logs = getStoredAuditLogs()
+    const logs = await adminService.getAuditLogs()
     return logs.filter(log => log.adminId === adminId)
   },
 
   getActiveSessions: async (): Promise<ActiveSession[]> => {
-    await new Promise(resolve => setTimeout(resolve, 200))
-    return getStoredActiveSessions()
+    try {
+      const response = await api.get('/admin/sesiones')
+      return response.data.data.map((s: any) => ({
+        id: s.id,
+        nombre: s.nombre,
+        email: s.email,
+        tipoRol: s.tipoRol,
+        ultimoAcceso: s.ultimoAcceso ? new Date(s.ultimoAcceso) : null
+      }))
+    } catch {
+      return []
+    }
   },
 
   closeSession: async (sessionId: string): Promise<void> => {
-    await new Promise(resolve => setTimeout(resolve, 300))
-
-    const sessions = getStoredActiveSessions()
-    const filtered = sessions.filter(s => s.id !== sessionId)
-
-    if (filtered.length === sessions.length) throw new Error('Sesión no encontrada')
-
-    saveActiveSessions(filtered)
+    try {
+      await api.put(`/admin/roles/${sessionId}`, { estado: 'INACTIVO' })
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Error al suspender acceso')
+    }
   },
 
   getEventAttendees: async (eventId: string): Promise<PurchaseWithAttendees[]> => {
